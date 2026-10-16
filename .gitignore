@@ -1,0 +1,33 @@
+.env
+.DS_Store
+
+# Credenciales de producción (nunca al repositorio)
+.secrets-prod/
+*.pem
+*.key
+
+# Dependencias, compilados y archivos generados
+node_modules/
+dist/
+*.tsbuildinfo
+*.log
+.DS_Store
+
+# Archivos subidos (fotos, logos, comprobantes): viven en el bucket, no en el repositorio
+backend/uploads/
+
+# Variables de entorno (nunca al repositorio; el ejemplo sí)
+.env
+.env.*
+!.env.example
+
+# Datos reales de ejemplo (nombres de empleados, marcas del reloj)
+ejemplo-tarjeta-reloj.xlsx
+
+# Configuración local de Claude Code
+.claude/
+
+# Documentos internos de la empresa (no se publican): auditoría de seguridad, guía de despliegue y diseño del negocio
+AUDITORIA.md
+DEPLOY_GUIDE.md
+DISENO_CONEJO_BLANCO.docx

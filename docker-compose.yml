@@ -1,0 +1,18 @@
+services:
+  postgres_db:
+    image: postgres:15
+    container_name: conejo-blanco-db
+    restart: always
+    environment:
+      POSTGRES_DB: conejo_blanco_dev
+      POSTGRES_USER: admin
+      # La contraseña se toma de la variable de entorno / archivo .env (ver backend/.env.example).
+      # Falla explícitamente si no está definida.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Definí POSTGRES_PASSWORD en un archivo .env (ver backend/.env.example)}
+    ports:
+      - "5434:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:

@@ -1,0 +1,198 @@
+@import 'tailwindcss';
+
+:root {
+  color-scheme: light;
+}
+
+body {
+  @apply bg-slate-50 text-slate-900;
+  font-family:
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    sans-serif;
+}
+
+/* @layer components pone estas clases ANTES de la capa utilities de
+   Tailwind en el CSS final (sin importar el orden en que aparecen en
+   este archivo). Sin esto, una utilidad puntual como `pl-12` (para
+   dejarle espacio a un ícono dentro de .input) pierde el empate de
+   especificidad contra el `px-4` ya compilado dentro de .input, porque
+   ambas reglas pesan igual y .input queda escrita después en el CSS —
+   así se rompió el ícono de lupa tapando el texto escrito. Con
+   @layer components, cualquier utilidad de Tailwind gana siempre,
+   sin tener que recurrir a `!importante`. */
+@layer components {
+  /* Alto táctil generoso (Apple/Google recomiendan 44-48px; acá vamos un
+     poco más para dedos menos precisos), pero con texto en tamaño normal
+     de interfaz — no hace falta agrandar la letra para que sea fácil de
+     tocar. Tailwind v4 no permite @apply de una clase custom dentro de
+     otra, así que las variantes repiten el layout base en vez de
+     encadenar @apply. */
+  .btn,
+  .btn-primary,
+  .btn-secondary,
+  .btn-danger {
+    @apply inline-flex min-h-14 items-center justify-center gap-2 rounded-2xl px-5 text-base font-semibold transition active:scale-[0.98];
+  }
+
+  .btn-primary {
+    @apply bg-blue-600 text-white shadow-sm hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300;
+  }
+
+  .btn-secondary {
+    @apply border-2 border-slate-300 bg-white text-slate-700 hover:bg-slate-100;
+  }
+
+  .btn-danger {
+    @apply bg-red-600 text-white hover:bg-red-700;
+  }
+
+  .input {
+    @apply min-h-14 w-full rounded-xl border-2 border-slate-300 bg-white px-4 text-base text-slate-900 outline-none focus:border-blue-500;
+  }
+
+  .label {
+    @apply mb-1.5 block text-sm font-medium text-slate-600;
+  }
+
+  .card {
+    @apply rounded-2xl border border-slate-200 bg-white p-4 shadow-sm;
+  }
+
+  /* Panel de administración: se usa con mouse y pantalla grande, así que
+     los controles son más compactos que en la vista del vendedor (que se
+     toca con el dedo y necesita áreas grandes). Todo cuelga de .admin
+     (ver AdminLayout.vue) para no tocar la vista del vendedor. */
+  .admin .btn,
+  .admin .btn-primary,
+  .admin .btn-secondary,
+  .admin .btn-danger {
+    @apply min-h-10 gap-1.5 rounded-lg px-4 text-sm;
+  }
+
+  .admin .btn-secondary {
+    @apply border;
+  }
+
+  .admin .input {
+    @apply min-h-10 rounded-lg border px-3 text-sm focus:ring-2 focus:ring-blue-100;
+  }
+
+  .admin .label {
+    @apply mb-1 text-xs font-semibold text-slate-600;
+  }
+
+  .admin select.input {
+    @apply cursor-pointer appearance-none bg-no-repeat pr-9;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-position: right 0.65rem center;
+    background-size: 1rem;
+  }
+
+  .admin input[type='checkbox'],
+  .admin input[type='radio'] {
+    @apply accent-blue-600;
+  }
+
+  .admin .card {
+    @apply rounded-xl p-4;
+  }
+}
+
+/* Al imprimir un informe del panel, solo sale el contenido (sin menú ni
+   barra superior). */
+@media print {
+  .admin aside,
+  .admin header {
+    display: none !important;
+  }
+}
+
+/* ==== Tema oscuro (solo la cuenta del administrador del sistema) ====
+   Tailwind v4 arma sus colores con variables (--color-slate-200, --color-white…), así que
+   basta redefinirlas para invertir todo el panel: el blanco pasa a negro y los grises se
+   invierten. Los textos de énfasis (slate-800/900 y los acentos 600–900) se ajustan aparte
+   para que se lean sobre fondo negro. Se activa con la clase `tema-oscuro` en <html>. */
+html.tema-oscuro {
+  color-scheme: dark;
+
+  --color-white: #0e1013;
+  --color-slate-50: #050607;
+  --color-slate-100: #171a1f;
+  --color-slate-200: #262b33;
+  --color-slate-300: #373e49;
+  --color-slate-400: #6f7886;
+  --color-slate-500: #8e98a6;
+  --color-slate-600: #aab3bf;
+  --color-slate-700: #c7ced8;
+
+  --color-blue-50: #0a1a30;
+  --color-blue-100: #0e2646;
+  --color-blue-200: #173b6b;
+  --color-green-50: #0a2316;
+  --color-green-100: #0e3320;
+  --color-green-200: #17502f;
+  --color-red-50: #2a1010;
+  --color-red-100: #3b1515;
+  --color-red-200: #5a1f1f;
+  --color-amber-50: #2a1f08;
+  --color-amber-100: #3b2c0b;
+  --color-amber-200: #5c4310;
+  --color-teal-50: #0a2321;
+  --color-teal-100: #0e3430;
+  --color-purple-50: #1f1233;
+  --color-purple-100: #2c1a49;
+}
+
+html.tema-oscuro body {
+  color: #f3f4f6;
+}
+
+html.tema-oscuro .text-slate-800,
+html.tema-oscuro .text-slate-900 {
+  color: #f3f4f6;
+}
+html.tema-oscuro .hover\:text-slate-900:hover {
+  color: #ffffff;
+}
+/* Texto blanco sobre botones de color (azul, rojo…): sigue blanco aunque --color-white sea negro. */
+html.tema-oscuro .text-white {
+  color: #ffffff;
+}
+/* Acentos de texto: versiones claras para fondo negro. */
+html.tema-oscuro .text-blue-600,
+html.tema-oscuro .text-blue-700,
+html.tema-oscuro .text-blue-800 {
+  color: #7db3ff;
+}
+html.tema-oscuro .text-green-600,
+html.tema-oscuro .text-green-700,
+html.tema-oscuro .text-green-800 {
+  color: #6ee7a8;
+}
+html.tema-oscuro .text-red-600,
+html.tema-oscuro .text-red-700,
+html.tema-oscuro .text-red-800 {
+  color: #fca5a5;
+}
+html.tema-oscuro .text-amber-700,
+html.tema-oscuro .text-amber-800,
+html.tema-oscuro .text-amber-900 {
+  color: #fcd34d;
+}
+html.tema-oscuro .text-teal-600,
+html.tema-oscuro .text-teal-700 {
+  color: #5eead4;
+}
+html.tema-oscuro .text-purple-700 {
+  color: #d8b4fe;
+}
+/* Tarjetas con borde de acento y menú activo mantienen su color; el resto de bordes ya siguen la paleta. */
+html.tema-oscuro .card {
+  box-shadow: none;
+}
+html.tema-oscuro ::placeholder {
+  color: #6f7886;
+}
