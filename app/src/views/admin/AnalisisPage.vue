@@ -78,11 +78,10 @@ watch([pestana, desde, hasta], cargar);
 
 const v = computed(() => datos.ventas);
 const periodosVentas = computed(() => (v.value?.porMes ?? []).map((m) => ({ etiqueta: mesCorto(m.etiqueta), a: m.venta, b: m.margen })));
-const nombresVentas = computed(() => (sinCostoTodo.value ? ['Venta neta'] : ['Venta neta', 'Margen']));
+const sinCostoTodo = computed(() => Boolean(v.value?.kpis.sinCostoRegistrado));
+const nombresVentas = computed(() => (sinCostoTodo.value ? ['Venta neta'] : ['Venta neta', 'Margen bruto']));
 const periodosPlanilla = computed(() => (datos.planilla?.porPlanilla ?? []).map((p) => ({ etiqueta: p.etiqueta, a: p.bruto, b: p.cargas })));
-const periodosExtras = computed(() => (datos.planilla?.porPlanilla ?? []).map((p) => ({ etiqueta: p.etiqueta, a: p.horasExtra })));
 const periodosConta = computed(() => (datos.contabilidad?.porMes ?? []).map((m) => ({ etiqueta: mesCorto(m.etiqueta), a: m.ingresos, b: m.gastos })));
-const sinCostoTodo = computed(() => v.value && v.value.kpis.lineas > 0 && v.value.kpis.lineasSinCosto === v.value.kpis.lineas);
 
 // ---- Datos y Power BI
 const catalogo = ref([]);
@@ -247,28 +246,32 @@ onMounted(() => {
     <p v-if="error" class="text-sm font-medium text-red-600">{{ error }}</p>
     <p v-if="cargando && pestana !== 'datos'" class="text-sm text-slate-500">Calculando…</p>
 
+    <!-- Todo sale del libro mayor -->
+    <p v-if="pestana !== 'datos'" class="text-xs text-slate-500">Las cifras en colones de estos tableros salen del <strong>libro mayor</strong>; el cliente, producto o planilla de cada monto se toma del documento que originó el asiento. El detalle operativo se compara contra el mayor en el "cuadre".</p>
+
     <!-- VENTAS -->
     <template v-if="pestana === 'ventas' && v">
-      <p v-if="v.kpis.lineasSinCosto > 0" class="rounded-lg border border-amber-400/60 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-        {{ v.kpis.lineasSinCosto }} de {{ v.kpis.lineas }} líneas vendidas no tienen costo registrado; en esas líneas el margen se calcula con costo cero.<template v-if="sinCostoTodo"> Por eso el margen aún no es confiable.</template>
-      </p>
+      <p v-if="sinCostoTodo" class="rounded-lg border border-amber-400/60 bg-amber-50 px-3 py-2 text-sm text-amber-800">El libro mayor no tiene costo de ventas en este período (los productos vendidos no tenían costo registrado). Por eso el margen todavía no es confiable.</p>
       <div class="grid grid-cols-2 gap-3 lg:grid-cols-6">
-        <div class="card"><p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Venta neta</p><p class="mt-1 text-xl font-bold text-slate-900">{{ crc(v.kpis.venta) }}</p></div>
-        <div class="card"><p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Margen</p><p class="mt-1 text-xl font-bold text-slate-900">{{ sinCostoTodo ? '—' : crc(v.kpis.margen) }}</p><p class="mt-1 text-xs text-slate-500">{{ sinCostoTodo ? 'falta registrar costos' : pct(v.kpis.margenPct) }}</p></div>
+        <div class="card"><p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Venta neta</p><p class="mt-1 text-xl font-bold text-slate-900">{{ crc(v.kpis.venta) }}</p><p class="mt-1 text-xs text-slate-500">cuentas 4100–4120</p></div>
+        <div class="card"><p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Costo de ventas</p><p class="mt-1 text-xl font-bold text-slate-900">{{ crc(v.kpis.costo) }}</p><p class="mt-1 text-xs text-slate-500">cuenta 5100</p></div>
+        <div class="card"><p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Margen bruto</p><p class="mt-1 text-xl font-bold text-slate-900">{{ sinCostoTodo ? '—' : crc(v.kpis.margen) }}</p><p class="mt-1 text-xs text-slate-500">{{ sinCostoTodo ? 'falta registrar costos' : pct(v.kpis.margenPct) }}</p></div>
         <div class="card"><p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Facturas</p><p class="mt-1 text-xl font-bold text-slate-900">{{ num(v.kpis.facturas) }}</p></div>
         <div class="card"><p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Clientes</p><p class="mt-1 text-xl font-bold text-slate-900">{{ num(v.kpis.clientes) }}</p></div>
         <div class="card"><p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Ticket promedio</p><p class="mt-1 text-xl font-bold text-slate-900">{{ crc(v.kpis.ticketPromedio) }}</p></div>
-        <div class="card"><p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Unidades</p><p class="mt-1 text-xl font-bold text-slate-900">{{ num(v.kpis.unidades) }}</p></div>
       </div>
+      <p class="text-xs" :class="v.cuadre.cuadra ? 'text-green-600' : 'font-semibold text-amber-600'">
+        {{ v.cuadre.cuadra ? `Cuadre: el mayor (${crc(v.cuadre.mayor)}) coincide con ${v.cuadre.contra}.` : `Atención: el mayor dice ${crc(v.cuadre.mayor)} y ${v.cuadre.contra} suman ${crc(v.cuadre.detalle)} (diferencia ${crc(v.cuadre.diferencia)}). Conviene revisar los asientos.` }}
+      </p>
       <div class="card">
-        <p class="mb-1 text-sm font-semibold text-slate-900">{{ sinCostoTodo ? 'Venta por mes' : 'Venta y margen por mes' }}</p>
+        <p class="mb-1 text-sm font-semibold text-slate-900">{{ sinCostoTodo ? 'Venta por mes' : 'Venta y margen bruto por mes' }}</p>
         <BarrasPeriodo :periodos="periodosVentas" :nombres="nombresVentas" :colores="['#6366f1', '#10b981']" :formato="crc" />
       </div>
       <div class="grid grid-cols-1 gap-3 xl:grid-cols-2">
         <div class="card"><p class="mb-2 text-sm font-semibold text-slate-900">Mejores clientes</p><BarrasHorizontales :filas="filasVenta(v.topClientes)" :formato="crc" /></div>
         <div class="card">
           <p class="mb-1 text-sm font-semibold text-slate-900">Productos que más venden (análisis ABC)</p>
-          <p class="mb-2 text-xs text-slate-500">A = junta el 80 % de la venta ({{ v.abc.clases.A }} de {{ v.abc.productosTotal }} productos), B hasta el 95 % ({{ v.abc.clases.B }}), C el resto ({{ v.abc.clases.C }}).</p>
+          <p class="mb-2 text-xs text-slate-500">A = junta el 80 % de la venta ({{ v.abc.clases.A }} de {{ v.abc.productosTotal }} productos), B hasta el 95 % ({{ v.abc.clases.B }}), C el resto ({{ v.abc.clases.C }}).<template v-if="Math.abs(v.abc.sinDetalle) >= 1"> Sin detalle de producto: {{ crc(v.abc.sinDetalle) }}.</template></p>
           <BarrasHorizontales :filas="v.abc.filas.map((r) => ({ etiqueta: `${r.clase} · ${r.etiqueta}`, valor: r.venta, extra: `acumulado ${r.acumuladoPct} %` }))" :formato="crc" />
         </div>
         <div class="card"><p class="mb-2 text-sm font-semibold text-slate-900">Por vendedor</p><BarrasHorizontales :filas="filasVenta(v.porVendedor)" :formato="crc" color="#0ea5e9" /></div>
@@ -281,14 +284,18 @@ onMounted(() => {
     <!-- CARTERA -->
     <template v-if="pestana === 'cartera' && datos.cartera">
       <div class="grid grid-cols-2 gap-3 lg:grid-cols-5">
-        <div class="card"><p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Por cobrar</p><p class="mt-1 text-xl font-bold text-slate-900">{{ crc(datos.cartera.kpis.saldo) }}</p><p class="mt-1 text-xs text-slate-500">{{ datos.cartera.kpis.facturas }} facturas</p></div>
+        <div class="card"><p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Por cobrar</p><p class="mt-1 text-xl font-bold text-slate-900">{{ crc(datos.cartera.kpis.saldo) }}</p><p class="mt-1 text-xs text-slate-500">cuenta 1200 del mayor</p></div>
         <div class="card" :class="datos.cartera.kpis.vencido > 0 ? 'ring-1 ring-amber-500/50' : ''"><p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Vencido</p><p class="mt-1 text-xl font-bold text-slate-900">{{ crc(datos.cartera.kpis.vencido) }}</p><p class="mt-1 text-xs text-slate-500">{{ pct(datos.cartera.kpis.vencidoPct) }} de la cartera</p></div>
         <div class="card"><p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Clientes con saldo</p><p class="mt-1 text-xl font-bold text-slate-900">{{ datos.cartera.kpis.clientes }}</p></div>
+        <div class="card"><p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Facturas abiertas</p><p class="mt-1 text-xl font-bold text-slate-900">{{ datos.cartera.kpis.facturasAbiertas }}</p></div>
         <div class="card"><p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Atraso promedio</p><p class="mt-1 text-xl font-bold text-slate-900">{{ datos.cartera.kpis.diasPromVencida }} días</p><p class="mt-1 text-xs text-slate-500">solo facturas vencidas</p></div>
       </div>
+      <p class="text-xs" :class="datos.cartera.cuadre.cuadra ? 'text-green-600' : 'font-semibold text-amber-600'">
+        {{ datos.cartera.cuadre.cuadra ? `Cuadre: el mayor (${crc(datos.cartera.cuadre.mayor)}) coincide con ${datos.cartera.cuadre.contra}.` : `Atención: el mayor dice ${crc(datos.cartera.cuadre.mayor)} y ${datos.cartera.cuadre.contra} suma ${crc(datos.cartera.cuadre.detalle)} (diferencia ${crc(datos.cartera.cuadre.diferencia)}); puede haber pagos sin aplicar a una factura.` }}
+      </p>
       <div class="grid grid-cols-1 gap-3 xl:grid-cols-2">
-        <div class="card"><p class="mb-2 text-sm font-semibold text-slate-900">Antigüedad de la cartera</p><BarrasHorizontales :filas="datos.cartera.tramos.map((t) => ({ etiqueta: t.etiqueta, valor: t.saldo, extra: `${t.facturas} facturas` }))" :formato="crc" color="#d97706" vacio="No hay saldos por cobrar." /></div>
-        <div class="card"><p class="mb-2 text-sm font-semibold text-slate-900">Clientes que más deben</p><BarrasHorizontales :filas="datos.cartera.deudores.map((d) => ({ etiqueta: d.etiqueta, valor: d.saldo }))" :formato="crc" color="#d97706" vacio="No hay saldos por cobrar." /></div>
+        <div class="card"><p class="mb-1 text-sm font-semibold text-slate-900">Antigüedad de la cartera</p><p class="mb-2 text-xs text-slate-500">Por factura abierta (la antigüedad no se puede sacar del mayor, que no separa facturas).</p><BarrasHorizontales :filas="datos.cartera.tramos.map((t) => ({ etiqueta: t.etiqueta, valor: t.saldo, extra: `${t.facturas} facturas` }))" :formato="crc" color="#d97706" vacio="No hay saldos por cobrar." /></div>
+        <div class="card"><p class="mb-1 text-sm font-semibold text-slate-900">Clientes que más deben</p><p class="mb-2 text-xs text-slate-500">Saldo de la cuenta 1200 por cliente.</p><BarrasHorizontales :filas="datos.cartera.deudores.map((d) => ({ etiqueta: d.etiqueta, valor: d.saldo }))" :formato="crc" color="#d97706" vacio="No hay saldos por cobrar." /></div>
         <div class="card overflow-x-auto xl:col-span-2">
           <p class="mb-2 text-sm font-semibold text-slate-900">Facturas más atrasadas</p>
           <table class="w-full min-w-[28rem] text-sm">
@@ -306,13 +313,16 @@ onMounted(() => {
     <template v-if="pestana === 'inventario' && datos.inventario">
       <p v-if="datos.inventario.kpis.stockNegativo > 0" class="rounded-lg border border-red-400/60 bg-red-50 px-3 py-2 text-sm text-red-700">Hay {{ datos.inventario.kpis.stockNegativo }} existencias en negativo: conviene revisarlas.</p>
       <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <div class="card"><p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Inventario en el mayor</p><p class="mt-1 text-xl font-bold text-slate-900">{{ crc(datos.inventario.kpis.valorMayor) }}</p><p class="mt-1 text-xs text-slate-500">cuentas 1300–1320</p></div>
         <div class="card"><p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Pares en existencia</p><p class="mt-1 text-xl font-bold text-slate-900">{{ num(datos.inventario.kpis.pares) }}</p></div>
-        <div class="card"><p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Valor a costo</p><p class="mt-1 text-xl font-bold text-slate-900">{{ crc(datos.inventario.kpis.valorCosto) }}</p></div>
-        <div class="card"><p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Valor a precio de venta</p><p class="mt-1 text-xl font-bold text-slate-900">{{ crc(datos.inventario.kpis.valorVenta) }}</p></div>
-        <div class="card"><p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Variantes con stock</p><p class="mt-1 text-xl font-bold text-slate-900">{{ datos.inventario.kpis.variantesConStock }}</p></div>
+        <div class="card"><p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Existencias a costo</p><p class="mt-1 text-xl font-bold text-slate-900">{{ crc(datos.inventario.kpis.valorCosto) }}</p><p class="mt-1 text-xs text-slate-500">detalle de bodega</p></div>
+        <div class="card"><p class="text-xs font-semibold uppercase tracking-wide text-slate-500">A precio de venta</p><p class="mt-1 text-xl font-bold text-slate-900">{{ crc(datos.inventario.kpis.valorVenta) }}</p><p class="mt-1 text-xs text-slate-500">{{ datos.inventario.kpis.variantesConStock }} variantes con stock</p></div>
       </div>
+      <p class="text-xs" :class="datos.inventario.cuadre.cuadra ? 'text-green-600' : 'font-semibold text-amber-600'">
+        {{ datos.inventario.cuadre.cuadra ? `Cuadre: el mayor (${crc(datos.inventario.cuadre.mayor)}) coincide con ${datos.inventario.cuadre.contra}.` : `Atención: el mayor dice ${crc(datos.inventario.cuadre.mayor)} y ${datos.inventario.cuadre.contra} suman ${crc(datos.inventario.cuadre.detalle)} (diferencia ${crc(datos.inventario.cuadre.diferencia)}). Es normal si hay existencias cargadas sin asiento o productos sin costo.` }}
+      </p>
       <div class="grid grid-cols-1 gap-3 xl:grid-cols-2">
-        <div class="card"><p class="mb-2 text-sm font-semibold text-slate-900">Pares por ubicación</p><BarrasHorizontales :filas="datos.inventario.porUbicacion.map((u) => ({ etiqueta: u.etiqueta, valor: u.pares, extra: `valor a costo ${crc(u.valor)}` }))" :formato="num" /></div>
+        <div class="card"><p class="mb-2 text-sm font-semibold text-slate-900">Pares por ubicación</p><BarrasHorizontales :filas="datos.inventario.porUbicacion.map((u) => ({ etiqueta: u.etiqueta, valor: u.pares, extra: `a costo ${crc(u.valor)}` }))" :formato="num" /></div>
         <div class="card"><p class="mb-2 text-sm font-semibold text-slate-900">Productos con más valor inmovilizado (a costo)</p><BarrasHorizontales :filas="datos.inventario.topValor.map((u) => ({ etiqueta: u.etiqueta, valor: u.valor, extra: `${u.pares} pares` }))" :formato="crc" color="#0ea5e9" /></div>
         <div class="card xl:col-span-2"><p class="mb-2 text-sm font-semibold text-slate-900">Movimientos del período (pares netos por tipo)</p><BarrasHorizontales :filas="datos.inventario.porTipoMovimiento.map((m) => ({ etiqueta: bonito(m.etiqueta), valor: m.pares, extra: `${m.movimientos} movimientos` }))" :formato="num" color="#10b981" /></div>
       </div>
@@ -320,24 +330,30 @@ onMounted(() => {
 
     <!-- PLANILLA -->
     <template v-if="pestana === 'planilla' && datos.planilla">
-      <p class="text-xs text-slate-500">Solo planillas aprobadas o pagadas. Se muestran totales y promedios, nunca personas.</p>
+      <p v-if="!datos.planilla.porPlanilla.length" class="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+        Todavía no hay planillas aprobadas en este período. Una planilla entra al libro mayor cuando se <strong>aprueba</strong> (genera su asiento); las marcas del reloj importadas no son un gasto hasta entonces.
+        <template v-if="datos.planilla.pendiente.borradores || datos.planilla.pendiente.diasImportados">Ahora hay {{ datos.planilla.pendiente.diasImportados }} días de asistencia importados y {{ datos.planilla.pendiente.borradores }} planilla(s) en borrador por aprobar.</template>
+      </p>
+      <p class="text-xs text-slate-500">Costos del libro mayor (sueldos 5200, cargas 5210, provisiones 5220). Solo totales y promedios, nunca personas.</p>
       <div class="grid grid-cols-2 gap-3 lg:grid-cols-5">
-        <div class="card"><p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Costo total</p><p class="mt-1 text-xl font-bold text-slate-900">{{ crc(datos.planilla.kpis.costoTotal) }}</p><p class="mt-1 text-xs text-slate-500">bruto + cargas + provisiones</p></div>
-        <div class="card"><p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Salarios brutos</p><p class="mt-1 text-xl font-bold text-slate-900">{{ crc(datos.planilla.kpis.bruto) }}</p><p class="mt-1 text-xs text-slate-500">neto {{ crc(datos.planilla.kpis.neto) }}</p></div>
+        <div class="card"><p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Costo laboral total</p><p class="mt-1 text-xl font-bold text-slate-900">{{ crc(datos.planilla.kpis.costoTotal) }}</p><p class="mt-1 text-xs text-slate-500">sueldos + cargas + provisiones</p></div>
+        <div class="card"><p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Sueldos brutos</p><p class="mt-1 text-xl font-bold text-slate-900">{{ crc(datos.planilla.kpis.bruto) }}</p><p class="mt-1 text-xs text-slate-500">neto {{ crc(datos.planilla.kpis.neto) }}</p></div>
         <div class="card"><p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Cargas patronales</p><p class="mt-1 text-xl font-bold text-slate-900">{{ crc(datos.planilla.kpis.cargas) }}</p><p class="mt-1 text-xs text-slate-500">provisiones {{ crc(datos.planilla.kpis.provisiones) }}</p></div>
         <div class="card"><p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Horas extra</p><p class="mt-1 text-xl font-bold text-slate-900">{{ num(datos.planilla.kpis.horasExtra) }} h</p><p class="mt-1 text-xs text-slate-500">{{ crc(datos.planilla.kpis.extras) }} · {{ pct(datos.planilla.kpis.extrasPct) }} del bruto</p></div>
         <div class="card"><p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Planillas</p><p class="mt-1 text-xl font-bold text-slate-900">{{ datos.planilla.kpis.planillas }}</p><p class="mt-1 text-xs text-slate-500">{{ datos.planilla.kpis.empleados }} empleados</p></div>
       </div>
+      <p v-if="datos.planilla.porPlanilla.length" class="text-xs" :class="datos.planilla.cuadre.cuadra ? 'text-green-600' : 'font-semibold text-amber-600'">
+        {{ datos.planilla.cuadre.cuadra ? `Cuadre: los sueldos del mayor (${crc(datos.planilla.cuadre.mayor)}) coinciden con ${datos.planilla.cuadre.contra}.` : `Atención: el mayor dice ${crc(datos.planilla.cuadre.mayor)} y ${datos.planilla.cuadre.contra} suman ${crc(datos.planilla.cuadre.detalle)} (diferencia ${crc(datos.planilla.cuadre.diferencia)}).` }}
+      </p>
       <div class="grid grid-cols-1 gap-3 xl:grid-cols-2">
-        <div class="card"><p class="mb-1 text-sm font-semibold text-slate-900">Costo por planilla</p><BarrasPeriodo :periodos="periodosPlanilla" :nombres="['Salario bruto', 'Cargas patronales']" :colores="['#6366f1', '#d97706']" :formato="crc" /></div>
-        <div class="card"><p class="mb-1 text-sm font-semibold text-slate-900">Horas extra por planilla</p><BarrasPeriodo :periodos="periodosExtras" :nombres="['Horas extra']" :formato="(x) => `${num(x)} h`" /></div>
+        <div class="card xl:col-span-2"><p class="mb-1 text-sm font-semibold text-slate-900">Costo por planilla</p><BarrasPeriodo :periodos="periodosPlanilla" :nombres="['Sueldos brutos', 'Cargas patronales']" :colores="['#6366f1', '#d97706']" :formato="crc" /></div>
         <div class="card overflow-x-auto xl:col-span-2">
-          <p class="mb-2 text-sm font-semibold text-slate-900">Por puesto</p>
+          <p class="mb-2 text-sm font-semibold text-slate-900">Por puesto (detalle de planilla)</p>
           <table class="w-full min-w-[28rem] text-sm">
             <thead><tr class="border-b border-slate-200 text-left text-xs text-slate-500"><th class="py-1 pr-2">Puesto</th><th class="py-1 pr-2 text-right">Personas</th><th class="py-1 pr-2 text-right">Bruto</th><th class="py-1 pr-2 text-right">Horas extra</th><th class="py-1 text-right">Monto extra</th></tr></thead>
             <tbody>
               <tr v-for="p in datos.planilla.porPuesto" :key="p.etiqueta" class="border-b border-slate-100"><td class="py-1 pr-2 font-medium text-slate-800">{{ p.etiqueta }}</td><td class="py-1 pr-2 text-right">{{ p.empleados }}</td><td class="py-1 pr-2 text-right tabular-nums">{{ crc(p.bruto) }}</td><td class="py-1 pr-2 text-right">{{ num(p.horasExtra) }}</td><td class="py-1 text-right tabular-nums">{{ crc(p.extras) }}</td></tr>
-              <tr v-if="!datos.planilla.porPuesto.length"><td colspan="5" class="py-2 text-slate-500">Sin planillas en este período.</td></tr>
+              <tr v-if="!datos.planilla.porPuesto.length"><td colspan="5" class="py-2 text-slate-500">Sin planillas aprobadas en este período.</td></tr>
             </tbody>
           </table>
         </div>
