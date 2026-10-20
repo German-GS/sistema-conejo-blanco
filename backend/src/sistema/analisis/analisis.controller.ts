@@ -8,6 +8,7 @@ import type { UsuarioAutenticado } from '../../auth/usuario-autenticado.interfac
 import { Rol } from '../../common/enums/rol.enum.js';
 import { BitacoraService } from '../../bitacora/bitacora.service.js';
 import { AnalisisService, type TemaResumen } from './analisis.service.js';
+import { SaludFinancieraService } from './salud-financiera.service.js';
 
 const XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 const TEMAS: TemaResumen[] = ['ventas', 'cartera', 'inventario', 'planilla', 'contabilidad'];
@@ -23,7 +24,14 @@ export class AnalisisController {
   constructor(
     private readonly analisis: AnalisisService,
     private readonly bitacora: BitacoraService,
+    private readonly saludFinanciera: SaludFinancieraService,
   ) {}
+
+  // Indicadores financieros y verificaciones de cuadre, todo desde el libro mayor.
+  @Get('salud-financiera')
+  saludFin(@Query() q: Record<string, string>) {
+    return this.saludFinanciera.reporte({ desde: q.desde, hasta: q.hasta });
+  }
 
   @Get('catalogo')
   catalogo() {

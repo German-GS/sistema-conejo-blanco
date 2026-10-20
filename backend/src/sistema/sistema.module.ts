@@ -12,11 +12,12 @@ import { SaludService } from './salud.service.js';
 import { SistemaController } from './sistema.controller.js';
 import { AnalisisController, AnalisisFeedController } from './analisis/analisis.controller.js';
 import { AnalisisService } from './analisis/analisis.service.js';
+import { SaludFinancieraService } from './analisis/salud-financiera.service.js';
 
 @Global()
 @Module({
   imports: [TypeOrmModule.forFeature([ConfiguracionSistema, RegistroActividad]), ContabilidadModule],
-  providers: [SistemaConfigService, MetricasService, ActividadService, ExportacionService, SaludService, AnalisisService, ConexionesService],
+  providers: [SistemaConfigService, MetricasService, ActividadService, ExportacionService, SaludService, AnalisisService, SaludFinancieraService, ConexionesService],
   controllers: [SistemaController, AnalisisController, AnalisisFeedController],
   exports: [SistemaConfigService, ActividadService],
 })

@@ -169,3 +169,9 @@ router.beforeEach((to) => {
   }
   return true;
 });
+
+// Título de la pestaña del navegador según la zona: panel de administración, vendedor o acceso.
+router.afterEach((to) => {
+  const zona = to.path.startsWith('/admin') ? 'Administración' : to.meta.publica || to.name === 'cambiar-clave' ? null : 'Pedidos';
+  document.title = zona ? `Conejo Blanco — ${zona}` : 'Conejo Blanco';
+});

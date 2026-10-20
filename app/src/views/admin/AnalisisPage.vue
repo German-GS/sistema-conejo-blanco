@@ -8,6 +8,7 @@ import BarrasPeriodo from '../../components/BarrasPeriodo.vue';
 // Análisis de datos: tableros integrados y descarga de datasets (CSV, Excel, JSON) para Power BI, Excel o Python.
 // Exclusivo del administrador del sistema (la ruta y el backend lo exigen).
 const PESTANAS = [
+  ['salud', 'Salud financiera'],
   ['ventas', 'Ventas'],
   ['cartera', 'Cartera'],
   ['inventario', 'Inventario'],
@@ -15,7 +16,7 @@ const PESTANAS = [
   ['contabilidad', 'Contabilidad'],
   ['datos', 'Datos y Power BI'],
 ];
-const pestana = ref(sessionStorage.getItem('cb-analisis-pestana') ?? 'ventas');
+const pestana = ref(sessionStorage.getItem('cb-analisis-pestana') ?? 'salud');
 watch(pestana, (p) => sessionStorage.setItem('cb-analisis-pestana', p));
 
 // ---- Rango de fechas
@@ -66,7 +67,7 @@ async function cargar() {
     const q = new URLSearchParams();
     if (desde.value) q.set('desde', desde.value);
     if (hasta.value) q.set('hasta', hasta.value);
-    const r = await api.get(`/sistema/analisis/resumen/${tema}?${q}`);
+    const r = await api.get(tema === 'salud' ? `/sistema/analisis/salud-financiera?${q}` : `/sistema/analisis/resumen/${tema}?${q}`);
     if (mio === ticket) datos[tema] = r;
   } catch (err) {
     if (mio === ticket) error.value = err instanceof ApiError ? err.message : 'No se pudo cargar el análisis.';
@@ -82,6 +83,27 @@ const sinCostoTodo = computed(() => Boolean(v.value?.kpis.sinCostoRegistrado));
 const nombresVentas = computed(() => (sinCostoTodo.value ? ['Venta neta'] : ['Venta neta', 'Margen bruto']));
 const periodosPlanilla = computed(() => (datos.planilla?.porPlanilla ?? []).map((p) => ({ etiqueta: p.etiqueta, a: p.bruto, b: p.cargas })));
 const periodosConta = computed(() => (datos.contabilidad?.porMes ?? []).map((m) => ({ etiqueta: mesCorto(m.etiqueta), a: m.ingresos, b: m.gastos })));
+
+// ---- Salud financiera
+const sf = computed(() => datos.salud);
+const ESTADO_IND = { ok: ['Sano', 'bg-green-500'], atencion: ['Atención', 'bg-amber-500'], alerta: ['Alerta', 'bg-red-500'], info: ['', 'bg-slate-400'] };
+const COLOR_GENERAL = { ok: 'border-green-500/50 bg-green-50 text-green-800', atencion: 'border-amber-400/60 bg-amber-50 text-amber-800', alerta: 'border-red-400/60 bg-red-50 text-red-700' };
+const TITULO_GENERAL = { ok: 'Salud financiera: sana', atencion: 'Salud financiera: con puntos de atención', alerta: 'Salud financiera: con alertas' };
+function valorIndicador(i) {
+  if (i.valor === null || i.valor === undefined) return 'sin datos';
+  if (i.formato === 'colones') return crc(i.valor);
+  if (i.formato === 'razon') return new Intl.NumberFormat('es-CR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(i.valor);
+  if (i.formato === 'porcentaje') return pct(i.valor);
+  if (i.formato === 'dias') return `${num(i.valor)} días`;
+  if (i.formato === 'meses') return `${num(i.valor)} meses`;
+  return String(i.valor);
+}
+const chequeosConProblema = computed(() => (sf.value?.chequeos ?? []).filter((c) => c.estado !== 'ok').sort((a, b) => (a.estado === 'error' ? 0 : 1) - (b.estado === 'error' ? 0 : 1)));
+const chequeosOk = computed(() => (sf.value?.chequeos ?? []).filter((c) => c.estado === 'ok'));
+const ETIQUETA_CHEQUEO = { error: ['Error', 'bg-red-500'], atencion: ['Aviso', 'bg-amber-500'], sin_verificar: ['No se pudo verificar', 'bg-slate-400'] };
+const periodosTendencia = computed(() => (sf.value?.tendencia ?? []).map((t) => ({ etiqueta: mesCorto(t.mes), a: t.ingresos, b: t.gastos })));
+const periodosCaja = computed(() => (sf.value?.tendencia ?? []).filter((t) => t.caja !== null).map((t) => ({ etiqueta: mesCorto(t.mes), a: t.caja })));
+const celda = (v) => (typeof v === 'number' ? new Intl.NumberFormat('es-CR', { maximumFractionDigits: 2 }).format(v) : (v ?? ''));
 
 // ---- Datos y Power BI
 const catalogo = ref([]);
@@ -248,6 +270,69 @@ onMounted(() => {
 
     <!-- Todo sale del libro mayor -->
     <p v-if="pestana !== 'datos'" class="text-xs text-slate-500">Las cifras en colones de estos tableros salen del <strong>libro mayor</strong>; el cliente, producto o planilla de cada monto se toma del documento que originó el asiento. El detalle operativo se compara contra el mayor en el "cuadre".</p>
+
+    <!-- SALUD FINANCIERA -->
+    <template v-if="pestana === 'salud' && sf">
+      <div class="rounded-xl border px-4 py-3" :class="COLOR_GENERAL[sf.general.estado]">
+        <p class="text-base font-semibold">{{ TITULO_GENERAL[sf.general.estado] }}</p>
+        <p class="text-sm">{{ sf.general.resumen }}</p>
+        <p class="mt-1 text-xs opacity-80">Balance al {{ sf.hasta }} · rentabilidad y tendencia del {{ sf.desde }} al {{ sf.hasta }} ({{ sf.dias }} días). Todo sale del libro mayor.</p>
+      </div>
+
+      <div v-for="g in sf.grupos" :key="g.titulo" class="flex flex-col gap-2">
+        <p class="text-sm font-semibold text-slate-900">{{ g.titulo }}</p>
+        <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <div v-for="i in g.items" :key="i.clave" class="card" :class="i.estado === 'alerta' ? 'ring-1 ring-red-500/60' : i.estado === 'atencion' ? 'ring-1 ring-amber-500/50' : ''" :title="i.nota">
+            <p class="flex items-center justify-between gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+              <span>{{ i.titulo }}</span>
+              <span v-if="ESTADO_IND[i.estado][0]" class="flex items-center gap-1 normal-case"><span class="inline-block h-2 w-2 rounded-full" :class="ESTADO_IND[i.estado][1]" />{{ ESTADO_IND[i.estado][0] }}</span>
+            </p>
+            <p class="mt-1 text-xl font-bold text-slate-900">{{ valorIndicador(i) }}</p>
+            <p class="mt-1 text-xs text-slate-500">{{ i.nota }}</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 gap-3 xl:grid-cols-2">
+        <div class="card"><p class="mb-1 text-sm font-semibold text-slate-900">Ingresos y gastos por mes</p><BarrasPeriodo :periodos="periodosTendencia" :nombres="['Ingresos', 'Gastos']" :colores="['#10b981', '#d97706']" :formato="crc" /></div>
+        <div class="card"><p class="mb-1 text-sm font-semibold text-slate-900">Caja y bancos al cierre de cada mes</p><BarrasPeriodo :periodos="periodosCaja" :nombres="['Caja y bancos']" :formato="crc" /></div>
+        <div class="card xl:col-span-2">
+          <p class="mb-1 text-sm font-semibold text-slate-900">Lo que se debe (cuentas por pagar y obligaciones)</p>
+          <p class="mb-2 text-xs text-slate-500">Activos {{ crc(sf.resumenBalance.activoTotal) }} · pasivos {{ crc(sf.resumenBalance.pasivoTotal) }} · patrimonio {{ crc(sf.resumenBalance.patrimonio) }}</p>
+          <BarrasHorizontales :filas="sf.obligaciones.map((o) => ({ etiqueta: o.etiqueta, valor: o.monto }))" :formato="crc" color="#d97706" vacio="No hay obligaciones pendientes." />
+        </div>
+      </div>
+
+      <div class="card flex flex-col gap-3">
+        <div>
+          <p class="text-base font-semibold text-slate-900">¿Qué no cuadra y dónde buscar?</p>
+          <p class="text-sm text-slate-500">Se comparan el libro mayor y los documentos (facturas, recibos, bodega, planillas). Cada problema dice qué pasa y por dónde puede estar el origen.</p>
+        </div>
+        <p v-if="!chequeosConProblema.length" class="rounded-lg border border-green-500/50 bg-green-50 px-3 py-2 text-sm text-green-800">Todo cuadra: {{ chequeosOk.length }} verificaciones sin problemas.</p>
+        <div v-for="c in chequeosConProblema" :key="c.codigo" class="rounded-lg border border-slate-200 p-3" :class="c.estado === 'error' ? 'border-red-400/60' : ''">
+          <div class="flex flex-wrap items-center gap-2">
+            <span class="rounded px-2 py-0.5 text-xs font-semibold text-white" :class="ETIQUETA_CHEQUEO[c.estado][1]">{{ ETIQUETA_CHEQUEO[c.estado][0] }}</span>
+            <span class="text-xs text-slate-500">{{ c.grupo }}</span>
+            <p class="text-sm font-semibold text-slate-900">{{ c.titulo }}</p>
+          </div>
+          <p class="mt-1 text-sm text-slate-700">{{ c.resumen }}</p>
+          <p v-if="c.donde" class="mt-1 text-sm text-slate-600"><strong>Dónde buscar:</strong> {{ c.donde }}</p>
+          <details v-if="c.ejemplos.length" class="mt-2 text-sm">
+            <summary class="cursor-pointer text-xs font-semibold text-slate-600">Ver ejemplos ({{ c.ejemplos.length }} de {{ c.problemas }})</summary>
+            <div class="mt-1 max-h-56 overflow-auto rounded border border-slate-200">
+              <table class="w-full text-xs">
+                <thead class="sticky top-0 bg-slate-100"><tr><th v-for="k in Object.keys(c.ejemplos[0])" :key="k" class="whitespace-nowrap px-2 py-1 text-left font-semibold text-slate-600">{{ k }}</th></tr></thead>
+                <tbody><tr v-for="(e, i) in c.ejemplos" :key="i" class="border-t border-slate-100"><td v-for="k in Object.keys(c.ejemplos[0])" :key="k" class="whitespace-nowrap px-2 py-1">{{ celda(e[k]) }}</td></tr></tbody>
+              </table>
+            </div>
+          </details>
+        </div>
+        <details v-if="chequeosOk.length" class="text-sm text-slate-700">
+          <summary class="cursor-pointer text-xs font-semibold text-slate-600">{{ chequeosOk.length }} verificaciones sin problemas</summary>
+          <ul class="mt-1 list-disc pl-5 text-xs text-slate-600"><li v-for="c in chequeosOk" :key="c.codigo">{{ c.grupo }} · {{ c.titulo }}</li></ul>
+        </details>
+      </div>
+    </template>
 
     <!-- VENTAS -->
     <template v-if="pestana === 'ventas' && v">
