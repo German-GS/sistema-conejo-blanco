@@ -1,7 +1,7 @@
 <script setup>
 import { computed, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
-import { Home, ClipboardList, Users, Package, Warehouse, UserCog, Settings, Receipt, Undo2, X, HandCoins, BookOpen, NotebookText, Wallet, Fingerprint, SlidersHorizontal, BadgeDollarSign, FileBarChart, ShieldCheck, BookMarked, Lock, Landmark, Server, Pin, PinOff, ChevronDown } from '@lucide/vue';
+import { Home, ClipboardList, Users, Package, Warehouse, UserCog, Settings, Receipt, Undo2, X, HandCoins, BookOpen, NotebookText, Wallet, Fingerprint, SlidersHorizontal, BadgeDollarSign, FileBarChart, ShieldCheck, BookMarked, Lock, Landmark, Server, ChartColumnBig, Pin, PinOff, ChevronDown } from '@lucide/vue';
 import { useAuthStore } from '../stores/auth.js';
 import { menuFijado } from '../lib/menuLateral.js';
 import logoMenu from '../logo/logo-menu.png';
@@ -58,6 +58,7 @@ const NAV = [
     ],
   },
   { to: { name: 'admin-accesos' }, etiqueta: 'Accesos', icono: UserCog, soloSistema: true },
+  { to: { name: 'admin-analisis' }, etiqueta: 'Análisis', icono: ChartColumnBig, soloSistema: true },
   { to: { name: 'admin-sistema' }, etiqueta: 'Sistema', icono: Server, soloSistema: true },
   { to: { name: 'admin-configuracion' }, etiqueta: 'Configuración', icono: Settings, permiso: 'configuracion.gestionar' },
 ];

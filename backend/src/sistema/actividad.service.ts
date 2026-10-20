@@ -1,7 +1,7 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import ExcelJS from 'exceljs';
-import { Repository, type SelectQueryBuilder } from 'typeorm';
+import { DataSource, Repository, type SelectQueryBuilder } from 'typeorm';
 import type { NextFunction, Request, Response } from 'express';
 import { RegistroActividad } from './registro-actividad.entity.js';
 import { MetricasService } from './metricas.service.js';
@@ -28,11 +28,14 @@ export class ActividadService implements OnModuleInit, OnModuleDestroy {
   private cola: Array<Partial<RegistroActividad>> = [];
   private temporizador?: NodeJS.Timeout;
   private depuracion?: NodeJS.Timeout;
+  // Última vez que se anotó la presencia de cada cuenta (para no escribir en cada petición).
+  private readonly presencia = new Map<string, number>();
 
   constructor(
     @InjectRepository(RegistroActividad)
     private readonly repo: Repository<RegistroActividad>,
     private readonly metricas: MetricasService,
+    private readonly dataSource: DataSource,
   ) {}
 
   onModuleInit() {
@@ -65,6 +68,16 @@ export class ActividadService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  // Anota que la cuenta sigue conectada. Como máximo una escritura por minuto y cuenta; nunca interrumpe la petición.
+  private marcarPresencia(usuarioId: string, ip: string, agente: string): void {
+    const ahora = Date.now();
+    if (ahora - (this.presencia.get(usuarioId) ?? 0) < 60_000) return;
+    this.presencia.set(usuarioId, ahora);
+    this.dataSource
+      .query('UPDATE usuarios SET ultima_actividad = now(), ultima_ip = $2, ultimo_dispositivo = $3 WHERE id = $1', [usuarioId, ip.slice(0, 64) || null, agente.slice(0, 200) || null])
+      .catch((err: unknown) => this.logger.warn(`No se pudo anotar la presencia: ${err instanceof Error ? err.message : err}`));
+  }
+
   // Middleware de Express: se engancha al final de cada respuesta, así queda registrado también lo que
   // rechazan los guards (401/403) y los errores. Nunca interrumpe la petición.
   middleware() {
@@ -81,17 +94,19 @@ export class ActividadService implements OnModuleInit, OnModuleDestroy {
       };
       res.once('finish', () => {
         try {
-          const ruta = (req.originalUrl ?? req.url).slice(0, 300);
+          const ruta = (req.originalUrl ?? req.url).replace(/([?&]token=)[^&]*/gi, '$1***').slice(0, 300);
           const rutaSinQuery = ruta.split('?')[0];
           const metodo = req.method.toUpperCase();
           if (metodo === 'OPTIONS' || rutaSinQuery.startsWith('/uploads') || rutaSinQuery === '/' || rutaSinQuery === '/health') return;
           // Todas las peticiones cuentan para las métricas (latencia y errores), menos las del propio panel que se actualiza solo.
           if (!/^\/sistema\/(metricas|salud)/.test(rutaSinQuery)) this.metricas.registrarPeticion(Date.now() - inicio, res.statusCode);
+          const quien = (req as Request & { user?: UsuarioAutenticado }).user;
+          if (quien?.id && res.statusCode < 500) this.marcarPresencia(quien.id, req.ip ?? '', String(req.headers['user-agent'] ?? ''));
           const area = areaDeRuta(rutaSinQuery);
           const esEscritura = metodo !== 'GET' && metodo !== 'HEAD';
           const fallo = res.statusCode >= 400;
           // Las consultas del propio administrador del sistema a sus registros no se registran (llenarían la bitácora de sí misma).
-          if (!esEscritura && !fallo && (area === 'sistema' ? !/\/(exportar|excel)/.test(rutaSinQuery) : !esLecturaSensible(rutaSinQuery))) return;
+          if (!esEscritura && !fallo && (area === 'sistema' ? !/\/(exportar|excel|descargar|feed)/.test(rutaSinQuery) : !esLecturaSensible(rutaSinQuery))) return;
           const usuario = (req as Request & { user?: UsuarioAutenticado }).user;
           const cuerpo = req.body && typeof req.body === 'object' && Object.keys(req.body).length > 0 ? resumirCuerpo(req.body) : null;
           this.cola.push({

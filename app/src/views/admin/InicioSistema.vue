@@ -35,6 +35,27 @@ async function cargarSalud() {
     /* las métricas ya muestran el error de conexión */
   }
 }
+const conexiones = ref(null);
+async function cargarConexiones() {
+  if (document.hidden) return;
+  try {
+    conexiones.value = await api.get('/sistema/conexiones');
+  } catch {
+    /* las métricas ya muestran el error de conexión */
+  }
+}
+const ROLES = { sistema: 'Sistema', gerente_general: 'Gerente general', administracion: 'Administración', contador: 'Contador', asistente: 'Asistente', vendedor: 'Vendedor' };
+// "hace 3 min", "hace 2 h", "hace 4 días": para ver de un vistazo cuándo fue la última actividad.
+function haceCuanto(iso) {
+  if (!iso) return '—';
+  const min = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60_000));
+  if (min < 1) return 'ahora mismo';
+  if (min < 60) return `hace ${min} min`;
+  if (min < 1440) return `hace ${Math.floor(min / 60)} h`;
+  const d = Math.floor(min / 1440);
+  return `hace ${d} ${d === 1 ? 'día' : 'días'}`;
+}
+
 async function verificarAhora() {
   verificando.value = true;
   try {
@@ -54,7 +75,11 @@ function elegirRango(m) {
 onMounted(() => {
   cargarMetricas();
   cargarSalud();
-  reloj = setInterval(cargarMetricas, 10_000);
+  cargarConexiones();
+  reloj = setInterval(() => {
+    cargarMetricas();
+    cargarConexiones();
+  }, 10_000);
   relojSalud = setInterval(cargarSalud, 60_000);
 });
 onBeforeUnmount(() => {
@@ -184,6 +209,31 @@ const medidores = computed(() => {
           <p class="mt-1 text-xl font-bold" :class="salud && !salud.baseDatos.ok ? 'text-red-500' : 'text-green-600'">{{ salud ? (salud.baseDatos.ok ? 'En línea' : 'Sin conexión') : '—' }}</p>
           <p class="mt-1 text-xs text-slate-500">{{ salud?.baseDatos.version }}</p>
         </div>
+      </div>
+
+      <!-- Quién está conectado -->
+      <div v-if="conexiones" class="card overflow-x-auto">
+        <div class="mb-2 flex flex-wrap items-baseline justify-between gap-2">
+          <p class="text-sm font-semibold text-slate-900">Conexiones</p>
+          <p class="text-xs text-slate-500"><span class="font-semibold" :class="conexiones.enLinea > 0 ? 'text-green-600' : ''">{{ conexiones.enLinea }} en línea ahora</span> · {{ conexiones.total }} cuentas activas · "en línea" = actividad en los últimos 5 minutos</p>
+        </div>
+        <table class="w-full min-w-[40rem] text-sm">
+          <thead>
+            <tr class="border-b border-slate-200 text-left text-xs text-slate-500"><th class="py-1 pr-2">Persona</th><th class="py-1 pr-2">Perfil</th><th class="py-1 pr-2">Estado</th><th class="py-1 pr-2">Última actividad</th><th class="py-1 pr-2">Último inicio de sesión</th><th class="py-1">Desde</th></tr>
+          </thead>
+          <tbody>
+            <tr v-for="c in conexiones.cuentas" :key="c.id" class="border-b border-slate-100" :class="c.activo ? '' : 'opacity-50'">
+              <td class="py-1 pr-2"><span class="font-medium text-slate-800">{{ c.nombre }}</span><span class="block text-xs text-slate-500">{{ c.email }}</span></td>
+              <td class="py-1 pr-2">{{ ROLES[c.rol] ?? c.rol }}</td>
+              <td class="py-1 pr-2 whitespace-nowrap">
+                <span class="inline-flex items-center gap-1.5"><span class="inline-block h-2 w-2 rounded-full" :class="c.enLinea ? 'bg-green-500' : 'bg-slate-400'" />{{ !c.activo ? 'Desactivada' : c.enLinea ? 'En línea' : 'Desconectada' }}</span>
+              </td>
+              <td class="py-1 pr-2 whitespace-nowrap" :title="c.ultimaActividad ? formatearFechaHora(c.ultimaActividad) : ''">{{ haceCuanto(c.ultimaActividad) }}</td>
+              <td class="py-1 pr-2 whitespace-nowrap">{{ c.ultimoAcceso ? formatearFechaHora(c.ultimoAcceso) : 'nunca ha entrado' }}</td>
+              <td class="py-1 text-xs text-slate-500">{{ c.dispositivo }}<template v-if="c.ip"> · {{ c.ip }}</template></td>
+            </tr>
+          </tbody>
+        </table>
       </div>
 
       <!-- Gráficos -->

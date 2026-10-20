@@ -174,6 +174,8 @@ const ACCIONES = {
   dos_pasos_reiniciado: 'Reinició la verificación en dos pasos',
   dos_pasos_fallido: 'Código de dos pasos incorrecto',
   ip_no_permitida: 'Ingreso desde IP no permitida',
+  analisis_enlace_generado: 'Clave de datos (Power BI) generada',
+  analisis_enlace_revocado: 'Clave de datos (Power BI) revocada',
 };
 const eventos = ref([]);
 const filtro = reactive({ accion: '', texto: '' });

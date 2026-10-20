@@ -154,6 +154,17 @@ html.tema-oscuro .text-slate-800,
 html.tema-oscuro .text-slate-900 {
   color: #f3f4f6;
 }
+/* Botones de color: su texto blanco viene de @apply text-white (que aquí sería negro). */
+html.tema-oscuro .btn-primary,
+html.tema-oscuro .btn-danger {
+  color: #ffffff;
+}
+/* Los campos de texto usan text-slate-900 dentro de la clase .input (no como utilidad suelta). */
+html.tema-oscuro .input,
+html.tema-oscuro select,
+html.tema-oscuro textarea {
+  color: #f3f4f6;
+}
 html.tema-oscuro .hover\:text-slate-900:hover {
   color: #ffffff;
 }

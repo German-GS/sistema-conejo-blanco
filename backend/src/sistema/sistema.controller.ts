@@ -6,6 +6,7 @@ import { OcultarSiNoAutorizado, RequireRole } from '../auth/decorators/roles.dec
 import { CurrentUser } from '../auth/decorators/current-user.decorator.js';
 import { Rol } from '../common/enums/rol.enum.js';
 import { ActividadService, type FiltroActividad } from './actividad.service.js';
+import { ConexionesService } from './conexiones.service.js';
 import { ExportacionService } from './exportacion.service.js';
 import { SaludService } from './salud.service.js';
 import { MetricasService } from './metricas.service.js';
@@ -29,6 +30,7 @@ export class SistemaController {
     private readonly metricas: MetricasService,
     private readonly exportacion: ExportacionService,
     private readonly bitacora: BitacoraService,
+    private readonly conexiones: ConexionesService,
   ) {}
 
   // Lo único que ve cualquier cuenta: qué módulos están habilitados y el tiempo de inactividad.
@@ -55,6 +57,13 @@ export class SistemaController {
   @RequireRole(Rol.SISTEMA)
   instantanea(@Query('minutos') minutos?: string) {
     return this.metricas.instantanea(Number(minutos) || 60);
+  }
+
+  @Get('conexiones')
+  @UseGuards(RolesGuard)
+  @RequireRole(Rol.SISTEMA)
+  verConexiones() {
+    return this.conexiones.listar();
   }
 
   @Post('integridad/ejecutar')

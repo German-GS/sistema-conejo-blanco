@@ -74,6 +74,17 @@ export class Usuario {
   @Column({ type: 'timestamptz', name: 'ultimo_acceso', nullable: true })
   ultimoAcceso: Date | null;
 
+  // Última petición hecha con la cuenta (se actualiza como máximo una vez por minuto): sirve para
+  // saber quién está conectado ahora y desde dónde.
+  @Column({ type: 'timestamptz', name: 'ultima_actividad', nullable: true })
+  ultimaActividad: Date | null;
+
+  @Column({ type: 'varchar', length: 64, name: 'ultima_ip', nullable: true })
+  ultimaIp: string | null;
+
+  @Column({ type: 'varchar', length: 200, name: 'ultimo_dispositivo', nullable: true })
+  ultimoDispositivo: string | null;
+
   @Column({ type: 'boolean', default: true })
   activo: boolean;
 

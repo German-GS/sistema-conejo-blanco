@@ -13,6 +13,7 @@ import ClientesPage from '../views/admin/ClientesPage.vue';
 import InventarioPage from '../views/admin/InventarioPage.vue';
 import BodegaPage from '../views/admin/BodegaPage.vue';
 import SistemaPage from '../views/admin/SistemaPage.vue';
+import AnalisisPage from '../views/admin/AnalisisPage.vue';
 import AccesosPage from '../views/admin/AccesosPage.vue';
 import PedidosPage from '../views/admin/PedidosPage.vue';
 import ConfiguracionPage from '../views/admin/ConfiguracionPage.vue';
@@ -112,6 +113,8 @@ const routes = [
       // Control de accesos: exclusivo del administrador del sistema (mismo criterio que el
       // backend — ver UsuariosController). La gerencia no entra acá.
       { path: 'sistema', name: 'admin-sistema', component: SistemaPage, meta: { soloSistema: true } },
+      // Análisis de datos (tableros y exportación para Power BI / Python): también exclusivo del sistema.
+      { path: 'analisis', name: 'admin-analisis', component: AnalisisPage, meta: { soloSistema: true } },
       { path: 'accesos', name: 'admin-accesos', component: AccesosPage, meta: { soloSistema: true } },
       // Tope general de descuentos: decisión de negocio, exclusiva de
       // Administración (mismo criterio que el backend — ver

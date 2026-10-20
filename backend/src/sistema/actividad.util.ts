@@ -7,7 +7,7 @@ export function areaDeRuta(ruta: string): AreaActividad {
   if (/^\/(planilla|contabilidad|configuracion|pagos|cuentas-bancarias|facturas|facturacion|notas-credito)/.test(p)) return 'administrativa';
   if (/^\/(pedidos|clientes|catalogo)/.test(p)) return 'ventas';
   if (/^\/(inventario|traspasos|ubicaciones)/.test(p)) return 'inventario';
-  if (p.startsWith('/sistema')) return 'sistema';
+  if (p.startsWith('/sistema') || p.startsWith('/feed')) return 'sistema';
   return 'otros';
 }
 

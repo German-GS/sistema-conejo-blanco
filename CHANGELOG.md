@@ -7,6 +7,15 @@ Versionado `MAYOR.MENOR.PARCHE`:
 
 La versión se cambia en `app/package.json` y `backend/package.json` (el pie de página y el panel del sistema la leen solos).
 
+## 1.1.0 — 20 oct 2026 — Análisis de datos y conexiones
+Funciones nuevas, solo para el administrador del sistema; todo lo anterior sigue igual.
+- Sección **Análisis** con tableros de ventas (incluye análisis ABC), cartera, inventario, planilla (solo totales) y contabilidad, con filtro de fechas.
+- Conjuntos de datos descargables en CSV, Excel o JSON para Power BI, Excel o Python, con vista previa. Sin claves ni datos de contacto de clientes; la planilla sale anonimizada salvo que se pida completa (queda en el registro de actividad).
+- Clave de solo lectura para que Power BI o Python se actualicen solos (se muestra una vez, se puede revocar, queda en la bitácora, no incluye planilla).
+- Inicio del sistema: tarjeta **Conexiones** con quién está en línea, su última actividad, último inicio de sesión y desde dónde se conectó.
+- Documentación del esquema de la base de datos en `docs/BASE_DE_DATOS.md`.
+- Arreglo: en el perfil oscuro no se leía el texto de los campos de formulario ni el de los botones rojos.
+
 ## 1.0.0 — 16 oct 2026 — Primera versión en uso real
 Línea base con la que la planilla entra en producción.
 - Pedidos, clientes, catálogo, inventario, traspasos, facturación (manual y de pedidos), notas de crédito y pagos recibidos.
