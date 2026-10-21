@@ -54,15 +54,19 @@ const vendidoPendiente = computed(() => {
 export const stockDe = (varianteId) => (pos.stockServidor[varianteId]?.stock ?? 0) - (vendidoPendiente.value[varianteId] ?? 0);
 export const minimoDe = (varianteId) => pos.stockServidor[varianteId]?.minimo ?? 0;
 
-const indice = computed(() =>
-  (pos.catalogo?.variantes ?? []).map((v) => ({ v, texto: sinTildes(`${v.codigo} ${v.nombre} ${v.color} ${v.codigoBarras ?? ''}`), barras: sinTildes(v.codigoBarras ?? ''), codigo: sinTildes(v.codigo) })),
-);
+// Se vende solo lo que tiene precio de tienda; el resto del catálogo solo se puede pedir a la bodega.
+export const esVendible = (v) => v.precio !== null && v.precio !== undefined;
+const construirIndice = (variantes) =>
+  variantes.map((v) => ({ v, texto: sinTildes(`${v.codigo} ${v.nombre} ${v.color} ${v.codigoBarras ?? ''}`), barras: sinTildes(v.codigoBarras ?? ''), codigo: sinTildes(v.codigo) }));
+const indice = computed(() => construirIndice((pos.catalogo?.variantes ?? []).filter(esVendible)));
+const indicePedido = computed(() => construirIndice(pos.catalogo?.variantes ?? []));
 
-export function buscar(texto, limite = 24) {
+// paraPedido: busca en todo el catálogo (también lo que la tienda aún no vende); si no, solo en lo vendible.
+export function buscar(texto, limite = 24, paraPedido = false) {
   const t = sinTildes(texto).trim();
   if (!t) return [];
   const palabras = t.split(/\s+/);
-  return indice.value.filter((x) => palabras.every((p) => x.texto.includes(p))).slice(0, limite).map((x) => x.v);
+  return (paraPedido ? indicePedido : indice).value.filter((x) => palabras.every((p) => x.texto.includes(p))).slice(0, limite).map((x) => x.v);
 }
 
 // Lo que lee el lector de código de barras: coincidencia exacta con el código de barras (o con "CÓDIGO color" único).
@@ -284,6 +288,7 @@ export function sugeridaPara(stock, minimo) {
 // Productos agotados o en su mínimo (existencia actual de la tienda, ya descontando lo vendido sin enviar).
 export const sugerenciasPedido = computed(() =>
   (pos.catalogo?.variantes ?? [])
+    .filter(esVendible)
     .map((v) => {
       const stock = stockDe(v.varianteId);
       const minimo = minimoDe(v.varianteId);

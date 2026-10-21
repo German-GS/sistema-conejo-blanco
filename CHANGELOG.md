@@ -7,6 +7,12 @@ Versionado `MAYOR.MENOR.PARCHE`:
 
 La versión se cambia en `app/package.json` y `backend/package.json` (el pie de página y el panel del sistema la leen solos).
 
+## 1.5.0 — 22 oct 2026 — Pedidos con buscador, ingresos solo por bodega y vistas del sistema
+- **Pedir mercadería con buscador y fichas:** se busca en todo el catálogo (también lo que la tienda aún no vende) y cada resultado es una tarjeta con foto, código, color, existencias en tienda y bodega, y precio. «Ver todos los productos» lista el catálogo. En la caja se sigue vendiendo solo lo que tiene precio de tienda.
+- **Los ingresos de mercadería entran solo por la bodega** (también lo exige el servidor): a las tiendas llega por pedido y traspaso. Los botones Ingreso y Ajuste de Bodega solo se ven en Existencias, no en el kardex.
+- **Cambio de vista** para el administrador del sistema: Administración | Caja | Vendedor, sin cerrar sesión.
+- **Convertir en prueba** (solo administrador del sistema): una venta o pedido de tienda ya contabilizado se vuelve de prueba y se borran sus asientos (y reversas); queda en la bitácora y no se permite en meses cerrados.
+
 ## 1.4.0 — 22 oct 2026 — Caja guiada y productos de prueba
 - **Caja (POS) rediseñada** con el estilo del resto del sistema y pensada para personal de tienda: barra con logo, estado de caja e internet siempre visibles, botones grandes con ícono, avisos grandes con botón de acción (caja cerrada, sin internet, envíos en camino, productos por acabarse, ventas por enviar), guía «Cómo hacer una venta», cobro paso a paso por forma de pago con el vuelto en grande, y apertura y cierre de caja explicados (el cierre cuenta el efectivo sin mostrar el esperado).
 - **Productos de prueba** (solo el administrador del sistema): para demostrar todo el proceso sin ensuciar la contabilidad. No generan asientos ni cuentan en caja, reportes, análisis ni alertas; no se usan en pedidos de vendedores ni facturas; no se mezclan con productos reales; se ven en la caja solo con el **Modo de prueba** (Tienda → Configuración) y se eliminan con todo lo hecho con ellos.

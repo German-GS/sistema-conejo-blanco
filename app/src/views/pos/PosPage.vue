@@ -1,4 +1,5 @@
 <script setup>
+import CambiarVista from '../../layout/CambiarVista.vue';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { Banknote, Barcode, Cloud, CloudOff, CircleCheck, CreditCard, Info, KeyRound, Landmark, LogOut, Minus, PackagePlus, Plus, Printer, Receipt, RefreshCw, ScanBarcode, Smartphone, Trash2, Truck, TriangleAlert, Wallet, X } from '@lucide/vue';
@@ -7,7 +8,7 @@ import { useAuthStore } from '../../stores/auth.js';
 import { api, ApiError } from '../../lib/api.js';
 import { formatearColones, formatearFechaHora } from '../../lib/format.js';
 import {
-  abrirCaja, alertasLocales, buscar, buscarExacto, cambiarTienda, cerrarCaja, cobrar, descargarCatalogo, detenerPos, efectivoEsperado, elegirTienda,
+  abrirCaja, alertasLocales, buscar, buscarExacto, cambiarTienda, esVendible, cerrarCaja, cobrar, descargarCatalogo, detenerPos, efectivoEsperado, elegirTienda,
   guardarImprimirAuto, iniciarPos, numeroTexto, pendientes, pos, rechazadas, reintentarRechazadas, resumenTurno, sincronizar, stockDe, sugerenciasPedido, ordenesPendientes,
 } from '../../lib/pos.js';
 import TiquetePos from './TiquetePos.vue';
@@ -305,6 +306,7 @@ watch(
         <span class="flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-bold" :class="pos.enLinea ? 'bg-green-100 text-green-800' : 'bg-red-600 text-white'"><component :is="pos.enLinea ? Cloud : CloudOff" class="size-4" /> {{ pos.enLinea ? 'Con internet' : 'SIN INTERNET' }}</span>
       </div>
       <div class="ml-auto flex items-center gap-3">
+        <CambiarVista />
         <div class="text-right leading-tight">
           <p class="text-sm font-semibold text-slate-900">{{ auth.usuario?.nombre }}</p>
           <p class="text-xs text-slate-500">{{ ETIQUETA_ROL[auth.usuario?.rol] ?? auth.usuario?.rol }}</p>
@@ -368,7 +370,7 @@ watch(
         </div>
         <p v-if="aviso" class="rounded-xl bg-amber-100 px-4 py-3 text-base font-semibold text-amber-900">{{ aviso }}</p>
         <p v-if="!pos.catalogo" class="rounded-xl bg-slate-200 px-4 py-3 text-base text-slate-700">Descargando los productos de la tienda… (se necesita internet la primera vez)</p>
-        <p v-else-if="!pos.catalogo.variantes.length" class="rounded-xl bg-amber-100 px-4 py-3 text-base font-semibold text-amber-900">Todavía no hay productos con precio de tienda. Avise a la administración para que los configure.</p>
+        <p v-else-if="!pos.catalogo.variantes.some(esVendible)" class="rounded-xl bg-amber-100 px-4 py-3 text-base font-semibold text-amber-900">Todavía no hay productos con precio de tienda. Avise a la administración para que los configure.</p>
 
         <div class="min-h-0 flex-1 overflow-y-auto">
           <ul v-if="resultados.length" class="grid grid-cols-1 gap-2 xl:grid-cols-2">
@@ -398,7 +400,7 @@ watch(
           </div>
 
           <!-- Cómo vender -->
-          <div v-else-if="pos.caja && !carrito.length && pos.catalogo?.variantes.length" class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div v-else-if="pos.caja && !carrito.length && pos.catalogo?.variantes.some(esVendible)" class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
             <p class="text-2xl font-extrabold text-slate-900">Cómo hacer una venta</p>
             <ol class="mt-4 grid gap-3 sm:grid-cols-2">
               <li class="flex items-start gap-3 rounded-2xl bg-blue-50 p-4"><span class="flex size-10 shrink-0 items-center justify-center rounded-full bg-blue-600 text-xl font-extrabold text-white">1</span><span class="text-lg"><b>Escanee</b> el código de barras del producto. Si no lee, escriba el nombre arriba y toque el producto.</span></li>

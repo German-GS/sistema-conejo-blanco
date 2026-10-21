@@ -46,6 +46,8 @@ Solo el **administrador del sistema** puede crear **productos de prueba** (casil
 - Se usan en **la caja de las tiendas y en sus pedidos de mercadería** (con sus traspasos). **No** se pueden usar en pedidos de vendedores ni en facturas, y los vendedores no los ven.
 - Una venta, pedido o traspaso es **todo de prueba o todo real**: no se pueden mezclar.
 - Aparecen en la caja solo mientras el **Modo de prueba** esté activo (Tienda → Configuración); la caja muestra un aviso grande mientras tanto. Se apaga al terminar la demostración.
+- Una venta o pedido que se hizo antes del modo de prueba se puede **convertir en prueba** (solo el administrador del sistema, desde el detalle en Tienda → Ventas o Pedidos de tiendas): se borran sus asientos y reversas y queda anotado en la bitácora (no se permite en meses cerrados).
+- El administrador del sistema cambia entre las pantallas Administración, Caja y Vendedor con el selector del encabezado.
 - Se **eliminan** (botón Eliminar en Inventario, solo el sistema) junto con todo lo hecho con ellos: ventas, pedidos, traspasos, existencias y movimientos.
 
 ## Puesta en marcha de una tienda

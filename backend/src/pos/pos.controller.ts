@@ -11,6 +11,9 @@ import { Rol } from '../common/enums/rol.enum.js';
 import { Permiso } from '../common/enums/permiso.enum.js';
 import { PosService } from './pos.service.js';
 import { OrdenesTiendaService } from './ordenes-tienda.service.js';
+import { PruebasPosService } from './pruebas-pos.service.js';
+import { Req } from '@nestjs/common';
+import type { Request } from 'express';
 import { ActualizarPosConfigDto, AnularPosVentaDto, EstadoOrdenDto, NotaOrdenDto, RecibirTiendaDto, RevisarOrdenDto, SincronizarPosDto } from './dto/pos.dto.js';
 
 @Modulo('pos')
@@ -20,6 +23,7 @@ export class PosController {
   constructor(
     private readonly pos: PosService,
     private readonly ordenes: OrdenesTiendaService,
+    private readonly pruebas: PruebasPosService,
   ) {}
 
   // ---- Terminal de la tienda (cajero, gerencia y administrador del sistema)
@@ -164,5 +168,21 @@ export class PosController {
   @RequireRole(Rol.ENCARGADO_TIENDA, Rol.ADMINISTRACION)
   recibirEnTienda(@Param('id', ParseUUIDPipe) id: string, @Body() dto: RecibirTiendaDto, @CurrentUser() usuario: UsuarioAutenticado) {
     return this.ordenes.recibirEnTienda(usuario, id, dto);
+  }
+
+  // ---- Durante las pruebas: borrar los asientos de una venta o pedido y dejarlo como "de prueba" (solo el administrador del sistema)
+
+  @Post('ventas/:id/convertir-prueba')
+  @UseGuards(RolesGuard)
+  @RequireRole(Rol.SISTEMA)
+  convertirVentaEnPrueba(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() usuario: UsuarioAutenticado, @Req() req: Request) {
+    return this.pruebas.convertirVenta(id, usuario, req.ip);
+  }
+
+  @Post('ordenes/:id/convertir-prueba')
+  @UseGuards(RolesGuard)
+  @RequireRole(Rol.SISTEMA)
+  convertirOrdenEnPrueba(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() usuario: UsuarioAutenticado, @Req() req: Request) {
+    return this.pruebas.convertirOrden(id, usuario, req.ip);
   }
 }

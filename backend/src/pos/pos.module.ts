@@ -9,6 +9,7 @@ import { OrdenTienda } from './orden-tienda.entity.js';
 import { OrdenTiendaLinea } from './orden-tienda-linea.entity.js';
 import { OrdenTiendaEvento } from './orden-tienda-evento.entity.js';
 import { OrdenesTiendaService } from './ordenes-tienda.service.js';
+import { PruebasPosService } from './pruebas-pos.service.js';
 import { TraspasosModule } from '../traspasos/traspasos.module.js';
 import { Ubicacion } from '../ubicaciones/ubicacion.entity.js';
 import { Usuario } from '../usuarios/usuario.entity.js';
@@ -20,7 +21,7 @@ import { ConfiguracionModule } from '../configuracion/configuracion.module.js';
 
 @Module({
   imports: [TypeOrmModule.forFeature([PosVenta, PosVentaLinea, PosPago, PosCaja, PosConfiguracion, OrdenTienda, OrdenTiendaLinea, OrdenTiendaEvento, Ubicacion, Usuario]), InventarioModule, ContabilidadModule, ConfiguracionModule, TraspasosModule],
-  providers: [PosService, OrdenesTiendaService],
+  providers: [PosService, OrdenesTiendaService, PruebasPosService],
   controllers: [PosController],
   exports: [PosService],
 })

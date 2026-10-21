@@ -46,6 +46,16 @@ async function cargar() {
 onMounted(cargar);
 watch([estado, tienda], cargar);
 
+async function convertirEnPrueba() {
+  if (!window.confirm(`¿Convertir el pedido ${detalle.value.numeroTexto} en pedido de PRUEBA?\n\nSe BORRA su asiento contable y deja de contar en reportes. El inventario ya movido no se toca. Solo para la etapa de pruebas.`)) return;
+  try {
+    await api.post(`/pos/ordenes/${detalle.value.id}/convertir-prueba`, {});
+    detalle.value = null;
+    await cargar();
+  } catch (err) {
+    error.value = err instanceof ApiError ? err.message : 'No se pudo convertir en prueba.';
+  }
+}
 async function abrir(id) {
   nota.value = '';
   error.value = '';
@@ -202,6 +212,7 @@ const enRevision = computed(() => detalle.value && (detalle.value.estado === 'en
           <button type="button" class="btn-secondary" :disabled="trabajando" @click="cerrar('cancelada')">Cancelar pedido</button>
         </div>
         <p v-if="error" class="mt-2 text-sm font-medium text-red-600">{{ error }}</p>
+        <button v-if="auth.esSistema && !detalle.prueba && detalle.asiento" type="button" class="btn-secondary mt-3 w-full !border-amber-500 !text-amber-700" @click="convertirEnPrueba">Convertir en prueba (borra su asiento)</button>
         <button type="button" class="btn-secondary mt-3 w-full" @click="detalle = null">Cerrar</button>
       </div>
     </div>

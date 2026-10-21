@@ -75,7 +75,7 @@ export class PosService {
     return u;
   }
 
-  // Todo lo que la terminal necesita para trabajar sin internet: productos con precio de tienda, existencias y datos del tiquete.
+  // Todo lo que la terminal necesita para trabajar sin internet: productos (los que no tienen precio de tienda solo se pueden pedir, no vender), existencias y datos del tiquete.
   async catalogo(usuario: { id: string; rol: string }, ubicacionId: string) {
     await this.exigirTiendaPropia(usuario, ubicacionId);
     const tienda = await this.tiendaOFallar(ubicacionId);
@@ -83,11 +83,12 @@ export class PosService {
     const [variantes, ultimo, encabezado, cfg, ultimaOrden, recientes] = await Promise.all([
       this.dataSource.query(
         `SELECT v.id AS "varianteId", p.codigo, p.nombre, v.color, v.precio_tienda::float8 AS precio, v.codigo_barras AS "codigoBarras",
+                p.descripcion, (SELECT f.url FROM producto_fotos f WHERE f.producto_id = p.id ORDER BY f.creado_en LIMIT 1) AS foto,
                 p.es_prueba AS prueba, COALESCE(s.cantidad, 0)::int AS stock, COALESCE(s.stock_minimo, 0)::int AS minimo,
                 COALESCE((SELECT SUM(sb.cantidad) FROM stock_ubicaciones sb JOIN ubicaciones ub ON ub.id = sb.ubicacion_id WHERE sb.variante_id = v.id AND ub.tipo = 'bodega_distribucion' AND ub.activa), 0)::int AS bodega
          FROM variantes_producto v JOIN productos p ON p.id = v.producto_id
          LEFT JOIN stock_ubicaciones s ON s.variante_id = v.id AND s.ubicacion_id = $1
-         WHERE v.activo AND p.activo AND v.precio_tienda IS NOT NULL AND (NOT p.es_prueba OR $2::boolean) ORDER BY p.codigo, v.color`,
+         WHERE v.activo AND p.activo AND (NOT p.es_prueba OR $2::boolean) ORDER BY p.codigo, v.color`,
         [ubicacionId, modoPrueba],
       ),
       this.dataSource.query('SELECT COALESCE(MAX(numero), 0)::int AS n FROM pos_ventas WHERE ubicacion_id = $1', [ubicacionId]),

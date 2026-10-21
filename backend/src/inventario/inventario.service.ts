@@ -140,12 +140,19 @@ export class InventarioService {
     return manager.save(MovimientoInventario, movimiento);
   }
 
-  ingresoManual(
+  // La mercadería entra SIEMPRE por la bodega de distribución; de ahí sale a las tiendas con un traspaso (pedido de tienda).
+  // Así nadie puede registrar existencias por error directo en una tienda.
+  async ingresoManual(
     ubicacionId: string,
     varianteId: string,
     cantidad: number,
     creadoPorId: string,
   ): Promise<MovimientoInventario> {
+    const [ubicacion] = await this.dataSource.query('SELECT tipo FROM ubicaciones WHERE id = $1', [ubicacionId]);
+    if (!ubicacion) throw new BadRequestException('Esa ubicación no existe.');
+    if (ubicacion.tipo !== 'bodega_distribucion') {
+      throw new BadRequestException('Los ingresos de mercadería solo se registran en la bodega. Para llevarla a una tienda, la tienda hace un pedido y se traspasa desde la bodega.');
+    }
     return this.registrarMovimiento({
       ubicacionId,
       varianteId,

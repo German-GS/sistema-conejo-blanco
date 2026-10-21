@@ -106,6 +106,8 @@ function etiquetaMovimiento(tipo) {
 // --- Ingreso manual de stock ---------------------------------------------
 const mostrarIngreso = ref(false);
 const ingresoUbicacionId = ref('');
+// La mercadería solo entra por la bodega; a las tiendas llega con traspasos (pedidos de tienda).
+const bodegas = computed(() => ubicaciones.value.filter((u) => u.tipo === 'bodega_distribucion'));
 const ingresoVarianteSeleccionada = ref(null);
 const ingresoCantidad = ref('');
 const guardandoIngreso = ref(false);
@@ -140,7 +142,7 @@ function alternarIngreso() {
   mostrarIngreso.value = !mostrarIngreso.value;
   mostrarAjuste.value = false;
   errorIngreso.value = '';
-  ingresoUbicacionId.value = filtroUbicacion.value || '';
+  ingresoUbicacionId.value = bodegas.value.find((u) => u.id === filtroUbicacion.value)?.id ?? (bodegas.value.length === 1 ? bodegas.value[0].id : '');
   ingresoVarianteSeleccionada.value = null;
   ingresoCantidad.value = '';
   ingresoProductoTexto.value = '';
@@ -264,7 +266,7 @@ async function confirmarAjuste() {
         <Package class="size-5 text-teal-600" />
         <h1 class="text-xl font-bold text-slate-900">Bodega</h1>
       </div>
-      <div v-if="puedeGestionar" class="flex gap-2">
+      <div v-if="puedeGestionar && vista === 'existencias'" class="flex gap-2">
         <button type="button" class="btn-secondary min-h-11 px-4 text-base" @click="alternarIngreso">
           <Plus class="size-5" />
           Ingreso
@@ -277,17 +279,17 @@ async function confirmarAjuste() {
     </div>
 
     <!-- Ingreso manual -->
-    <div v-if="mostrarIngreso" class="card flex flex-col gap-3 border-2 border-teal-200 bg-teal-50">
+    <div v-if="mostrarIngreso && vista === 'existencias'" class="card flex flex-col gap-3 border-2 border-teal-200 bg-teal-50">
       <p class="text-base font-semibold text-slate-900">Ingreso de stock</p>
       <p class="text-sm text-slate-600">
         Carga manual de producto terminado que ya existe o llega de producción externa — Conejo Blanco todavía no
-        fabrica dentro del sistema.
+        fabrica dentro del sistema. Todo entra por la bodega; a las tiendas llega por pedido y traspaso.
       </p>
       <div>
         <label class="label">Ubicación *</label>
         <select v-model="ingresoUbicacionId" class="input bg-white">
           <option value="" disabled>Elegir…</option>
-          <option v-for="u in ubicaciones" :key="u.id" :value="u.id">{{ u.nombre }}</option>
+          <option v-for="u in bodegas" :key="u.id" :value="u.id">{{ u.nombre }}</option>
         </select>
       </div>
       <div>
@@ -344,7 +346,7 @@ async function confirmarAjuste() {
     </div>
 
     <!-- Ajuste -->
-    <div v-if="mostrarAjuste" class="card flex flex-col gap-3 border-2 border-amber-200 bg-amber-50">
+    <div v-if="mostrarAjuste && vista === 'existencias'" class="card flex flex-col gap-3 border-2 border-amber-200 bg-amber-50">
       <p class="text-base font-semibold text-slate-900">Ajuste de inventario</p>
       <div>
         <label class="label">Motivo *</label>

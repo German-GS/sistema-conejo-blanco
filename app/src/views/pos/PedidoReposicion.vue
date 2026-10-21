@@ -1,8 +1,10 @@
 <script setup>
 import { computed, ref } from 'vue';
-import { Minus, Plus, X } from '@lucide/vue';
+import { Minus, Package, Plus, Search, X } from '@lucide/vue';
+import { API_URL } from '../../lib/api.js';
 import { useAuthStore } from '../../stores/auth.js';
-import { buscar, crearOrden, minimoDe, numeroOrdenTexto, ordenesPendientes, pos, recibirOrdenTienda, stockDe, sugeridaPara, sugerenciasPedido } from '../../lib/pos.js';
+import { formatearColones } from '../../lib/format.js';
+import { buscar, crearOrden, esVendible, minimoDe, numeroOrdenTexto, ordenesPendientes, pos, recibirOrdenTienda, stockDe, sugeridaPara, sugerenciasPedido } from '../../lib/pos.js';
 
 // Pedido de mercadería a la bodega: ya trae sugeridos los productos agotados o en su mínimo.
 const emit = defineEmits(['cerrar']);
@@ -18,7 +20,13 @@ const error = ref('');
 const enviando = ref(false);
 const enviado = ref(null);
 
-const resultados = computed(() => buscar(texto.value, 8).filter((v) => !lineas.value.some((l) => l.varianteId === v.varianteId)));
+const verTodo = ref(false);
+const fotosRotas = ref({});
+const urlFoto = (v) => (v.foto && !fotosRotas.value[v.varianteId] ? `${API_URL}${v.foto}` : null);
+const yaEnPedido = (v) => lineas.value.some((l) => l.varianteId === v.varianteId);
+// Se busca en todo el catálogo, también lo que la tienda todavía no vende; sin texto y con «Ver todos» se lista todo.
+const todos = computed(() => (pos.catalogo?.variantes ?? []).slice(0, 60));
+const tarjetas = computed(() => (texto.value.trim() ? buscar(texto.value, 12, true) : verTodo.value ? todos.value : []));
 function agregarOtro(v) {
   const stock = stockDe(v.varianteId);
   const minimo = minimoDe(v.varianteId);
@@ -158,10 +166,27 @@ const enCamino = computed(() => remotos.value.filter((o) => o.puedeRecibir).leng
               <tr v-if="!lineas.length"><td colspan="6" class="py-4 text-center text-sm text-green-700">Ningún producto está agotado ni en su mínimo. Si necesita algo más, búsquelo abajo.</td></tr>
             </tbody>
           </table>
-          <div class="mt-3">
-            <input v-model="texto" type="text" placeholder="Agregar otro producto: código o nombre" class="input" />
-            <ul v-if="resultados.length" class="mt-1 divide-y divide-slate-100 rounded-lg border border-slate-200">
-              <li v-for="v in resultados" :key="v.varianteId"><button type="button" class="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-blue-50" @click="agregarOtro(v)"><span>{{ v.codigo }} · {{ v.color }}</span><span class="text-xs text-slate-500">{{ stockDe(v.varianteId) }} en tienda</span></button></li>
+          <div class="mt-4 rounded-2xl border-2 border-slate-200 p-3">
+            <p class="text-base font-extrabold text-slate-900">¿Necesita otro producto?</p>
+            <div class="relative mt-2">
+              <Search class="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-slate-400" />
+              <input v-model="texto" type="search" placeholder="Busque por código, nombre o color" class="input !pl-12" />
+            </div>
+            <button v-if="!texto.trim()" type="button" class="mt-2 text-sm font-semibold text-blue-700 underline" @click="verTodo = !verTodo">{{ verTodo ? 'Ocultar productos' : 'Ver todos los productos' }}</button>
+            <p v-if="texto.trim() && !tarjetas.length" class="mt-2 text-sm text-slate-600">No se encontró ese producto. Pruebe con otra parte del código o del nombre.</p>
+            <ul v-if="tarjetas.length" class="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <li v-for="v in tarjetas" :key="v.varianteId" class="flex gap-3 rounded-2xl border border-slate-200 bg-white p-2.5 shadow-sm">
+                <div class="flex size-20 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-slate-100">
+                  <img v-if="urlFoto(v)" :src="urlFoto(v)" alt="" class="size-full object-cover" @error="fotosRotas[v.varianteId] = true" />
+                  <Package v-else class="size-8 text-slate-400" />
+                </div>
+                <div class="flex min-w-0 flex-1 flex-col">
+                  <p class="truncate text-base font-bold text-slate-900">{{ v.codigo }} · {{ v.color }}<span v-if="v.prueba" class="ml-1 rounded-full bg-amber-500 px-2 text-xs font-extrabold text-white">PRUEBA</span></p>
+                  <p class="truncate text-sm text-slate-600">{{ v.nombre }}</p>
+                  <p class="mt-0.5 text-xs text-slate-600">En tienda <b :class="stockDe(v.varianteId) <= 0 ? 'text-red-600' : ''">{{ stockDe(v.varianteId) }}</b> · En bodega <b :class="v.bodega <= 0 ? 'text-red-600' : ''">{{ v.bodega <= 0 ? 'no hay' : v.bodega }}</b><span v-if="esVendible(v)"> · {{ formatearColones(v.precio) }}</span><span v-else class="ml-1 rounded bg-slate-200 px-1.5 text-slate-700">aún sin precio de tienda</span></p>
+                  <button type="button" class="mt-auto self-end rounded-xl px-3 py-1.5 text-sm font-extrabold" :class="yaEnPedido(v) ? 'bg-slate-100 text-slate-400' : 'bg-blue-600 text-white hover:bg-blue-700'" :disabled="yaEnPedido(v)" @click="agregarOtro(v)">{{ yaEnPedido(v) ? 'Ya está en el pedido' : 'Agregar al pedido' }}</button>
+                </div>
+              </li>
             </ul>
           </div>
           <input v-model="notas" type="text" maxlength="300" placeholder="Notas para la administración (opcional)" class="input mt-3" />

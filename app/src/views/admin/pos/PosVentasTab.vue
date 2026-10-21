@@ -53,6 +53,20 @@ async function ver(v) {
     error.value = err instanceof ApiError ? err.message : 'No se pudo abrir la venta.';
   }
 }
+const convirtiendo = ref(false);
+async function convertirEnPrueba() {
+  if (!window.confirm(`¿Convertir el tiquete ${detalle.value.numeroTexto} en venta de PRUEBA?\n\nSe BORRAN sus asientos contables (y las reversas) y deja de contar en reportes y caja. Solo para la etapa de pruebas.`)) return;
+  convirtiendo.value = true;
+  try {
+    await api.post(`/pos/ventas/${detalle.value.id}/convertir-prueba`, {});
+    detalle.value = null;
+    await cargar();
+  } catch (err) {
+    error.value = err instanceof ApiError ? err.message : 'No se pudo convertir en prueba.';
+  } finally {
+    convirtiendo.value = false;
+  }
+}
 async function anular() {
   if (!motivo.value.trim()) return (error.value = 'Escriba el motivo de la anulación.');
   if (!window.confirm(`¿Anular el tiquete ${detalle.value.numeroTexto}? Las existencias vuelven a la tienda y se reversa el asiento.`)) return;
@@ -127,6 +141,7 @@ async function anular() {
           <input v-model="motivo" type="text" maxlength="200" placeholder="Motivo de la anulación" class="input mt-3" />
           <button type="button" class="btn-danger mt-2 w-full" :disabled="anulando" @click="anular">{{ anulando ? 'Anulando…' : 'Anular tiquete' }}</button>
         </template>
+        <button v-if="auth.esSistema && !detalle.prueba" type="button" class="btn-secondary mt-2 w-full !border-amber-500 !text-amber-700" :disabled="convirtiendo" @click="convertirEnPrueba">{{ convirtiendo ? 'Convirtiendo…' : 'Convertir en prueba (borra sus asientos)' }}</button>
         <button type="button" class="btn-secondary mt-2 w-full" @click="detalle = null">Cerrar</button>
       </div>
     </div>

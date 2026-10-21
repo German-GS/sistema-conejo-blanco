@@ -2,6 +2,7 @@
 import { useRouter } from 'vue-router';
 import { LogOut, KeyRound } from '@lucide/vue';
 import { useAuthStore } from '../stores/auth.js';
+import CambiarVista from './CambiarVista.vue';
 
 // A propósito NO tiene sidebar ni pestañas: el vendedor solo necesita
 // entrar y salir de "Nuevo pedido" / "Mis pedidos" rápido, sin tener que
@@ -25,6 +26,7 @@ function salir() {
           <p class="text-sm text-slate-500">{{ auth.usuario?.nombre }}</p>
         </div>
         <div class="flex items-center gap-2">
+          <CambiarVista />
           <router-link :to="{ name: 'cambiar-clave' }" class="btn-secondary min-h-11 px-3 text-base" aria-label="Cambiar contraseña" title="Cambiar contraseña">
             <KeyRound class="size-5" />
           </router-link>
