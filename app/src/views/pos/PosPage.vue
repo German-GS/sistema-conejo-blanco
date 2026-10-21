@@ -2,14 +2,14 @@
 import CambiarVista from '../../layout/CambiarVista.vue';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
-import { Banknote, Barcode, Cloud, CloudOff, CircleCheck, CreditCard, Info, KeyRound, Landmark, LogOut, Minus, PackagePlus, Plus, Printer, Receipt, RefreshCw, ScanBarcode, Smartphone, Trash2, Truck, TriangleAlert, Wallet, X } from '@lucide/vue';
+import { Banknote, Barcode, Boxes, Cloud, CloudOff, CircleCheck, FlaskConical, CreditCard, Info, KeyRound, Landmark, LogOut, Minus, PackagePlus, Plus, Printer, Receipt, RefreshCw, ScanBarcode, Smartphone, Trash2, Truck, TriangleAlert, Wallet, X } from '@lucide/vue';
 import logoMenu from '../../logo/logo-menu.png';
 import { useAuthStore } from '../../stores/auth.js';
 import { api, ApiError } from '../../lib/api.js';
 import { formatearColones, formatearFechaHora } from '../../lib/format.js';
 import {
   abrirCaja, alertasLocales, buscar, buscarExacto, cambiarTienda, esVendible, cerrarCaja, cobrar, descargarCatalogo, detenerPos, efectivoEsperado, elegirTienda,
-  guardarImprimirAuto, iniciarPos, numeroTexto, pendientes, pos, rechazadas, reintentarRechazadas, resumenTurno, sincronizar, stockDe, sugerenciasPedido, ordenesPendientes,
+  guardarImprimirAuto, iniciarPos, minimoDe, numeroTexto, pendientes, pos, rechazadas, reintentarRechazadas, resumenTurno, sincronizar, stockDe, sugerenciasPedido, ordenesPendientes,
 } from '../../lib/pos.js';
 import TiquetePos from './TiquetePos.vue';
 import PedidoReposicion from './PedidoReposicion.vue';
@@ -18,6 +18,39 @@ const auth = useAuthStore();
 const router = useRouter();
 const cajero = computed(() => ({ id: auth.usuario.id, nombre: auth.usuario.nombre }));
 const ETIQUETA_ROL = { encargado_tienda: 'Encargado de tienda', administracion: 'Administración', gerente_general: 'Gerente general', sistema: 'Administrador del sistema' };
+
+// Solo el administrador del sistema: enciende o apaga el modo de prueba sin salir de la caja y baja el catálogo de nuevo.
+const cambiandoPrueba = ref(false);
+async function alternarModoPrueba() {
+  cambiandoPrueba.value = true;
+  try {
+    await api.patch('/pos/configuracion', { modoPrueba: !pos.catalogo?.modoPrueba });
+    await descargarCatalogo();
+  } catch (err) {
+    avisar(err instanceof ApiError ? err.message : 'No se pudo cambiar el modo de prueba.');
+  } finally {
+    cambiandoPrueba.value = false;
+  }
+}
+
+// Lo que hay en esta tienda (con existencias o con mínimo definido) y el panel de inventario.
+const enTienda = computed(() => (pos.catalogo?.variantes ?? []).filter((v) => stockDe(v.varianteId) > 0 || minimoDe(v.varianteId) > 0));
+const invTexto = ref('');
+const invTodo = ref(false);
+const invFilas = computed(() => {
+  const base = invTexto.value.trim() ? buscar(invTexto.value, 500, true) : pos.catalogo?.variantes ?? [];
+  return [...base].filter((v) => invTodo.value || stockDe(v.varianteId) > 0 || minimoDe(v.varianteId) > 0).sort((a, b) => a.codigo.localeCompare(b.codigo) || a.color.localeCompare(b.color)).slice(0, 150);
+});
+const invPares = computed(() => invFilas.value.reduce((a, v) => a + Math.max(stockDe(v.varianteId), 0), 0));
+// La administración puede ir directo a ponerle precio a lo que ya está en la tienda.
+function irAPrecios() {
+  try {
+    sessionStorage.setItem('cb-tienda-pestana', 'productos');
+  } catch {
+    /* sin sessionStorage solo abre la primera pestaña */
+  }
+  router.push({ name: 'admin-tienda' });
+}
 
 // ---- Tienda de esta terminal
 const tiendas = ref([]);
@@ -35,7 +68,8 @@ async function cargarTiendas() {
 const texto = ref('');
 const entrada = ref(null);
 const carrito = ref([]);
-const resultados = computed(() => buscar(texto.value));
+// Se busca en todo lo que hay en la tienda; lo que no tiene precio de tienda se ve pero no se puede vender.
+const resultados = computed(() => [...buscar(texto.value, 24, true)].sort((a, b) => Number(esVendible(b)) - Number(esVendible(a))));
 const total = computed(() => Math.round(carrito.value.reduce((a, l) => a + l.precio * l.cantidad, 0) * 100) / 100);
 const pares = computed(() => carrito.value.reduce((a, l) => a + l.cantidad, 0));
 const aviso = ref('');
@@ -47,6 +81,7 @@ function avisar(m) {
 }
 
 function agregar(v) {
+  if (!esVendible(v)) return avisar(`${v.codigo} ${v.color} está en la tienda pero todavía no tiene precio de tienda: avise a la administración para poder venderlo.`);
   const existente = carrito.value.find((l) => l.varianteId === v.varianteId);
   if (existente) existente.cantidad += 1;
   else {
@@ -62,7 +97,7 @@ function alEnter() {
   const exacto = buscarExacto(texto.value);
   if (exacto) return agregar(exacto);
   if (resultados.value.length === 1) return agregar(resultados.value[0]);
-  if (!resultados.value.length && texto.value.trim()) avisar('No se encontró ese producto (¿tiene precio de tienda y código?).');
+  if (!resultados.value.length && texto.value.trim()) avisar('No se encontró ese producto. Pruebe con otra parte del nombre o del código.');
 }
 
 function cambiarCantidad(l, d) {
@@ -304,6 +339,7 @@ watch(
       <div v-if="pos.tienda" class="ml-2 flex flex-wrap items-center gap-2">
         <span class="flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-bold" :class="pos.caja ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'"><Wallet class="size-4" /> {{ pos.caja ? 'CAJA ABIERTA' : 'CAJA CERRADA' }}</span>
         <span class="flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-bold" :class="pos.enLinea ? 'bg-green-100 text-green-800' : 'bg-red-600 text-white'"><component :is="pos.enLinea ? Cloud : CloudOff" class="size-4" /> {{ pos.enLinea ? 'Con internet' : 'SIN INTERNET' }}</span>
+        <button v-if="auth.esSistema" type="button" class="flex items-center gap-1.5 rounded-full border-2 px-3 py-1 text-sm font-bold transition disabled:opacity-60" :class="pos.catalogo?.modoPrueba ? 'border-amber-500 bg-amber-500 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100'" :disabled="cambiandoPrueba || !pos.enLinea" title="Solo el administrador del sistema: muestra u oculta los productos de prueba" @click="alternarModoPrueba"><FlaskConical class="size-4" /> Modo de prueba: {{ pos.catalogo?.modoPrueba ? 'ENCENDIDO' : 'apagado' }}</button>
       </div>
       <div class="ml-auto flex items-center gap-3">
         <CambiarVista />
@@ -317,7 +353,7 @@ watch(
     </header>
 
     <!-- Acciones principales: botones grandes con ícono y nombre -->
-    <nav v-if="pos.tienda" class="grid grid-cols-2 gap-2 border-b border-slate-200 bg-white px-4 py-2 sm:grid-cols-4">
+    <nav v-if="pos.tienda" class="grid grid-cols-2 gap-2 border-b border-slate-200 bg-white px-4 py-2 sm:grid-cols-5">
       <button type="button" class="relative flex min-h-14 items-center justify-center gap-2 rounded-xl border-2 px-3 text-base font-bold transition" :class="pos.caja ? 'border-slate-300 bg-white text-slate-800 hover:bg-slate-100' : 'border-blue-600 bg-blue-600 text-white shadow-sm hover:bg-blue-700'" @click="panel = 'caja'"><Wallet class="size-5" /> {{ pos.caja ? 'Cerrar caja' : 'Abrir caja' }}</button>
       <button type="button" class="relative flex min-h-14 items-center justify-center gap-2 rounded-xl border-2 border-slate-300 bg-white px-3 text-base font-bold text-slate-800 transition hover:bg-slate-100" @click="pidiendo = true">
         <PackagePlus class="size-5" /> Pedir mercadería
@@ -326,6 +362,7 @@ watch(
       </button>
       <button type="button" class="flex min-h-14 items-center justify-center gap-2 rounded-xl border-2 border-slate-300 bg-white px-3 text-base font-bold text-slate-800 transition hover:bg-slate-100" @click="panel = 'turno'"><Receipt class="size-5" /> Ventas de hoy</button>
       <button type="button" class="flex min-h-14 items-center justify-center gap-2 rounded-xl border-2 px-3 text-base font-bold transition" :class="alertasLocales.length ? 'border-red-400 bg-red-50 text-red-700 hover:bg-red-100' : 'border-slate-300 bg-white text-slate-800 hover:bg-slate-100'" @click="panel = 'alertas'"><TriangleAlert class="size-5" /> Se está acabando <span v-if="alertasLocales.length" class="rounded-full bg-red-600 px-2 text-sm text-white">{{ alertasLocales.length }}</span></button>
+      <button type="button" class="flex min-h-14 items-center justify-center gap-2 rounded-xl border-2 border-slate-300 bg-white px-3 text-base font-bold text-slate-800 transition hover:bg-slate-100" @click="panel = 'inventario'"><Boxes class="size-5" /> Inventario <span class="rounded-full bg-slate-200 px-2 text-sm text-slate-700">{{ enTienda.length }}</span></button>
     </nav>
 
     <p v-if="pos.catalogo?.modoPrueba" class="flex items-center justify-center gap-2 bg-amber-500 px-4 py-2 text-center text-base font-extrabold text-white"><TriangleAlert class="size-5" /> MODO DE PRUEBA: los productos marcados PRUEBA son de demostración. No generan asientos ni cuentan en la caja. No los venda a clientes reales.</p>
@@ -370,14 +407,17 @@ watch(
         </div>
         <p v-if="aviso" class="rounded-xl bg-amber-100 px-4 py-3 text-base font-semibold text-amber-900">{{ aviso }}</p>
         <p v-if="!pos.catalogo" class="rounded-xl bg-slate-200 px-4 py-3 text-base text-slate-700">Descargando los productos de la tienda… (se necesita internet la primera vez)</p>
-        <p v-else-if="!pos.catalogo.variantes.some(esVendible)" class="rounded-xl bg-amber-100 px-4 py-3 text-base font-semibold text-amber-900">Todavía no hay productos con precio de tienda. Avise a la administración para que los configure.</p>
+        <div v-else-if="!pos.catalogo.variantes.some(esVendible)" class="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-amber-100 px-4 py-3 text-base font-semibold text-amber-900">
+          <span>{{ enTienda.length ? `Hay ${enTienda.length} producto(s) en la tienda, pero ninguno tiene precio de tienda todavía: no se pueden vender.` : 'Todavía no hay productos con precio de tienda.' }} Avise a la administración para que los configure.</span>
+          <button v-if="auth.esAdministracion" type="button" class="rounded-xl bg-amber-600 px-4 py-2 text-base font-extrabold text-white hover:bg-amber-700" @click="irAPrecios">Poner precios</button>
+        </div>
 
         <div class="min-h-0 flex-1 overflow-y-auto">
           <ul v-if="resultados.length" class="grid grid-cols-1 gap-2 xl:grid-cols-2">
             <li v-for="v in resultados" :key="v.varianteId">
-              <button type="button" class="flex w-full items-center justify-between gap-3 rounded-2xl border-2 border-slate-200 bg-white px-4 py-3 text-left shadow-sm hover:border-blue-500 hover:bg-blue-50" @click="agregar(v)">
+              <button type="button" class="flex w-full items-center justify-between gap-3 rounded-2xl border-2 border-slate-200 bg-white px-4 py-3 text-left shadow-sm hover:border-blue-500 hover:bg-blue-50" :class="esVendible(v) ? '' : 'opacity-70'" @click="agregar(v)">
                 <span class="min-w-0"><span class="flex items-center gap-2 truncate text-lg font-bold">{{ v.codigo }} · {{ v.color }}<span v-if="v.prueba" class="rounded-full bg-amber-500 px-2 text-xs font-extrabold text-white">PRUEBA</span></span><span class="block truncate text-sm text-slate-500">{{ v.nombre }}</span></span>
-                <span class="text-right"><span class="block text-xl font-extrabold">{{ formatearColones(v.precio) }}</span><span class="block text-sm" :class="stockDe(v.varianteId) <= 0 ? 'font-bold text-red-600' : stockDe(v.varianteId) <= v.minimo ? 'font-bold text-amber-600' : 'text-slate-500'">{{ stockDe(v.varianteId) <= 0 ? 'SIN EXISTENCIAS' : `${stockDe(v.varianteId)} en tienda` }}</span></span>
+                <span class="text-right"><span v-if="esVendible(v)" class="block text-xl font-extrabold">{{ formatearColones(v.precio) }}</span><span v-else class="block rounded-lg bg-slate-200 px-2 py-0.5 text-sm font-bold text-slate-700">SIN PRECIO DE TIENDA</span><span class="block text-sm" :class="stockDe(v.varianteId) <= 0 ? 'font-bold text-red-600' : stockDe(v.varianteId) <= v.minimo ? 'font-bold text-amber-600' : 'text-slate-500'">{{ stockDe(v.varianteId) <= 0 ? 'SIN EXISTENCIAS' : `${stockDe(v.varianteId)} en tienda` }}</span></span>
               </button>
             </li>
           </ul>
@@ -502,7 +542,7 @@ watch(
     <div v-if="panel" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-3" @click.self="panel = ''; cierreHecho = null">
       <div class="max-h-full w-full max-w-2xl overflow-y-auto rounded-3xl bg-white p-6 shadow-xl">
         <div class="mb-4 flex items-start justify-between">
-          <p class="text-2xl font-extrabold text-slate-900">{{ { caja: cierreHecho ? 'Caja cerrada' : pos.caja ? 'Cerrar la caja' : 'Abrir la caja', turno: 'Ventas de hoy', alertas: 'Se está acabando', rechazadas: 'Ventas que no se pudieron enviar' }[panel] }}</p>
+          <p class="text-2xl font-extrabold text-slate-900">{{ { caja: cierreHecho ? 'Caja cerrada' : pos.caja ? 'Cerrar la caja' : 'Abrir la caja', turno: 'Ventas de hoy', alertas: 'Se está acabando', inventario: 'Inventario de la tienda', rechazadas: 'Ventas que no se pudieron enviar' }[panel] }}</p>
           <button type="button" class="rounded-lg p-1 hover:bg-slate-100" aria-label="Cerrar" @click="panel = ''; cierreHecho = null"><X class="size-6" /></button>
         </div>
 
@@ -546,6 +586,21 @@ watch(
             </li>
             <li v-if="!ventasTurno.length" class="py-4 text-lg text-slate-500">Todavía no hay ventas en este turno.</li>
           </ul>
+        </template>
+
+        <template v-else-if="panel === 'inventario'">
+          <p class="mb-3 rounded-2xl bg-blue-600 p-4 text-lg text-white">Esto es lo que el sistema dice que hay en <b>esta tienda</b>. Si algo no cuadra con lo que ve en el estante, avise a la administración.</p>
+          <input v-model="invTexto" type="search" placeholder="Busque por código, nombre o color" class="input" />
+          <label class="mt-2 flex items-center gap-2 text-base font-semibold text-slate-700"><input v-model="invTodo" type="checkbox" class="size-5" /> Mostrar también lo que no tiene existencias</label>
+          <p class="mt-2 text-sm text-slate-500">{{ invFilas.length }} producto(s) · {{ invPares }} pares en tienda</p>
+          <ul class="mt-1 divide-y divide-slate-100">
+            <li v-for="v in invFilas" :key="v.varianteId" class="flex items-center justify-between gap-3 py-2.5">
+              <span class="min-w-0"><span class="flex items-center gap-2 truncate text-lg font-bold">{{ v.codigo }} · {{ v.color }}<span v-if="v.prueba" class="rounded-full bg-amber-500 px-2 text-xs font-extrabold text-white">PRUEBA</span></span><span class="block truncate text-sm text-slate-500">{{ v.nombre }} · <template v-if="esVendible(v)">{{ formatearColones(v.precio) }}</template><b v-else class="text-amber-600">sin precio de tienda</b></span></span>
+              <span class="text-right"><span class="block text-2xl font-extrabold" :class="stockDe(v.varianteId) <= 0 ? 'text-red-600' : stockDe(v.varianteId) <= minimoDe(v.varianteId) ? 'text-amber-600' : 'text-slate-900'">{{ stockDe(v.varianteId) }}</span><span class="block text-xs text-slate-500">{{ minimoDe(v.varianteId) ? `mínimo ${minimoDe(v.varianteId)}` : 'pares' }}</span></span>
+            </li>
+            <li v-if="!invFilas.length" class="py-4 text-lg text-slate-600">No hay productos con esas condiciones.</li>
+          </ul>
+          <button type="button" class="mt-4 w-full rounded-2xl border-2 border-slate-300 py-3 text-lg font-bold hover:bg-slate-100" @click="descargarCatalogo">Actualizar existencias</button>
         </template>
 
         <template v-else-if="panel === 'alertas'">

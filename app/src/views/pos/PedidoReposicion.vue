@@ -25,8 +25,10 @@ const fotosRotas = ref({});
 const urlFoto = (v) => (v.foto && !fotosRotas.value[v.varianteId] ? `${API_URL}${v.foto}` : null);
 const yaEnPedido = (v) => lineas.value.some((l) => l.varianteId === v.varianteId);
 // Se busca en todo el catálogo, también lo que la tienda todavía no vende; sin texto y con «Ver todos» se lista todo.
-const todos = computed(() => (pos.catalogo?.variantes ?? []).slice(0, 60));
-const tarjetas = computed(() => (texto.value.trim() ? buscar(texto.value, 12, true) : verTodo.value ? todos.value : []));
+const porBodega = (a, b) => Number(b.bodega > 0) - Number(a.bodega > 0) || a.codigo.localeCompare(b.codigo) || a.color.localeCompare(b.color);
+const todos = computed(() => [...(pos.catalogo?.variantes ?? [])].sort(porBodega).slice(0, 60));
+const totalCatalogo = computed(() => pos.catalogo?.variantes?.length ?? 0);
+const tarjetas = computed(() => (texto.value.trim() ? [...buscar(texto.value, 40, true)].sort(porBodega).slice(0, 12) : verTodo.value ? todos.value : []));
 function agregarOtro(v) {
   const stock = stockDe(v.varianteId);
   const minimo = minimoDe(v.varianteId);
@@ -151,7 +153,7 @@ const enCamino = computed(() => remotos.value.filter((o) => o.puedeRecibir).leng
 
       <template v-else>
         <div class="min-h-0 flex-1 overflow-y-auto p-5">
-          <ol class="list-decimal space-y-0.5 rounded-2xl bg-blue-50 p-4 pl-9 text-base text-blue-900"><li>Ya van marcados los productos que se <b>acabaron</b> o se están acabando, con la cantidad que recomienda el sistema.</li><li>Cambie la cantidad si hace falta, o desmarque lo que no necesite.</li><li>Toque <b>ENVIAR PEDIDO</b>. La administración lo recibirá y usted podrá ver cómo va en «Mis pedidos».</li></ol>
+          <ol class="list-decimal space-y-0.5 rounded-2xl bg-blue-600 p-4 pl-9 text-base text-white"><li>Ya van marcados los productos que se <b>acabaron</b> o se están acabando, con la cantidad que recomienda el sistema.</li><li>Cambie la cantidad si hace falta, o desmarque lo que no necesite.</li><li>Toque <b>ENVIAR PEDIDO</b>. La administración lo recibirá y usted podrá ver cómo va en «Mis pedidos».</li></ol>
           <table class="mt-3 w-full text-base">
             <thead><tr class="border-b border-slate-200 text-left text-xs text-slate-500"><th class="w-8 py-1"></th><th class="py-1 pr-2">Producto</th><th class="py-1 pr-2 text-right">En tienda</th><th class="py-1 pr-2 text-right">Mínimo</th><th class="py-1 pr-2 text-right">En bodega</th><th class="py-1 text-right">Pedir (pares)</th></tr></thead>
             <tbody>
@@ -172,7 +174,10 @@ const enCamino = computed(() => remotos.value.filter((o) => o.puedeRecibir).leng
               <Search class="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-slate-400" />
               <input v-model="texto" type="search" placeholder="Busque por código, nombre o color" class="input !pl-12" />
             </div>
-            <button v-if="!texto.trim()" type="button" class="mt-2 text-sm font-semibold text-blue-700 underline" @click="verTodo = !verTodo">{{ verTodo ? 'Ocultar productos' : 'Ver todos los productos' }}</button>
+            <p class="mt-1 text-xs text-slate-500">Productos disponibles para pedir: <b>{{ totalCatalogo }}</b>. Los que tienen existencias en bodega salen primero.</p>
+            <p v-if="pos.catalogo?.modoPrueba === false" class="mt-1 text-xs font-semibold text-amber-600">Los productos de PRUEBA no aparecen porque el Modo de prueba está apagado (Tienda → Configuración).</p>
+            <p v-if="!totalCatalogo" class="mt-2 rounded-xl bg-amber-100 px-3 py-2 text-sm font-semibold text-amber-900">Esta tienda no tiene productos para pedir todavía. Si son de prueba, active el Modo de prueba; si son reales, créelos en Inventario.</p>
+            <button v-if="!texto.trim() && totalCatalogo" type="button" class="mt-2 text-sm font-semibold text-blue-700 underline" @click="verTodo = !verTodo">{{ verTodo ? 'Ocultar productos' : 'Ver todos los productos' }}</button>
             <p v-if="texto.trim() && !tarjetas.length" class="mt-2 text-sm text-slate-600">No se encontró ese producto. Pruebe con otra parte del código o del nombre.</p>
             <ul v-if="tarjetas.length" class="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
               <li v-for="v in tarjetas" :key="v.varianteId" class="flex gap-3 rounded-2xl border border-slate-200 bg-white p-2.5 shadow-sm">
