@@ -1,6 +1,6 @@
 # Base de datos — Sistema Conejo Blanco
 
-Esquema generado desde las entidades de TypeORM (PostgreSQL): **47 tablas**, **49 relaciones** entre tablas.
+Esquema generado desde las entidades de TypeORM (PostgreSQL): **52 tablas**, **56 relaciones** entre tablas.
 
 Cada diagrama muestra una zona del sistema con sus llaves (PK = llave primaria, FK = llave foránea, UK = única) y las columnas principales. Las tablas externas a la zona aparecen solo con su `id`.
 
@@ -25,7 +25,7 @@ erDiagram
     timestamp clave_temporal_vence
     string totp_secreto
     boolean totp_activo
-    string mas_3_columnas
+    string mas_6_columnas
   }
   usuario_permisos {
     uuid id PK
@@ -86,6 +86,8 @@ erDiagram
     string color
     decimal precio_por_par
     decimal costo
+    decimal precio_tienda
+    string codigo_barras UK
     boolean activo
   }
   producto_fotos {
@@ -112,6 +114,7 @@ erDiagram
     uuid ubicacion_id FK
     uuid variante_id FK
     int cantidad
+    int stock_minimo
   }
   movimientos_inventario {
     uuid id PK
@@ -445,6 +448,87 @@ erDiagram
   }
   asientos_contables ||--o{ lineas_asiento : asiento_id
   cuentas_contables ||--o{ lineas_asiento : cuenta_id
+```
+
+## Punto de venta (POS)
+
+Tablas: `pos_ventas`, `pos_venta_lineas`, `pos_pagos`, `pos_cajas`, `pos_configuracion`.
+
+```mermaid
+erDiagram
+  pos_ventas {
+    uuid id PK
+    uuid ubicacion_id FK
+    uuid cajero_id FK
+    int numero
+    uuid caja_id
+    timestamp fecha
+    decimal subtotal
+    decimal descuento
+    decimal total
+    string estado
+    string motivo_anulacion
+    timestamp anulada_en
+    uuid anulada_por_id
+    string mas_3_columnas
+  }
+  pos_venta_lineas {
+    uuid id PK
+    uuid venta_id FK
+    uuid variante_id FK
+    string codigo
+    string descripcion
+    string color
+    int cantidad
+    decimal precio_unitario
+    decimal descuento
+    decimal subtotal
+    decimal costo_unitario
+  }
+  pos_pagos {
+    uuid id PK
+    uuid venta_id FK
+    string medio
+    decimal monto
+    string referencia
+    decimal recibido
+    decimal vuelto
+  }
+  pos_cajas {
+    uuid id PK
+    uuid ubicacion_id FK
+    uuid cajero_id FK
+    timestamp abierta_en
+    decimal fondo_inicial
+    timestamp cerrada_en
+    decimal efectivo_esperado
+    decimal efectivo_contado
+    decimal diferencia
+    string notas
+  }
+  pos_configuracion {
+    string id PK
+    uuid cuenta_tarjeta_id
+    uuid cuenta_sinpe_id
+    uuid cuenta_transferencia_id
+    string pie_tiquete
+  }
+  ubicaciones {
+    uuid id PK
+  }
+  usuarios {
+    uuid id PK
+  }
+  variantes_producto {
+    uuid id PK
+  }
+  ubicaciones ||--o{ pos_ventas : ubicacion_id
+  usuarios ||--o{ pos_ventas : cajero_id
+  pos_ventas ||--o{ pos_venta_lineas : venta_id
+  variantes_producto ||--o{ pos_venta_lineas : variante_id
+  pos_ventas ||--o{ pos_pagos : venta_id
+  ubicaciones ||--o{ pos_cajas : ubicacion_id
+  usuarios ||--o{ pos_cajas : cajero_id
 ```
 
 ## Planilla

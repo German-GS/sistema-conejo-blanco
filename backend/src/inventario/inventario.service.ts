@@ -43,6 +43,36 @@ export class InventarioService {
     });
   }
 
+  // Existencias que pidieron alerta (stock mínimo) y ya llegaron a ese nivel, más cualquier existencia en negativo.
+  // Las agotadas y negativas salen primero.
+  async alertas(ubicacionId?: string) {
+    const filas: Array<{ ubicacionId: string; ubicacion: string; tipo: string; varianteId: string; codigo: string; nombre: string; color: string; cantidad: number; minimo: number }> = await this.dataSource.query(
+      `SELECT s.ubicacion_id AS "ubicacionId", u.nombre AS ubicacion, u.tipo::text AS tipo, s.variante_id AS "varianteId",
+              p.codigo, p.nombre, v.color, s.cantidad, s.stock_minimo AS minimo
+       FROM stock_ubicaciones s
+       JOIN ubicaciones u ON u.id = s.ubicacion_id
+       JOIN variantes_producto v ON v.id = s.variante_id
+       JOIN productos p ON p.id = v.producto_id
+       WHERE u.activa AND v.activo AND p.activo AND ($1::uuid IS NULL OR s.ubicacion_id = $1::uuid)
+         AND ((s.stock_minimo > 0 AND s.cantidad <= s.stock_minimo) OR s.cantidad < 0)
+       ORDER BY (s.cantidad <= 0) DESC, (s.cantidad - s.stock_minimo) ASC, u.nombre, p.codigo`,
+      [ubicacionId ?? null],
+    );
+    return filas.map((f) => ({ ...f, estado: f.cantidad < 0 ? 'negativo' : f.cantidad === 0 ? 'agotado' : 'bajo' }));
+  }
+
+  // Crea la fila de stock si no existía (con 0 pares) para poder dejar el mínimo antes de que llegue mercadería.
+  async establecerMinimos(ubicacionId: string, minimos: Array<{ varianteId: string; minimo: number }>): Promise<{ actualizados: number }> {
+    await this.dataSource.transaction(async (manager) => {
+      for (const m of minimos) {
+        const existente = await manager.findOne(StockUbicacion, { where: { ubicacionId, varianteId: m.varianteId } });
+        if (existente) await manager.update(StockUbicacion, existente.id, { stockMinimo: m.minimo });
+        else await manager.save(StockUbicacion, manager.create(StockUbicacion, { ubicacionId, varianteId: m.varianteId, cantidad: 0, stockMinimo: m.minimo }));
+      }
+    });
+    return { actualizados: minimos.length };
+  }
+
   listarKardex(filtros: { ubicacionId?: string; varianteId?: string } = {}): Promise<MovimientoInventario[]> {
     return this.movimientoRepo.find({
       where: {

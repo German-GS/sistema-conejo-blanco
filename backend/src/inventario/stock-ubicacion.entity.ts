@@ -32,4 +32,14 @@ export class StockUbicacion {
   // terminado (a diferencia de las docenas del pedido, que sí admiten .5).
   @Column({ type: 'integer', default: 0 })
   cantidad: number;
+
+  // Cuando la existencia baja de este número (y es mayor que 0) salta la alerta de inventario bajo.
+  // 0 = sin alerta configurada.
+  // Costo promedio por par de lo que hay en esta ubicación (solo tiendas: sale de los envíos recibidos a su costo especial).
+  // Sin dato, se usa el costo del producto.
+  @Column({ type: 'decimal', name: 'costo_promedio', precision: 12, scale: 2, nullable: true })
+  costoPromedio: string | null;
+
+  @Column({ type: 'integer', name: 'stock_minimo', default: 0 })
+  stockMinimo: number;
 }

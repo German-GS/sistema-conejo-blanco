@@ -207,3 +207,24 @@ html.tema-oscuro .card {
 html.tema-oscuro ::placeholder {
   color: #6f7886;
 }
+
+/* Tiquete del POS: se imprime en rollo de 80 mm; en pantalla no se ve. */
+#ticket-print {
+  display: none;
+}
+@media print {
+  @page {
+    size: 80mm auto;
+    margin: 0;
+  }
+  body.imprimiendo-tiquete #app {
+    display: none !important;
+  }
+  body.imprimiendo-tiquete #ticket-print {
+    display: block !important;
+    width: 72mm;
+    padding: 2mm;
+    background: #fff;
+    color: #000;
+  }
+}

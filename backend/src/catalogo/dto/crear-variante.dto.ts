@@ -1,4 +1,4 @@
-import { IsNumber, IsOptional, IsPositive, IsString, IsUUID, Max, MaxLength, MinLength } from 'class-validator';
+import { IsNumber, IsOptional, IsPositive, IsString, IsUUID, Matches, Max, MaxLength, MinLength } from 'class-validator';
 
 // Max en precioPorPar/costo: el mismo límite que admite la columna
 // decimal(12,2) de VarianteProducto — sin esto, un número más grande
@@ -24,4 +24,18 @@ export class CrearVarianteDto {
   @IsPositive()
   @Max(9_999_999_999.99)
   costo?: number;
+
+  // Precio al detalle de la tienda (POS). null = quitarlo (la variante deja de venderse en la tienda).
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @IsPositive()
+  @Max(9_999_999_999.99)
+  precioTienda?: number | null;
+
+  // Código de barras que lee el lector de la caja. null o vacío = quitarlo.
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  @Matches(/^[A-Za-z0-9._-]{4,40}$/, { message: 'El código de barras debe tener de 4 a 40 letras, números, punto, guion o guion bajo.' })
+  codigoBarras?: string | null;
 }

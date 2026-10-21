@@ -116,11 +116,14 @@ const CRUCES: Cruce[] = [
   {
     codigo: 'ventas-mayor-vs-facturas',
     grupo: 'Ventas',
-    titulo: 'Ventas del mayor = facturas vigentes, mes por mes',
+    titulo: 'Ventas del mayor = facturas y tiquetes de tienda vigentes, mes por mes',
     severidad: 'atencion',
     sql: `WITH mayor AS (SELECT substr(m.fecha, 1, 7) AS mes, SUM(${VENTA}) AS v FROM (${MAYOR}) m
                          WHERE m.cuenta_codigo IN ('4100','4110','4120') AND COALESCE(m.origen_tipo, '') NOT LIKE 'cierre%' GROUP BY 1),
-               op AS (SELECT to_char(f.fecha, 'YYYY-MM') AS mes, SUM(f.subtotal) AS v FROM facturas f ${FACTURA_JOINS} WHERE ${FACTURA_VIGENTE} GROUP BY 1)
+               op AS (SELECT mes, SUM(v) AS v FROM (
+                        SELECT to_char(f.fecha, 'YYYY-MM') AS mes, f.subtotal AS v FROM facturas f ${FACTURA_JOINS} WHERE ${FACTURA_VIGENTE}
+                        UNION ALL
+                        SELECT to_char(pv.fecha AT TIME ZONE 'America/Costa_Rica', 'YYYY-MM') AS mes, pv.total AS v FROM pos_ventas pv WHERE pv.estado = 'vigente') x GROUP BY 1)
           SELECT COALESCE(mayor.mes, op.mes) AS mes, COALESCE(mayor.v, 0)::float8 AS mayor, COALESCE(op.v, 0)::float8 AS facturas,
                  (COALESCE(mayor.v, 0) - COALESCE(op.v, 0))::float8 AS diferencia
           FROM mayor FULL JOIN op ON op.mes = mayor.mes WHERE ABS(COALESCE(mayor.v, 0) - COALESCE(op.v, 0)) > 0.5 ORDER BY 1`,
@@ -152,6 +155,39 @@ const CRUCES: Cruce[] = [
     resumen: (f) => `${f.length} factura(s) sin costo de ventas: el margen bruto está sobrestimado.`,
   },
   {
+    codigo: 'pos-ventas-sin-asiento',
+    grupo: 'Ventas',
+    titulo: 'Todo tiquete de tienda (POS) tiene su asiento',
+    severidad: 'error',
+    sql: `SELECT u.codigo || '-' || lpad(v.numero::text, 6, '0') AS tiquete, to_char(v.fecha AT TIME ZONE 'America/Costa_Rica', 'YYYY-MM-DD') AS fecha, v.total::float8 AS total
+          FROM pos_ventas v JOIN ubicaciones u ON u.id = v.ubicacion_id
+          WHERE v.estado = 'vigente' AND NOT EXISTS (SELECT 1 FROM asientos_contables a WHERE a.origen_tipo = 'pos_venta' AND a.origen_id = v.id) ORDER BY v.fecha`,
+    donde: 'POS: la venta se cobró y descontó inventario, pero no llegó al libro mayor; las ventas contables quedan por debajo de las de la tienda.',
+    resumen: (f) => `${f.length} tiquete(s) de tienda sin asiento contable.`,
+  },
+  {
+    codigo: 'pos-sin-costo',
+    grupo: 'Inventario',
+    titulo: 'Los productos vendidos en tienda tienen costo cargado',
+    severidad: 'atencion',
+    sql: `SELECT l.codigo AS producto_codigo, l.color, SUM(l.cantidad)::int AS pares_vendidos FROM pos_venta_lineas l JOIN pos_ventas v ON v.id = l.venta_id
+          WHERE v.estado = 'vigente' AND COALESCE(l.costo_unitario, 0) = 0 GROUP BY 1, 2 ORDER BY 3 DESC`,
+    donde: 'Catálogo: cargue el costo de esos productos; sin él, el costo de ventas de la tienda queda en cero y el margen sale inflado.',
+    resumen: (f) => `${f.length} producto(s) vendidos en tienda sin costo.`,
+  },
+  {
+    codigo: 'pos-ordenes-sin-asiento',
+    grupo: 'Inventario',
+    titulo: 'Todo pedido de tienda recibido tiene su asiento de traslado',
+    severidad: 'error',
+    sql: `SELECT u.codigo || '-R' || lpad(o.numero::text, 4, '0') AS pedido, u.nombre AS tienda, to_char(o.atendida_en AT TIME ZONE 'America/Costa_Rica', 'YYYY-MM-DD') AS recibido
+          FROM pos_ordenes o JOIN ubicaciones u ON u.id = o.ubicacion_id
+          WHERE o.estado = 'entregada' AND EXISTS (SELECT 1 FROM pos_orden_lineas l WHERE l.orden_id = o.id AND l.costo_tienda IS NOT NULL)
+            AND NOT EXISTS (SELECT 1 FROM asientos_contables a WHERE a.origen_tipo = 'pos_orden' AND a.origen_id = o.id) ORDER BY o.fecha`,
+    donde: 'POS → Pedidos de tienda: el pedido figura recibido y el inventario de la tienda subió, pero el traslado no llegó al libro mayor (inventario de tiendas contra inventario de bodega).',
+    resumen: (f) => `${f.length} pedido(s) de tienda recibidos sin asiento.`,
+  },
+  {
     codigo: 'cxc-por-cliente',
     grupo: 'Cartera',
     titulo: 'Cuentas por cobrar por cliente: mayor = facturas abiertas',
@@ -169,9 +205,9 @@ const CRUCES: Cruce[] = [
   {
     codigo: 'inventario-mayor-vs-existencias',
     grupo: 'Inventario',
-    titulo: 'Inventario del mayor (1300–1320) = existencias de bodega a costo',
+    titulo: 'Inventario del mayor (1300–1320) = existencias a costo',
     severidad: 'atencion',
-    sql: `WITH mayor AS (SELECT COALESCE(SUM(m.debe - m.haber), 0) AS v FROM (${MAYOR}) m WHERE m.cuenta_codigo IN ('1300','1310','1320')),
+    sql: `WITH mayor AS (SELECT COALESCE(SUM(m.debe - m.haber), 0) AS v FROM (${MAYOR}) m WHERE m.cuenta_codigo IN ('1300','1305','1310','1320')),
                bodega AS (SELECT COALESCE(SUM(s.valor_costo), 0) AS v FROM (${SQL_BASE.INVENTARIO_STOCK}) s)
           SELECT mayor.v::float8 AS mayor, bodega.v::float8 AS bodega, (mayor.v - bodega.v)::float8 AS diferencia FROM mayor, bodega WHERE ABS(mayor.v - bodega.v) > 0.5`,
     donde: 'Si bodega vale MÁS que el mayor: se cargaron existencias (ingreso inicial) sin asiento contable de inventario, o se actualizó el costo de un producto después. Si vale MENOS: hay ventas con un costo distinto al actual o mermas sin registrar.',

@@ -16,6 +16,9 @@ export const CUENTA = {
   CUENTAS_POR_COBRAR: '1200',
   CUENTAS_POR_COBRAR_EMPLEADOS: '1250',
   INVENTARIO: '1300',
+  INVENTARIO_TIENDAS: '1305',
+  PERDIDA_MERMAS: '5440',
+  DIFERENCIA_COSTO_TRASLADOS: '5460',
   SALARIOS_POR_PAGAR: '2100',
   CARGAS_SOCIALES_POR_PAGAR: '2110',
   RENTA_SALARIOS_POR_PAGAR: '2120',
@@ -293,7 +296,7 @@ export class ContabilidadService implements OnModuleInit {
     return this.periodoRepo.find({ order: { periodo: 'DESC' } });
   }
 
-  private async estaCerrado(manager: EntityManager, fecha: string): Promise<boolean> {
+  async estaCerrado(manager: EntityManager, fecha: string): Promise<boolean> {
     return manager.exists(PeriodoCerrado, { where: { periodo: this.periodoDe(fecha) } });
   }
 

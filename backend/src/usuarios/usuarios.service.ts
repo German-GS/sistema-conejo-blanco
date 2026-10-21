@@ -6,6 +6,8 @@ import * as bcrypt from 'bcrypt';
 import { Usuario } from './usuario.entity.js';
 import { Rol } from '../common/enums/rol.enum.js';
 import { Empleado } from '../planilla/empleado.entity.js';
+import { Ubicacion } from '../ubicaciones/ubicacion.entity.js';
+import { TipoUbicacion } from '../common/enums/tipo-ubicacion.enum.js';
 import { BitacoraService } from '../bitacora/bitacora.service.js';
 import { SistemaConfigService } from '../sistema/sistema-config.service.js';
 import { cifrarSecreto, descifrarSecreto } from '../auth/totp.js';
@@ -29,6 +31,7 @@ const COLUMNAS_SESION: (keyof Usuario)[] = [
   'versionToken',
   'debeCambiarClave',
   'totpActivo',
+  'ubicacionId',
 ];
 
 // Nunca devolver el hash ni los contadores internos de seguridad en una respuesta.
@@ -46,6 +49,8 @@ export class UsuariosService implements OnModuleInit {
     private readonly usuarioPermisoRepo: Repository<UsuarioPermiso>,
     @InjectRepository(Empleado)
     private readonly empleadoRepo: Repository<Empleado>,
+    @InjectRepository(Ubicacion)
+    private readonly ubicacionRepo: Repository<Ubicacion>,
     private readonly config: ConfigService,
     private readonly bitacora: BitacoraService,
     private readonly sistemaConfig: SistemaConfigService,
@@ -95,8 +100,9 @@ export class UsuariosService implements OnModuleInit {
         debeCambiarClave: true,
         totpActivo: true,
         empleadoId: true,
+        ubicacionId: true,
       },
-      relations: { permisos: true, empleado: true },
+      relations: { permisos: true, empleado: true, ubicacion: true },
       order: { nombre: 'ASC' },
     });
   }
@@ -123,6 +129,7 @@ export class UsuariosService implements OnModuleInit {
       .createQueryBuilder('u')
       .addSelect('u.passwordHash')
       .leftJoinAndSelect('u.permisos', 'p')
+      .leftJoinAndSelect('u.ubicacion', 'ub')
       .where('LOWER(u.email) = :email', { email: email.trim().toLowerCase() })
       .getOne();
   }
@@ -132,7 +139,7 @@ export class UsuariosService implements OnModuleInit {
     return this.usuarioRepo.findOne({
       where: { id },
       select: COLUMNAS_SESION,
-      relations: { permisos: true },
+      relations: { permisos: true, ubicacion: true },
     });
   }
 
@@ -197,6 +204,7 @@ export class UsuariosService implements OnModuleInit {
       nombre = nombre || empleado.nombre;
     }
     if (!nombre) throw new BadRequestException('Indicá el nombre de la persona o elegí un empleado.');
+    const ubicacionId = dto.rol === Rol.ENCARGADO_TIENDA ? await this.tiendaValida(dto.ubicacionId) : null;
 
     // La clave del primer ingreso no pasa por la política de contraseñas: es temporal, la persona debe
     // cambiarla (y esa sí cumple la política) y vence si no se usa.
@@ -208,6 +216,7 @@ export class UsuariosService implements OnModuleInit {
       passwordHash: await bcrypt.hash(password, SALT_ROUNDS),
       rol: dto.rol,
       empleadoId,
+      ubicacionId,
       // La clave la definió quien administra los accesos: la persona la cambia al entrar.
       debeCambiarClave: true,
       claveTemporalVence: await this.vencimientoClaveTemporal(),
@@ -218,10 +227,18 @@ export class UsuariosService implements OnModuleInit {
       usuarioId: actor.id,
       usuarioEmail: actor.email,
       objetivo: email,
-      detalle: `perfil ${dto.rol}${empleadoId ? ', vinculada a un empleado de planilla' : ', persona externa'}`,
+      detalle: `perfil ${dto.rol}${ubicacionId ? ' (tienda asignada)' : ''}${empleadoId ? ', vinculada a un empleado de planilla' : ', persona externa'}`,
       ip,
     });
     return { usuario: guardado, passwordTemporal: password, venceEn: usuario.claveTemporalVence };
+  }
+
+  // La tienda de un encargado de tienda: tiene que existir, estar activa y ser una tienda (no la bodega ni la fábrica).
+  private async tiendaValida(ubicacionId: string | undefined): Promise<string> {
+    if (!ubicacionId) throw new BadRequestException('Elegí la tienda donde trabaja el encargado.');
+    const ub = await this.ubicacionRepo.findOneBy({ id: ubicacionId });
+    if (!ub || ub.tipo !== TipoUbicacion.TIENDA || !ub.activa) throw new BadRequestException('Esa ubicación no es una tienda activa.');
+    return ub.id;
   }
 
   // La cuenta del administrador del sistema no se desactiva ni cambia de perfil desde la app
@@ -260,9 +277,19 @@ export class UsuariosService implements OnModuleInit {
     }
     if (dto.rol !== undefined) cambios.rol = dto.rol;
     if (dto.activo !== undefined) cambios.activo = dto.activo;
+    // La tienda solo aplica al encargado de tienda; quien deja de serlo la pierde.
+    const rolFinal = dto.rol ?? usuario.rol;
+    if (rolFinal === Rol.ENCARGADO_TIENDA) {
+      if (dto.ubicacionId !== undefined || usuario.ubicacionId === null || dto.rol !== undefined) {
+        const nueva = await this.tiendaValida(dto.ubicacionId ?? usuario.ubicacionId ?? undefined);
+        if (nueva !== usuario.ubicacionId) cambios.ubicacionId = nueva;
+      }
+    } else if (usuario.ubicacionId) {
+      cambios.ubicacionId = null;
+    }
 
     // Desactivar o cambiar de perfil corta las sesiones abiertas de esa persona.
-    if ((dto.activo === false && usuario.activo) || (dto.rol !== undefined && dto.rol !== usuario.rol)) {
+    if ((dto.activo === false && usuario.activo) || (dto.rol !== undefined && dto.rol !== usuario.rol) || (cambios.ubicacionId !== undefined && cambios.ubicacionId !== usuario.ubicacionId)) {
       cambios.versionToken = usuario.versionToken + 1;
     }
     Object.assign(usuario, cambios);
@@ -286,8 +313,8 @@ export class UsuariosService implements OnModuleInit {
     if (usuario.rol === Rol.SISTEMA) {
       throw new BadRequestException('La cuenta del administrador del sistema siempre tiene acceso total: sus permisos no se ajustan.');
     }
-    if (usuario.rol === Rol.VENDEDOR) {
-      throw new BadRequestException('El vendedor usa su propia pantalla de pedidos: no tiene permisos que ajustar.');
+    if (usuario.rol === Rol.VENDEDOR || usuario.rol === Rol.ENCARGADO_TIENDA) {
+      throw new BadRequestException('Esta cuenta usa su propia pantalla (pedidos o caja): no tiene permisos que ajustar.');
     }
 
     await this.usuarioPermisoRepo.delete({ usuarioId });

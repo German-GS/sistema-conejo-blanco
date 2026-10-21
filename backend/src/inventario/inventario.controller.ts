@@ -1,8 +1,9 @@
 import { Modulo } from '../auth/decorators/modulo.decorator.js';
-import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { InventarioService } from './inventario.service.js';
 import { IngresoInventarioDto } from './dto/ingreso-inventario.dto.js';
 import { AjusteInventarioDto } from './dto/ajuste-inventario.dto.js';
+import { MinimosInventarioDto } from './dto/minimos-inventario.dto.js';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';
 import { PermissionsGuard } from '../auth/guards/permissions.guard.js';
 import { RequirePermissions } from '../auth/decorators/permissions.decorator.js';
@@ -21,6 +22,21 @@ export class InventarioController {
   @RequirePermissions(Permiso.INVENTARIO_VER)
   listarStock(@Query('ubicacionId') ubicacionId?: string, @Query('varianteId') varianteId?: string) {
     return this.inventarioService.listarStock({ ubicacionId, varianteId });
+  }
+
+  // Alertas de inventario bajo (todas las ubicaciones, o una).
+  @Get('alertas')
+  @UseGuards(PermissionsGuard)
+  @RequirePermissions(Permiso.INVENTARIO_VER)
+  alertas(@Query('ubicacionId') ubicacionId?: string) {
+    return this.inventarioService.alertas(ubicacionId);
+  }
+
+  @Put('minimos')
+  @UseGuards(PermissionsGuard)
+  @RequirePermissions(Permiso.INVENTARIO_GESTIONAR)
+  minimos(@Body() dto: MinimosInventarioDto) {
+    return this.inventarioService.establecerMinimos(dto.ubicacionId, dto.minimos);
   }
 
   @Get('kardex')

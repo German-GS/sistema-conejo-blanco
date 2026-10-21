@@ -25,6 +25,10 @@ export enum TipoMovimientoInventario {
   // FacturaManualService.
   VENTA_MANUAL = 'venta_manual',
 
+  // Punto de venta de la tienda: la venta y su anulación (devolución al stock).
+  VENTA_POS = 'venta_pos',
+  DEVOLUCION_POS = 'devolucion_pos',
+
   AJUSTE_CONTEO = 'ajuste_conteo',
   AJUSTE_MERMA = 'ajuste_merma',
 

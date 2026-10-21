@@ -28,6 +28,10 @@ export enum Permiso {
   // Cierre mensual y fiscal (genera asientos de pago y bloquea meses/años).
   CIERRES_GESTIONAR = 'contabilidad.cierres',
 
+  // Punto de venta de las tiendas: `ver` = ventas, cajas y alertas; `gestionar` = anular ventas y configurar el POS.
+  POS_VER = 'pos.ver',
+  POS_GESTIONAR = 'pos.gestionar',
+
   // Datos de la empresa: tope de descuentos, encabezado de facturas y logo, cuentas bancarias, bodegas.
   CONFIGURACION_GESTIONAR = 'configuracion.gestionar',
 

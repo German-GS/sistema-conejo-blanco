@@ -17,13 +17,15 @@ async function cargar() {
   cargando.value = true;
   error.value = '';
   try {
-    [usuarios.value, empleados.value] = await Promise.all([api.get('/usuarios'), api.get('/usuarios/empleados-disponibles')]);
+    [usuarios.value, empleados.value, ubicaciones.value] = await Promise.all([api.get('/usuarios'), api.get('/usuarios/empleados-disponibles'), api.get('/ubicaciones')]);
   } catch (err) {
     error.value = err instanceof ApiError ? err.message : 'No se pudieron cargar los accesos.';
   } finally {
     cargando.value = false;
   }
 }
+const ubicaciones = ref([]);
+const tiendas = computed(() => ubicaciones.value.filter((u) => u.tipo === 'tienda' && u.activa));
 onMounted(cargar);
 
 const bloqueado = (u) => u.bloqueadoHasta && new Date(u.bloqueadoHasta) > new Date();
@@ -31,10 +33,10 @@ const bloqueado = (u) => u.bloqueadoHasta && new Date(u.bloqueadoHasta) > new Da
 // ---- Nuevo acceso ----
 const mostrarForm = ref(false);
 const guardando = ref(false);
-const nuevo = reactive({ origen: 'empleado', empleadoId: '', nombre: '', email: '', rol: 'administracion', password: '' });
+const nuevo = reactive({ origen: 'empleado', empleadoId: '', nombre: '', email: '', rol: 'administracion', ubicacionId: '', password: '' });
 const empleadoElegido = computed(() => empleados.value.find((e) => e.id === nuevo.empleadoId));
 const formValido = computed(
-  () => /^\S+@\S+\.\S+$/.test(nuevo.email.trim()) && (nuevo.origen === 'empleado' ? Boolean(nuevo.empleadoId) : nuevo.nombre.trim().length >= 2) && (!nuevo.password || nuevo.password.length >= 6),
+  () => /^\S+@\S+\.\S+$/.test(nuevo.email.trim()) && (nuevo.origen === 'empleado' ? Boolean(nuevo.empleadoId) : nuevo.nombre.trim().length >= 2) && (!nuevo.password || nuevo.password.length >= 6) && (nuevo.rol !== 'encargado_tienda' || Boolean(nuevo.ubicacionId)),
 );
 
 async function crear() {
@@ -45,10 +47,11 @@ async function crear() {
       ...(nuevo.origen === 'empleado' ? { empleadoId: nuevo.empleadoId } : { nombre: nuevo.nombre.trim() }),
       email: nuevo.email.trim(),
       rol: nuevo.rol,
+      ...(nuevo.rol === 'encargado_tienda' ? { ubicacionId: nuevo.ubicacionId } : {}),
       ...(nuevo.password ? { password: nuevo.password } : {}),
     });
     credencial.value = { nombre: r.usuario.nombre, email: r.usuario.email, passwordTemporal: r.passwordTemporal, venceEn: r.venceEn };
-    Object.assign(nuevo, { origen: 'empleado', empleadoId: '', nombre: '', email: '', rol: 'administracion', password: '' });
+    Object.assign(nuevo, { origen: 'empleado', empleadoId: '', nombre: '', email: '', rol: 'administracion', ubicacionId: '', password: '' });
     mostrarForm.value = false;
     await cargar();
   } catch (err) {
@@ -101,14 +104,14 @@ const cerrarSesiones = (u) =>
 
 // ---- Perfil y datos ----
 const editandoId = ref(null);
-const edicion = reactive({ nombre: '', email: '', rol: '' });
+const edicion = reactive({ nombre: '', email: '', rol: '', ubicacionId: '' });
 function abrirEdicion(u) {
   editandoId.value = editandoId.value === u.id ? null : u.id;
-  Object.assign(edicion, { nombre: u.nombre, email: u.email, rol: u.rol });
+  Object.assign(edicion, { nombre: u.nombre, email: u.email, rol: u.rol, ubicacionId: u.ubicacionId ?? '' });
 }
 const guardarEdicion = (u) =>
   accion(async () => {
-    await api.patch(`/usuarios/${u.id}`, { nombre: edicion.nombre.trim(), email: edicion.email.trim(), ...(edicion.rol !== u.rol ? { rol: edicion.rol } : {}) });
+    await api.patch(`/usuarios/${u.id}`, { nombre: edicion.nombre.trim(), email: edicion.email.trim(), ...(edicion.rol !== u.rol ? { rol: edicion.rol } : {}), ...(edicion.rol === 'encargado_tienda' && edicion.ubicacionId ? { ubicacionId: edicion.ubicacionId } : {}) });
     editandoId.value = null;
   }, 'No se pudo guardar.');
 
@@ -118,7 +121,7 @@ const seleccion = ref(new Set());
 const guardandoPermisos = ref(false);
 const errorPermisos = ref('');
 // Todas las cuentas del negocio tienen permisos asignables; el vendedor usa su propia pantalla y el sistema siempre tiene todo.
-const admitePermisos = (u) => u.rol !== 'vendedor' && u.rol !== 'sistema';
+const admitePermisos = (u) => u.rol !== 'vendedor' && u.rol !== 'encargado_tienda' && u.rol !== 'sistema';
 const etiquetaPermiso = (valor) => PERMISOS.find((p) => p.valor === valor)?.etiqueta ?? valor;
 
 function abrirPermisos(u) {
@@ -260,6 +263,11 @@ const esFallo = (a) => ['login_fallido', 'login_bloqueado', 'cuenta_bloqueada', 
             <select v-model="nuevo.rol" class="input"><option v-for="r in ROLES_ASIGNABLES" :key="r.valor" :value="r.valor">{{ r.etiqueta }}</option></select>
           </div>
         </div>
+        <div v-if="nuevo.rol === 'encargado_tienda'">
+          <label class="label">Tienda donde trabaja *</label>
+          <select v-model="nuevo.ubicacionId" class="input"><option value="">Elegí la tienda…</option><option v-for="t in tiendas" :key="t.id" :value="t.id">{{ t.nombre }}</option></select>
+          <p class="mt-1 text-xs text-slate-500">Al iniciar sesión entra directo a la caja de esa tienda y no puede ver nada más.</p>
+        </div>
         <div>
           <label class="label">Contraseña temporal <span class="font-normal text-slate-500">(opcional: si la dejás vacía el sistema genera una fácil de dictar, como Conejo-4821)</span></label>
           <input v-model="nuevo.password" type="text" class="input" placeholder="Cualquiera de 6 o más caracteres; la persona la cambia al entrar" />
@@ -276,7 +284,7 @@ const esFallo = (a) => ['login_fallido', 'login_bloqueado', 'cuenta_bloqueada', 
                 {{ u.nombre }}
                 <span v-if="u.rol === 'sistema'" class="ml-1 rounded-full bg-slate-900 px-2 py-0.5 text-xs font-semibold text-white">Administrador del sistema</span>
               </p>
-              <p class="text-sm text-slate-500">{{ u.email }} · {{ etiquetaRol(u.rol) }}</p>
+              <p class="text-sm text-slate-500">{{ u.email }} · {{ etiquetaRol(u.rol) }}<template v-if="u.rol === 'encargado_tienda'"> · {{ u.ubicacion?.nombre ?? 'sin tienda asignada' }}</template></p>
               <p class="text-xs text-slate-500">
                 {{ u.empleado ? `Empleado de planilla: ${u.empleado.nombre}` : 'Sin empleado vinculado' }} ·
                 {{ u.ultimoAcceso ? `último acceso ${formatearFechaHora(u.ultimoAcceso)}` : 'nunca ha entrado' }}
@@ -307,6 +315,7 @@ const esFallo = (a) => ['login_fallido', 'login_bloqueado', 'cuenta_bloqueada', 
             <input v-model="edicion.nombre" class="input" placeholder="Nombre" />
             <input v-model="edicion.email" type="email" class="input" placeholder="Correo" />
             <select v-model="edicion.rol" class="input"><option v-for="r in ROLES_ASIGNABLES" :key="r.valor" :value="r.valor">{{ r.etiqueta }}</option></select>
+            <select v-if="edicion.rol === 'encargado_tienda'" v-model="edicion.ubicacionId" class="input sm:col-span-3"><option value="">Tienda donde trabaja…</option><option v-for="t in tiendas" :key="t.id" :value="t.id">{{ t.nombre }}</option></select>
             <div class="flex gap-2 sm:col-span-3">
               <button type="button" class="btn-secondary flex-1" @click="editandoId = null">Cancelar</button>
               <button type="button" class="btn-primary flex-1" @click="guardarEdicion(u)">Guardar</button>

@@ -37,7 +37,7 @@ async function enviar() {
     // inicio. Sin este chequeo, un asistente o contador que primero
     // pisó "/" (la home del vendedor) terminaba viendo esa UI en vez de
     // su panel, aunque no tenga nada que ver con su rol.
-    const destinoPorDefecto = auth.usaPanelAdmin ? { name: 'admin-home' } : { name: 'vendedor-home' };
+    const destinoPorDefecto = auth.esEncargadoTienda ? { name: 'pos' } : auth.usaPanelAdmin ? { name: 'admin-home' } : { name: 'vendedor-home' };
     const redirect = route.query.redirect;
     const redirectValido = redirect && (auth.usaPanelAdmin ? redirect.startsWith('/admin') : !redirect.startsWith('/admin'));
     router.push(redirectValido ? redirect : destinoPorDefecto);

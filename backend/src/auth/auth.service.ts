@@ -174,6 +174,8 @@ export class AuthService {
         nombre: usuario.nombre,
         email: usuario.email,
         rol: usuario.rol,
+        // Encargado de tienda: al iniciar sesión entra directo al POS de esta tienda.
+        tienda: usuario.ubicacion ? { id: usuario.ubicacion.id, nombre: usuario.ubicacion.nombre, codigo: usuario.ubicacion.codigo } : null,
         permisos,
         debeCambiarClave: usuario.debeCambiarClave,
         totpActivo: usuario.totpActivo,

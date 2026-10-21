@@ -1,5 +1,5 @@
 import { Transform } from 'class-transformer';
-import { IsBoolean, IsEmail, IsIn, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import { IsBoolean, IsEmail, IsIn, IsOptional, IsString, IsUUID, MaxLength, MinLength } from 'class-validator';
 import { Rol } from '../../common/enums/rol.enum.js';
 
 export class ActualizarUsuarioDto {
@@ -16,10 +16,15 @@ export class ActualizarUsuarioDto {
   email?: string;
 
   @IsOptional()
-  @IsIn([Rol.GERENTE_GENERAL, Rol.ADMINISTRACION, Rol.CONTADOR, Rol.ASISTENTE, Rol.VENDEDOR], { message: 'Ese perfil no se puede asignar.' })
+  @IsIn([Rol.GERENTE_GENERAL, Rol.ADMINISTRACION, Rol.CONTADOR, Rol.ASISTENTE, Rol.VENDEDOR, Rol.ENCARGADO_TIENDA], { message: 'Ese perfil no se puede asignar.' })
   rol?: Rol;
 
   @IsOptional()
   @IsBoolean()
   activo?: boolean;
+
+  // Solo para el perfil "encargado de tienda": la tienda donde trabaja.
+  @IsOptional()
+  @IsUUID()
+  ubicacionId?: string;
 }

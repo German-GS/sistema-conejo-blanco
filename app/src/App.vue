@@ -45,6 +45,8 @@ watch(
       fijarMinutosInactividad(auth.config.inactividadMinutos);
       if (auth.config.mantenimiento?.activo && !auth.esSistema) mantenimiento.value = auth.config.mantenimiento.mensaje;
     });
+    // El encargado de tienda no se desconecta por inactividad: la caja queda abierta durante su turno.
+    if (auth.esEncargadoTienda) return;
     detener = iniciarControlInactividad(() => {
       auth.logout();
       router.push({ name: 'login', query: { expirada: '1' } });

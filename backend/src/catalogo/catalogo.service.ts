@@ -194,13 +194,23 @@ export class CatalogoService {
       color: dto.color,
       precioPorPar: dto.precioPorPar.toFixed(2),
       costo: dto.costo !== undefined ? dto.costo.toFixed(2) : null,
+      precioTienda: dto.precioTienda ? dto.precioTienda.toFixed(2) : null,
+      codigoBarras: dto.codigoBarras ? dto.codigoBarras.trim() : null,
     });
+    if (variante.codigoBarras) await this.verificarCodigoBarrasLibre(variante.codigoBarras);
     const guardada = await this.varianteRepo.save(variante);
     const detalleCosto = guardada.costo ? `, costo ${formatearColones(guardada.costo)}` : '';
     await this.registrarEdicion(dto.productoId, usuarioId, [
       `Color agregado: ${guardada.color} (${formatearColones(guardada.precioPorPar)}${detalleCosto})`,
     ]);
     return guardada;
+  }
+
+  private async verificarCodigoBarrasLibre(codigo: string, exceptoId?: string): Promise<void> {
+    const otra = await this.varianteRepo.findOne({ where: { codigoBarras: codigo }, relations: { producto: true } });
+    if (otra && otra.id !== exceptoId) {
+      throw new BadRequestException(`Ese código de barras ya lo tiene ${otra.producto.codigo} (${otra.color}).`);
+    }
   }
 
   async buscarVariantePorIdOFallar(id: string): Promise<VarianteProducto> {
@@ -228,11 +238,22 @@ export class CatalogoService {
     if (dto.activo !== undefined && dto.activo !== variante.activo) {
       cambios.push(`${nombreActual}: ${dto.activo ? 'activado' : 'desactivado'}`);
     }
+    const nuevoPrecioTienda = dto.precioTienda === undefined ? undefined : dto.precioTienda === null ? null : dto.precioTienda.toFixed(2);
+    if (nuevoPrecioTienda !== undefined && nuevoPrecioTienda !== variante.precioTienda) {
+      cambios.push(`${nombreActual} — precio de tienda: ${variante.precioTienda ? formatearColones(variante.precioTienda) : '—'} → ${nuevoPrecioTienda ? formatearColones(nuevoPrecioTienda) : '—'}`);
+    }
+    const nuevoCodigo = dto.codigoBarras === undefined ? undefined : dto.codigoBarras ? dto.codigoBarras.trim() : null;
+    if (nuevoCodigo !== undefined && nuevoCodigo !== variante.codigoBarras) {
+      if (nuevoCodigo) await this.verificarCodigoBarrasLibre(nuevoCodigo, id);
+      cambios.push(`${nombreActual} — código de barras: ${variante.codigoBarras ?? '—'} → ${nuevoCodigo ?? '—'}`);
+    }
 
     if (dto.color !== undefined) variante.color = dto.color;
     if (dto.precioPorPar !== undefined) variante.precioPorPar = dto.precioPorPar.toFixed(2);
     if (dto.costo !== undefined) variante.costo = dto.costo.toFixed(2);
     if (dto.activo !== undefined) variante.activo = dto.activo;
+    if (nuevoPrecioTienda !== undefined) variante.precioTienda = nuevoPrecioTienda;
+    if (nuevoCodigo !== undefined) variante.codigoBarras = nuevoCodigo;
     const guardada = await this.varianteRepo.save(variante);
 
     if (cambios.length > 0) {

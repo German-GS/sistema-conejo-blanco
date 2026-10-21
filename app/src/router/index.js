@@ -13,6 +13,8 @@ import ClientesPage from '../views/admin/ClientesPage.vue';
 import InventarioPage from '../views/admin/InventarioPage.vue';
 import BodegaPage from '../views/admin/BodegaPage.vue';
 import SistemaPage from '../views/admin/SistemaPage.vue';
+import PosPage from '../views/pos/PosPage.vue';
+import PosAdminPage from '../views/admin/PosAdminPage.vue';
 import AnalisisPage from '../views/admin/AnalisisPage.vue';
 import AccesosPage from '../views/admin/AccesosPage.vue';
 import PedidosPage from '../views/admin/PedidosPage.vue';
@@ -41,6 +43,8 @@ import HojaAlistamientoPage from '../views/pedidos/HojaAlistamientoPage.vue';
 const routes = [
   { path: '/login', name: 'login', component: LoginPage, meta: { publica: true } },
   { path: '/cambiar-clave', name: 'cambiar-clave', component: CambiarClavePage },
+  // Punto de venta de la tienda: pantalla completa, funciona sin internet.
+  { path: '/pos', name: 'pos', component: PosPage, meta: { usaPOS: true } },
 
   // Fuera de los layouts a propósito: es una hoja para imprimir, no debe
   // salir el sidebar/header de la app ni en pantalla ni en el papel.
@@ -115,6 +119,8 @@ const routes = [
       { path: 'sistema', name: 'admin-sistema', component: SistemaPage, meta: { soloSistema: true } },
       // Análisis de datos (tableros y exportación para Power BI / Python): también exclusivo del sistema.
       { path: 'analisis', name: 'admin-analisis', component: AnalisisPage, meta: { soloSistema: true } },
+      // Tienda (POS): ventas, cajas, alertas de inventario, productos de tienda y configuración.
+      { path: 'tienda', name: 'admin-tienda', component: PosAdminPage, meta: { permiso: 'pos.ver' } },
       { path: 'accesos', name: 'admin-accesos', component: AccesosPage, meta: { soloSistema: true } },
       // Tope general de descuentos: decisión de negocio, exclusiva de
       // Administración (mismo criterio que el backend — ver
@@ -151,10 +157,13 @@ router.beforeEach((to) => {
     return { name: 'cambiar-clave' };
   }
   if (to.name === 'cambiar-clave') return true;
+  // El encargado de tienda solo ve el punto de venta.
+  if (auth.esEncargadoTienda && to.name !== 'pos') return { name: 'pos' };
+  if (to.meta.usaPOS && !auth.puedeUsarPOS) return { name: auth.usaPanelAdmin ? 'admin-home' : 'vendedor-home' };
   if (to.meta.usaPanelAdmin && !auth.usaPanelAdmin) {
     return { name: 'vendedor-home' };
   }
-  const modulo = /^planilla-/.test(String(to.name)) ? 'planilla' : /^contabilidad-/.test(String(to.name)) ? 'contabilidad' : /^admin-(facturas|factura-|notas-credito)/.test(String(to.name)) ? 'facturacion' : /^admin-pago/.test(String(to.name)) ? 'pagos' : to.name === 'admin-bodega' ? 'inventario' : null;
+  const modulo = /^planilla-/.test(String(to.name)) ? 'planilla' : /^contabilidad-/.test(String(to.name)) ? 'contabilidad' : /^admin-(facturas|factura-|notas-credito)/.test(String(to.name)) ? 'facturacion' : /^admin-pago/.test(String(to.name)) ? 'pagos' : to.name === 'admin-bodega' ? 'inventario' : to.name === 'pos' || to.name === 'admin-tienda' ? 'pos' : null;
   if (modulo && !auth.moduloActivo(modulo)) {
     return { name: 'admin-home' };
   }
@@ -165,13 +174,13 @@ router.beforeEach((to) => {
     return { name: 'admin-home' };
   }
   if (to.name === 'login' && auth.autenticado) {
-    return { name: auth.usaPanelAdmin ? 'admin-home' : 'vendedor-home' };
+    return { name: auth.esEncargadoTienda ? 'pos' : auth.usaPanelAdmin ? 'admin-home' : 'vendedor-home' };
   }
   return true;
 });
 
 // Título de la pestaña del navegador según la zona: panel de administración, vendedor o acceso.
 router.afterEach((to) => {
-  const zona = to.path.startsWith('/admin') ? 'Administración' : to.meta.publica || to.name === 'cambiar-clave' ? null : 'Pedidos';
+  const zona = to.path.startsWith('/admin') ? 'Administración' : to.path.startsWith('/pos') ? 'Punto de venta' : to.meta.publica || to.name === 'cambiar-clave' ? null : 'Pedidos';
   document.title = zona ? `Conejo Blanco — ${zona}` : 'Conejo Blanco';
 });

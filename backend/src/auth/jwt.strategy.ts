@@ -41,6 +41,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       nombre: usuario.nombre,
       email: usuario.email,
       rol: usuario.rol,
+      tienda: usuario.ubicacion ? { id: usuario.ubicacion.id, nombre: usuario.ubicacion.nombre, codigo: usuario.ubicacion.codigo } : null,
       permisos: permisosEfectivos(usuario.rol, usuario.permisos),
       debeCambiarClave: usuario.debeCambiarClave,
       totpActivo: usuario.totpActivo,

@@ -23,9 +23,13 @@ export const PERMISOS_POR_DEFECTO: Record<Rol, Permiso[]> = {
     Permiso.CONTABILIDAD_VER,
     Permiso.CONTABILIDAD_GESTIONAR,
     Permiso.CUENTAS_POR_COBRAR_GESTIONAR,
+    Permiso.POS_VER,
   ],
 
   // Asistente: recibe pedidos y los imprime (ej. la hoja de bodega) —
   // nada más, ni siquiera anular.
   [Rol.ASISTENTE]: [Permiso.PEDIDOS_VER],
+
+  // Encargado de tienda: solo usa el POS (su propia interfaz); no entra al panel de administración.
+  [Rol.ENCARGADO_TIENDA]: [],
 };

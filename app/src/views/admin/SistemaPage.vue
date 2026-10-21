@@ -94,6 +94,7 @@ const PERFILES = [
   ['contador', 'Contador'],
   ['asistente', 'Asistente'],
   ['vendedor', 'Vendedor'],
+  ['encargado_tienda', 'Encargado de tienda'],
 ];
 const dosPasosRoles = computed(() => cfg.value?.ajustes['seguridad.dos_pasos_roles'] ?? []);
 function alternarPerfil(r) {

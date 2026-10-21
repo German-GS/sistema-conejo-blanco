@@ -55,6 +55,15 @@ import { PagoContador } from './pagos/pago-contador.entity.js';
 import { ConfiguracionFactura } from './configuracion/configuracion-factura.entity.js';
 import { PagosModule } from './pagos/pagos.module.js';
 import { PlanillaModule } from './planilla/planilla.module.js';
+import { PosModule } from './pos/pos.module.js';
+import { PosVenta } from './pos/pos-venta.entity.js';
+import { PosVentaLinea } from './pos/pos-venta-linea.entity.js';
+import { PosPago } from './pos/pos-pago.entity.js';
+import { PosCaja } from './pos/pos-caja.entity.js';
+import { PosConfiguracion } from './pos/pos-configuracion.entity.js';
+import { OrdenTienda } from './pos/orden-tienda.entity.js';
+import { OrdenTiendaLinea } from './pos/orden-tienda-linea.entity.js';
+import { OrdenTiendaEvento } from './pos/orden-tienda-evento.entity.js';
 import { ParametroPlanilla } from './planilla/parametro-planilla.entity.js';
 import { Feriado } from './planilla/feriado.entity.js';
 import { Empleado } from './planilla/empleado.entity.js';
@@ -132,6 +141,14 @@ import { PlanillaLinea } from './planilla/planilla-linea.entity.js';
           ConfiguracionBancoPopular,
           PuestoPlanilla,
           HorarioBase,
+          PosVenta,
+          PosVentaLinea,
+          PosPago,
+          PosCaja,
+          PosConfiguracion,
+          OrdenTienda,
+          OrdenTiendaLinea,
+          OrdenTiendaEvento,
         ],
         // Solo en desarrollo: sincroniza el esquema desde las entidades
         // sin migraciones manuales (mismo patrón que Conejo Aquatics).
@@ -154,6 +171,7 @@ import { PlanillaLinea } from './planilla/planilla-linea.entity.js';
     ConfiguracionModule,
     PlanillaModule,
     PagosModule,
+    PosModule,
   ],
   controllers: [AppController],
   providers: [AppService, { provide: APP_GUARD, useClass: ThrottlerGuard }],

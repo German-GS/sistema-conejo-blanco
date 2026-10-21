@@ -36,6 +36,15 @@ export class VarianteProducto {
   @Column({ type: 'decimal', name: 'costo', precision: 12, scale: 2, nullable: true })
   costo: string | null;
 
+  // Precio al detalle de la tienda (POS), distinto del precio por par de mayoreo. Sin precio de
+  // tienda la variante no se puede vender en el POS.
+  @Column({ type: 'decimal', name: 'precio_tienda', precision: 12, scale: 2, nullable: true })
+  precioTienda: string | null;
+
+  // Lo que lee el lector de código en la caja. Si está vacío, el POS busca por código de producto y color.
+  @Column({ type: 'varchar', name: 'codigo_barras', length: 40, nullable: true, unique: true })
+  codigoBarras: string | null;
+
   @Column({ type: 'boolean', default: true })
   activo: boolean;
 

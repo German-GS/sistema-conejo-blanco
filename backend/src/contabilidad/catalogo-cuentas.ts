@@ -33,6 +33,7 @@ export const CATALOGO_CUENTAS: CuentaCatalogo[] = [
   { codigo: '1260', nombre: 'Otras Cuentas por Cobrar', tipo: A, naturaleza: D, descripcion: 'Cuentas por cobrar que no son de clientes ni de empleados.' },
   { codigo: '1270', nombre: 'Anticipos a Proveedores', tipo: A, naturaleza: D, descripcion: 'Adelantos entregados a proveedores por compras futuras.' },
   { codigo: '1300', nombre: 'Inventario de Mercancías', tipo: A, naturaleza: D, sistema: true, descripcion: 'Producto terminado disponible para la venta.' },
+  { codigo: '1305', nombre: 'Inventario de Tiendas', tipo: A, naturaleza: D, sistema: true, descripcion: 'Mercadería que ya está en las tiendas, valorada a su costo especial de traslado.' },
   { codigo: '1310', nombre: 'Inventario de Materia Prima', tipo: A, naturaleza: D, descripcion: 'Hilo, elásticos, empaques y demás materiales de producción.' },
   { codigo: '1320', nombre: 'Inventario de Producto en Proceso', tipo: A, naturaleza: D, descripcion: 'Producto que está en fabricación.' },
   { codigo: '1400', nombre: 'IVA Crédito Fiscal', tipo: A, naturaleza: D, descripcion: 'IVA pagado en compras, acreditable contra el IVA de las ventas.' },
@@ -104,6 +105,7 @@ export const CATALOGO_CUENTAS: CuentaCatalogo[] = [
   { codigo: '5430', nombre: 'Depreciación', tipo: G, naturaleza: D, descripcion: 'Gasto por desgaste de activos fijos.' },
   { codigo: '5440', nombre: 'Pérdidas por Mermas de Inventario', tipo: G, naturaleza: D, descripcion: 'Producto dañado, perdido o ajustado en conteos.' },
   { codigo: '5450', nombre: 'Diferencias Cambiarias Perdidas', tipo: G, naturaleza: D, descripcion: 'Pérdida por variación del tipo de cambio.' },
+  { codigo: '5460', nombre: 'Diferencia de Costo en Traslados a Tiendas', tipo: G, naturaleza: D, sistema: true, descripcion: 'Diferencia entre el costo normal del producto y el costo especial con que se traslada a las tiendas (si el costo especial es mayor, queda a favor).' },
   { codigo: '5500', nombre: 'Impuesto sobre la Renta', tipo: G, naturaleza: D, sistema: true, descripcion: 'Gasto por el impuesto de renta del año (se provisiona al cierre fiscal).' },
   { codigo: '5900', nombre: 'Gastos Diversos', tipo: G, naturaleza: D, descripcion: 'Gastos menores que no encajan en otra cuenta.' },
 ];

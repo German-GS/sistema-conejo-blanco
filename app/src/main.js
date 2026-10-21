@@ -16,3 +16,21 @@ app.config.errorHandler = (err, instance, info) => {
 app.use(createPinia());
 app.use(router);
 app.mount('#app');
+
+// Punto de venta sin internet: el service worker guarda la aplicación en la computadora de la tienda.
+// Solo en la versión publicada (en desarrollo no se usa para no confundir los cambios).
+if ('serviceWorker' in navigator && import.meta.env.PROD) {
+  window.addEventListener('load', async () => {
+    try {
+      const reg = await navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`);
+      const listo = await navigator.serviceWorker.ready;
+      const urls = [
+        ...document.querySelectorAll('script[src], link[rel="stylesheet"][href], link[rel="manifest"][href], link[rel="icon"][href]'),
+      ].map((el) => el.src || el.href);
+      for (const r of performance.getEntriesByType('resource')) if (r.name.includes(`${import.meta.env.BASE_URL}assets/`)) urls.push(r.name);
+      (listo.active ?? reg.active)?.postMessage({ tipo: 'guardar', urls: [...urls, `${location.origin}${import.meta.env.BASE_URL}`] });
+    } catch (err) {
+      console.warn('No se pudo preparar el modo sin conexión:', err);
+    }
+  });
+}

@@ -6,6 +6,7 @@ import { formatearColones, formatearFecha, nombreClientePedido } from '../../lib
 import { api, ApiError } from '../../lib/api.js';
 import { useAuthStore } from '../../stores/auth.js';
 import { PROVINCIAS, etiquetaProvincia } from '../../lib/provincias.js';
+import OrdenesTiendaTab from './pos/OrdenesTiendaTab.vue';
 
 const ESTADOS = [
   { valor: '', etiqueta: 'Todos los estados' },
@@ -17,6 +18,20 @@ const ESTADOS = [
 const router = useRouter();
 const auth = useAuthStore();
 const puedeAnular = auth.tienePermiso('pedidos.gestionar');
+// Los pedidos de reposición que arman las tiendas desde el POS llegan acá, junto a los de los vendedores.
+const veTiendas = auth.tienePermiso('pos.ver') && auth.moduloActivo('pos');
+const pestana = ref(sessionStorage.getItem('cb-pedidos-pestana') === 'tiendas' && veTiendas ? 'tiendas' : 'vendedores');
+watch(pestana, (p) => sessionStorage.setItem('cb-pedidos-pestana', p));
+const pendientesTiendas = ref(null);
+const tiendas = ref([]);
+async function cargarPendientesTiendas() {
+  if (!veTiendas) return;
+  try {
+    pendientesTiendas.value = await api.get('/pos/ordenes/resumen');
+  } catch {
+    /* el contador es informativo */
+  }
+}
 const pedidos = ref([]);
 const cargando = ref(true);
 const error = ref('');
@@ -50,6 +65,14 @@ async function cargar() {
 }
 
 onMounted(async () => {
+  cargarPendientesTiendas();
+  if (veTiendas) {
+    try {
+      tiendas.value = (await api.get('/ubicaciones')).filter((u) => u.tipo === 'tienda' && u.activa);
+    } catch {
+      /* sin la lista, el filtro de tienda queda vacío */
+    }
+  }
   try {
     clientesFiltro.value = await api.get('/clientes');
   } catch {
@@ -82,6 +105,15 @@ function irAHojaDeBodega(pedido, event) {
   <div class="flex flex-col gap-6">
     <h1 class="text-xl font-bold text-slate-900">Todos los pedidos</h1>
 
+    <div v-if="veTiendas" class="flex flex-wrap gap-2">
+      <button type="button" class="rounded-lg border px-4 py-1.5 text-sm font-semibold" :class="pestana === 'vendedores' ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100'" @click="pestana = 'vendedores'">Pedidos de vendedores</button>
+      <button type="button" class="rounded-lg border px-4 py-1.5 text-sm font-semibold" :class="pestana === 'tiendas' ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100'" @click="pestana = 'tiendas'">
+        Reposición de tiendas<span v-if="pendientesTiendas?.pendientes" class="ml-1.5 rounded-full px-1.5 text-xs font-bold" :class="pestana === 'tiendas' ? 'bg-white text-blue-700' : 'bg-red-600 text-white'">{{ pendientesTiendas.pendientes }}</span>
+      </button>
+    </div>
+    <OrdenesTiendaTab v-if="pestana === 'tiendas'" :ubicaciones="tiendas" @cambio="cargarPendientesTiendas" />
+
+    <template v-else>
     <div class="card grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
       <div>
         <label class="label">Cliente</label>
@@ -175,5 +207,6 @@ function irAHojaDeBodega(pedido, event) {
         </button>
       </li>
     </ul>
+      </template>
   </div>
 </template>

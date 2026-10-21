@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, EntityManager, Repository } from 'typeorm';
 import { Traspaso } from './traspaso.entity.js';
 import { TraspasoLinea } from './traspaso-linea.entity.js';
 import { InventarioService } from '../inventario/inventario.service.js';
@@ -107,8 +107,14 @@ export class TraspasosService {
   // trazada en la propia línea del traspaso y el estado pasa a
   // RecibidoConDiferencia — no flota sin explicación, pero tampoco se
   // registra un movimiento de ajuste aparte (ver nota más abajo).
-  async recibir(id: string, dto: RecibirTraspasoDto, usuarioId: string): Promise<Traspaso> {
+  // `enTransaccion` (opcional) corre dentro de la misma transacción, después de mover el inventario: así la recepción de un
+  // pedido de tienda y su asiento contable quedan juntos o no quedan.
+  async recibir(id: string, dto: RecibirTraspasoDto, usuarioId: string, enTransaccion?: (manager: EntityManager, traspaso: Traspaso) => Promise<void>): Promise<Traspaso> {
     const traspaso = await this.buscarPorIdOFallar(id);
+    if (!enTransaccion) {
+      const [propio] = await this.dataSource.query('SELECT 1 FROM pos_ordenes WHERE traspaso_id = $1 LIMIT 1', [id]);
+      if (propio) throw new BadRequestException('Este traspaso es de un pedido de una tienda: lo recibe la tienda desde su caja, verificando lo enviado.');
+    }
     if (traspaso.estado !== EstadoTraspaso.EN_TRANSITO) {
       throw new BadRequestException('Solo se puede recibir un traspaso en estado En tránsito.');
     }
@@ -156,6 +162,7 @@ export class TraspasosService {
         fechaRecepcion: new Date(),
         recibidoPorId: usuarioId,
       });
+      if (enTransaccion) await enTransaccion(manager, traspaso);
     });
 
     return this.buscarPorIdOFallar(id);

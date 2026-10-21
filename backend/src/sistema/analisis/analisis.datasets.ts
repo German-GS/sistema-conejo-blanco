@@ -77,7 +77,7 @@ const PAGOS = `
 const INVENTARIO_STOCK = `
   SELECT s.ubicacion_id, u.nombre AS ubicacion, u.tipo::text AS tipo_ubicacion, s.variante_id,
     p.codigo AS producto_codigo, p.nombre AS producto, v.color, s.cantidad,
-    v.costo::float8 AS costo_unitario, (s.cantidad * v.costo)::float8 AS valor_costo,
+    COALESCE(s.costo_promedio, v.costo)::float8 AS costo_unitario, (s.cantidad * COALESCE(s.costo_promedio, v.costo))::float8 AS valor_costo,
     (s.cantidad * v.precio_por_par)::float8 AS valor_venta
   FROM stock_ubicaciones s
   JOIN ubicaciones u ON u.id = s.ubicacion_id
@@ -101,9 +101,10 @@ const CONTABILIDAD = `
   SELECT to_char(a.fecha, 'YYYY-MM-DD') AS fecha, a.numero AS asiento, a.descripcion, a.origen_tipo,
     cu.codigo AS cuenta_codigo, cu.nombre AS cuenta, cu.tipo::text AS tipo_cuenta,
     la.debe::float8 AS debe, la.haber::float8 AS haber, (la.debe - la.haber)::float8 AS neto_deudor,
-    f.id AS factura_id, f.consecutivo AS factura, COALESCE(c.id, cp.id) AS cliente_id, COALESCE(c.nombre, cp.nombre) AS cliente,
-    c.provincia::text AS provincia, f.vendedor, f.ubicacion_id, u.nombre AS ubicacion,
-    CASE WHEN f.id IS NULL THEN NULL ELSE ${FACTURA_TIPO_PAGO} END AS tipo_pago,
+    f.id AS factura_id, f.consecutivo AS factura, pv.id AS pos_venta_id, COALESCE(c.id, cp.id) AS cliente_id,
+    COALESCE(c.nombre, cp.nombre, CASE WHEN pv.id IS NOT NULL THEN 'Ventas de tienda (público)' END) AS cliente,
+    c.provincia::text AS provincia, COALESCE(f.vendedor, uc.nombre) AS vendedor, COALESCE(f.ubicacion_id, pv.ubicacion_id) AS ubicacion_id, COALESCE(u.nombre, up.nombre) AS ubicacion,
+    CASE WHEN f.id IS NOT NULL THEN ${FACTURA_TIPO_PAGO} WHEN pv.id IS NOT NULL THEN 'contado' END AS tipo_pago,
     pl.id AS planilla_id, to_char(pl.fecha_desde, 'YYYY-MM-DD') AS planilla_desde, to_char(pl.fecha_hasta, 'YYYY-MM-DD') AS planilla_hasta
   FROM lineas_asiento la
   JOIN asientos_contables a ON a.id = la.asiento_id
@@ -116,6 +117,9 @@ const CONTABILIDAD = `
   LEFT JOIN clientes c ON c.id = f.cliente_id
   LEFT JOIN clientes cp ON cp.id = pr.cliente_id
   LEFT JOIN ubicaciones u ON u.id = f.ubicacion_id
+  LEFT JOIN pos_ventas pv ON pv.id = CASE WHEN a.origen_tipo = 'pos_venta' THEN a.origen_id WHEN ao.origen_tipo = 'pos_venta' THEN ao.origen_id END
+  LEFT JOIN ubicaciones up ON up.id = pv.ubicacion_id
+  LEFT JOIN usuarios uc ON uc.id = pv.cajero_id
   LEFT JOIN planilla_planillas pl ON pl.id = CASE WHEN a.origen_tipo IN ('planilla', 'planilla_pago') THEN a.origen_id WHEN ao.origen_tipo IN ('planilla', 'planilla_pago') THEN ao.origen_id END`;
 
 // Empleados: por defecto un código anónimo estable (E-xxxxxx) en lugar de nombre y cédula.
@@ -133,6 +137,16 @@ const planilla = (anonimizar: boolean) => `
   JOIN planilla_planillas pl ON pl.id = l.planilla_id
   LEFT JOIN planilla_empleados e ON e.id = l.empleado_id`;
 
+const POS_VENTAS = `
+  SELECT to_char(v.fecha AT TIME ZONE 'America/Costa_Rica', 'YYYY-MM-DD') AS fecha, to_char(v.fecha AT TIME ZONE 'America/Costa_Rica', 'HH24:MI') AS hora,
+    u.codigo || '-' || lpad(v.numero::text, 6, '0') AS tiquete, v.ubicacion_id, u.nombre AS tienda, us.nombre AS cajero, v.estado,
+    l.variante_id, l.codigo AS producto_codigo, l.descripcion AS producto, l.color, l.cantidad,
+    l.precio_unitario::float8 AS precio_unitario, l.descuento::float8 AS descuento, l.subtotal::float8 AS venta,
+    (l.cantidad * COALESCE(l.costo_unitario, 0))::float8 AS costo,
+    (SELECT string_agg(DISTINCT p.medio, ', ' ORDER BY p.medio) FROM pos_pagos p WHERE p.venta_id = v.id) AS medios_pago,
+    v.creada_sin_conexion AS sin_conexion
+  FROM pos_venta_lineas l JOIN pos_ventas v ON v.id = l.venta_id JOIN ubicaciones u ON u.id = v.ubicacion_id JOIN usuarios us ON us.id = v.cajero_id`;
+
 const DIM_PRODUCTOS = `
   SELECT v.id AS variante_id, p.id AS producto_id, p.codigo, p.nombre, v.color,
     v.precio_por_par::float8 AS precio_por_par, v.costo::float8 AS costo, (v.activo AND p.activo) AS activo
@@ -145,6 +159,7 @@ const DIM_CLIENTES = `
 
 export const DATASETS: DatasetAnalisis[] = [
   { id: 'ventas', titulo: 'Detalle de facturas (por línea)', descripcion: 'Detalle operativo: una fila por producto facturado, con cliente, color, vendedor, ubicación, venta neta, IVA, costo y margen. Incluye la columna "vigente" (false = factura anulada). Para cifras contables use el libro mayor.', tema: 'ventas', columnaFecha: 'fecha', personal: false, sql: () => VENTAS },
+  { id: 'pos_ventas', titulo: 'Ventas de tienda (POS)', descripcion: 'Una fila por producto vendido en caja: tiquete, tienda, cajero, producto, venta, costo, medios de pago y si se cobró sin conexión. Incluye ventas anuladas (columna estado).', tema: 'ventas', columnaFecha: 'fecha', personal: false, sql: () => POS_VENTAS },
   { id: 'cartera', titulo: 'Cartera por cobrar (hoy)', descripcion: 'Facturas a crédito con saldo pendiente, días de vencimiento y tramo de antigüedad. Es una foto del día de la descarga.', tema: 'cartera', columnaFecha: null, personal: false, sql: () => CARTERA },
   { id: 'pagos', titulo: 'Pagos recibidos', descripcion: 'Recibos de cobro: cliente, cuenta, medio de pago, moneda y total.', tema: 'cartera', columnaFecha: 'fecha', personal: false, sql: () => PAGOS },
   { id: 'inventario_stock', titulo: 'Inventario actual', descripcion: 'Existencias por ubicación y variante, con valor a costo y a precio de venta (foto del día).', tema: 'inventario', columnaFecha: null, personal: false, sql: () => INVENTARIO_STOCK },

@@ -145,18 +145,24 @@ export class AnalisisService {
       );
     const [[k], [fac], [cli], porMes, topClientes, productos, porVendedor, porProvincia, porUbicacion, porTipoPago, [oper]] = await Promise.all([
       this.q(`SELECT COALESCE(SUM(${VENTA}),0)::float8 AS venta, COALESCE(SUM(${COSTO}),0)::float8 AS costo ${base}`, p),
-      this.q(`SELECT COUNT(*)::int AS n FROM (SELECT m.factura_id ${base} AND m.factura_id IS NOT NULL GROUP BY 1 HAVING ABS(SUM(${VENTA})) > 0.005) t`, p),
+      this.q(`SELECT COUNT(*)::int AS n FROM (SELECT COALESCE(m.factura_id, m.pos_venta_id) ${base} AND COALESCE(m.factura_id, m.pos_venta_id) IS NOT NULL GROUP BY 1 HAVING ABS(SUM(${VENTA})) > 0.005) t`, p),
       this.q(`SELECT COUNT(*)::int AS n FROM (SELECT m.cliente_id ${base} AND m.cliente_id IS NOT NULL GROUP BY 1 HAVING SUM(${VENTA}) > 0.005) t`, p),
       this.q<{ mes: string; venta: number; costo: number }>(`SELECT substr(m.fecha, 1, 7) AS mes, SUM(${VENTA})::float8 AS venta, SUM(${COSTO})::float8 AS costo ${base} GROUP BY 1 ORDER BY 1`, p),
       agrupado('m.cliente'),
-      // Venta por producto: el monto del mayor de cada factura se reparte según el peso de sus líneas.
+      // Venta por producto: el monto del mayor de cada factura (o tiquete de tienda) se reparte según el peso de sus líneas.
       this.q<{ etiqueta: string; venta: number }>(
-        `WITH lv AS (SELECT m.factura_id, SUM(${VENTA}) AS venta ${base} AND m.factura_id IS NOT NULL GROUP BY 1),
-          fs AS (SELECT factura_id, SUM(subtotal) AS total FROM factura_lineas GROUP BY 1)
-         SELECT p.codigo || ' ' || p.nombre AS etiqueta, SUM(lv.venta * fl.subtotal / NULLIF(fs.total, 0))::float8 AS venta
-         FROM lv JOIN factura_lineas fl ON fl.factura_id = lv.factura_id JOIN fs ON fs.factura_id = lv.factura_id
-         JOIN variantes_producto v ON v.id = fl.variante_id JOIN productos p ON p.id = v.producto_id
-         GROUP BY 1 HAVING ABS(SUM(lv.venta * fl.subtotal / NULLIF(fs.total, 0))) > 0.005 ORDER BY 2 DESC LIMIT 300`,
+        `WITH lv AS (SELECT m.factura_id, m.pos_venta_id, SUM(${VENTA}) AS venta ${base} AND COALESCE(m.factura_id, m.pos_venta_id) IS NOT NULL GROUP BY 1, 2),
+          fs AS (SELECT factura_id, SUM(subtotal) AS total FROM factura_lineas GROUP BY 1),
+          ps AS (SELECT venta_id, SUM(subtotal) AS total FROM pos_venta_lineas GROUP BY 1),
+          partes AS (
+            SELECT fl.variante_id, lv.venta * fl.subtotal / NULLIF(fs.total, 0) AS monto
+            FROM lv JOIN factura_lineas fl ON fl.factura_id = lv.factura_id JOIN fs ON fs.factura_id = lv.factura_id
+            UNION ALL
+            SELECT pl.variante_id, lv.venta * pl.subtotal / NULLIF(ps.total, 0) AS monto
+            FROM lv JOIN pos_venta_lineas pl ON pl.venta_id = lv.pos_venta_id JOIN ps ON ps.venta_id = lv.pos_venta_id)
+         SELECT p.codigo || ' ' || p.nombre AS etiqueta, SUM(partes.monto)::float8 AS venta
+         FROM partes JOIN variantes_producto v ON v.id = partes.variante_id JOIN productos p ON p.id = v.producto_id
+         GROUP BY 1 HAVING ABS(SUM(partes.monto)) > 0.005 ORDER BY 2 DESC LIMIT 300`,
         p,
       ),
       agrupado('m.vendedor'),
@@ -164,8 +170,10 @@ export class AnalisisService {
       agrupado('m.ubicacion'),
       agrupado('m.tipo_pago'),
       this.q(
-        `SELECT COALESCE(SUM(f.subtotal), 0)::float8 AS subtotal FROM facturas f ${FACTURA_JOINS}
-         WHERE ${FACTURA_VIGENTE} AND ($1::text IS NULL OR to_char(f.fecha, 'YYYY-MM-DD') >= $1::text) AND ($2::text IS NULL OR to_char(f.fecha, 'YYYY-MM-DD') <= $2::text)`,
+        `SELECT (COALESCE((SELECT SUM(f.subtotal) FROM facturas f ${FACTURA_JOINS}
+                 WHERE ${FACTURA_VIGENTE} AND ($1::text IS NULL OR to_char(f.fecha, 'YYYY-MM-DD') >= $1::text) AND ($2::text IS NULL OR to_char(f.fecha, 'YYYY-MM-DD') <= $2::text)), 0)
+               + COALESCE((SELECT SUM(pv.total) FROM pos_ventas pv WHERE pv.estado = 'vigente'
+                 AND ($1::text IS NULL OR to_char(pv.fecha AT TIME ZONE 'America/Costa_Rica', 'YYYY-MM-DD') >= $1::text) AND ($2::text IS NULL OR to_char(pv.fecha AT TIME ZONE 'America/Costa_Rica', 'YYYY-MM-DD') <= $2::text)), 0))::float8 AS subtotal`,
         p,
       ),
     ]);
@@ -191,7 +199,7 @@ export class AnalisisService {
         ticketPromedio: num(fac.n) > 0 ? redondear(venta / num(fac.n)) : 0,
         sinCostoRegistrado: venta > 0 && costo === 0,
       },
-      cuadre: cuadre(venta, num(oper.subtotal), 'las facturas vigentes'),
+      cuadre: cuadre(venta, num(oper.subtotal), 'las facturas y tiquetes de tienda vigentes'),
       porMes: porMes.map((r) => ({ etiqueta: r.mes, venta: redondear(num(r.venta)), margen: redondear(num(r.venta) - num(r.costo)) })),
       topClientes: topClientes.map((r) => ({ etiqueta: r.etiqueta, venta: redondear(num(r.venta)) })),
       abc: { filas: abc.slice(0, 15), productosTotal: abc.length, sinDetalle: redondear(venta - atribuido), clases: { A: abc.filter((r) => r.clase === 'A').length, B: abc.filter((r) => r.clase === 'B').length, C: abc.filter((r) => r.clase === 'C').length } },
@@ -228,7 +236,7 @@ export class AnalisisService {
     const stock = `FROM (${SQL_BASE.INVENTARIO_STOCK}) s`;
     const mov = `FROM (${SQL_BASE.INVENTARIO_MOVIMIENTOS}) m WHERE ($1::text IS NULL OR m.fecha >= $1::text) AND ($2::text IS NULL OR m.fecha <= $2::text)`;
     const [[mayor], [k], porUbicacion, topValor, porTipo] = await Promise.all([
-      this.q(`SELECT COALESCE(SUM(m.debe - m.haber), 0)::float8 AS valor FROM (${SQL_BASE.CONTABILIDAD}) m WHERE m.cuenta_codigo IN ('1300','1310','1320')`),
+      this.q(`SELECT COALESCE(SUM(m.debe - m.haber), 0)::float8 AS valor FROM (${SQL_BASE.CONTABILIDAD}) m WHERE m.cuenta_codigo IN ('1300','1305','1310','1320')`),
       this.q(`SELECT COALESCE(SUM(cantidad),0)::int AS pares, COALESCE(SUM(valor_costo),0)::float8 AS costo, COALESCE(SUM(valor_venta),0)::float8 AS venta, COUNT(DISTINCT variante_id) FILTER (WHERE cantidad > 0)::int AS variantes, COUNT(*) FILTER (WHERE cantidad < 0)::int AS negativos ${stock}`),
       this.q<{ etiqueta: string; pares: number; costo: number }>(`SELECT ubicacion AS etiqueta, SUM(cantidad)::int AS pares, SUM(valor_costo)::float8 AS costo ${stock} GROUP BY 1 ORDER BY 3 DESC`),
       this.q<{ etiqueta: string; pares: number; costo: number }>(`SELECT producto_codigo || ' ' || producto AS etiqueta, SUM(cantidad)::int AS pares, SUM(valor_costo)::float8 AS costo ${stock} GROUP BY 1 ORDER BY 3 DESC LIMIT 10`),

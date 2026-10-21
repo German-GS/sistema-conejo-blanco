@@ -21,4 +21,6 @@ export enum Rol {
   VENDEDOR = 'vendedor',
   CONTADOR = 'contador',
   ASISTENTE = 'asistente',
+  // Encargado de tienda: atiende la caja de su tienda y solo ve el punto de venta (POS) de esa tienda.
+  ENCARGADO_TIENDA = 'encargado_tienda',
 }

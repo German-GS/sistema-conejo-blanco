@@ -1,7 +1,7 @@
 <script setup>
 import { computed, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
-import { Home, ClipboardList, Users, Package, Warehouse, UserCog, Settings, Receipt, Undo2, X, HandCoins, BookOpen, NotebookText, Wallet, Fingerprint, SlidersHorizontal, BadgeDollarSign, FileBarChart, ShieldCheck, BookMarked, Lock, Landmark, Server, ChartColumnBig, Pin, PinOff, ChevronDown } from '@lucide/vue';
+import { Home, ClipboardList, Users, Package, Warehouse, UserCog, Settings, Receipt, Undo2, X, HandCoins, BookOpen, NotebookText, Wallet, Fingerprint, SlidersHorizontal, BadgeDollarSign, FileBarChart, ShieldCheck, BookMarked, Lock, Landmark, Server, ChartColumnBig, Store, ScanBarcode, Pin, PinOff, ChevronDown } from '@lucide/vue';
 import { useAuthStore } from '../stores/auth.js';
 import { menuFijado } from '../lib/menuLateral.js';
 import logoMenu from '../logo/logo-menu.png';
@@ -21,6 +21,13 @@ const NAV = [
   { to: { name: 'admin-clientes' }, etiqueta: 'Clientes', icono: Users, permiso: 'clientes.gestionar' },
   { to: { name: 'admin-inventario' }, etiqueta: 'Inventario', icono: Package, permiso: 'catalogo.gestionar' },
   { to: { name: 'admin-bodega' }, etiqueta: 'Bodega', icono: Warehouse, permiso: 'inventario.ver', modulo: 'inventario' },
+  {
+    grupo: 'Tienda',
+    items: [
+      { to: { name: 'pos' }, etiqueta: 'Abrir caja (POS)', icono: ScanBarcode, puedePOS: true, modulo: 'pos' },
+      { to: { name: 'admin-tienda' }, etiqueta: 'Ventas y cajas de tienda', icono: Store, permiso: 'pos.ver', modulo: 'pos' },
+    ],
+  },
   {
     grupo: 'Ingresos',
     items: [
@@ -66,6 +73,7 @@ const NAV = [
 function puedeVer(item) {
   if (item.modulo && !auth.moduloActivo(item.modulo)) return false;
   if (item.soloSistema) return auth.esSistema;
+  if (item.puedePOS) return auth.puedeUsarPOS;
   if (item.permiso) return auth.tienePermiso(item.permiso);
   return true;
 }

@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ConfiguracionSistema } from './configuracion-sistema.entity.js';
 
-export const MODULOS = ['planilla', 'contabilidad', 'facturacion', 'pagos', 'inventario'] as const;
+export const MODULOS = ['planilla', 'contabilidad', 'facturacion', 'pagos', 'inventario', 'pos'] as const;
 export type ModuloSistema = (typeof MODULOS)[number];
 
 export const ETIQUETA_MODULO: Record<ModuloSistema, string> = {
@@ -12,6 +12,7 @@ export const ETIQUETA_MODULO: Record<ModuloSistema, string> = {
   facturacion: 'Facturación y notas de crédito',
   pagos: 'Pagos recibidos y cuentas bancarias',
   inventario: 'Bodega, traspasos e inventario',
+  pos: 'Punto de venta (POS) de las tiendas',
 };
 
 // Valores por defecto de cada ajuste (se usan hasta que el sistema los cambie).
@@ -88,7 +89,7 @@ export class SistemaConfigService {
       if (typeof valor !== 'string' || valor.length > 300 || !/^[0-9a-fA-F:., ]*$/.test(valor)) throw new BadRequestException('Indicá direcciones IP separadas por comas.');
     }
     if (clave === 'seguridad.dos_pasos_roles') {
-      const validos = ['sistema', 'gerente_general', 'administracion', 'contador', 'asistente', 'vendedor'];
+      const validos = ['sistema', 'gerente_general', 'administracion', 'contador', 'asistente', 'vendedor', 'encargado_tienda'];
       if (!Array.isArray(valor) || valor.some((r) => !validos.includes(r))) throw new BadRequestException('Perfiles no válidos.');
     }
     await this.guardar(clave, valor);

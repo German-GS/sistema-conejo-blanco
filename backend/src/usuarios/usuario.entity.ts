@@ -9,6 +9,7 @@ import {
   type Relation,
 } from 'typeorm';
 import { Empleado } from '../planilla/empleado.entity.js';
+import { Ubicacion } from '../ubicaciones/ubicacion.entity.js';
 import { Rol } from '../common/enums/rol.enum.js';
 import { UsuarioPermiso } from './usuario-permiso.entity.js';
 
@@ -70,6 +71,14 @@ export class Usuario {
 
   @Column({ type: 'uuid', name: 'empleado_id', nullable: true, unique: true })
   empleadoId: string | null;
+
+  // Solo para el encargado de tienda: la tienda en cuya caja trabaja. Al iniciar sesión entra directo al POS de esa tienda.
+  @ManyToOne(() => Ubicacion, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'ubicacion_id' })
+  ubicacion: Relation<Ubicacion> | null;
+
+  @Column({ type: 'uuid', name: 'ubicacion_id', nullable: true })
+  ubicacionId: string | null;
 
   @Column({ type: 'timestamptz', name: 'ultimo_acceso', nullable: true })
   ultimoAcceso: Date | null;

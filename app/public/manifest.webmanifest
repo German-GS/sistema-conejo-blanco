@@ -1,0 +1,11 @@
+{
+  "name": "Conejo Blanco — Punto de venta",
+  "short_name": "CB POS",
+  "description": "Caja de la tienda: funciona sin conexión a internet.",
+  "start_url": "./pos",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f1f5f9",
+  "theme_color": "#1e293b",
+  "icons": [{ "src": "favicon.png", "sizes": "any", "type": "image/png", "purpose": "any" }]
+}

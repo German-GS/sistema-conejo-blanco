@@ -17,6 +17,7 @@ const ETIQUETAS_ROL = {
   contador: 'Contador',
   asistente: 'Asistente',
   vendedor: 'Vendedor',
+  encargado_tienda: 'Encargado de tienda',
 };
 
 function salir() {

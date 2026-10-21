@@ -4,6 +4,7 @@ import { Users, Package, UserCog, ClipboardList, LayoutGrid, TrendingUp, AlertTr
 import { api, ApiError } from '../../lib/api.js';
 import { useAuthStore } from '../../stores/auth.js';
 import { formatearColones, formatearFecha } from '../../lib/format.js';
+import AlertasInventario from './pos/AlertasInventario.vue';
 
 const auth = useAuthStore();
 const resumen = ref({ pedidos: 0, clientes: 0, productos: 0, personal: 0 });
@@ -79,6 +80,19 @@ onMounted(async () => {
 
 // --- Gráfico: ventas de los últimos 6 meses (contado vs crédito) --------
 const puedeVerFacturas = auth.tienePermiso('facturacion.gestionar');
+const pedidosTienda = ref(null);
+const puedeVerPedidosTienda = auth.tienePermiso('pos.ver') && auth.moduloActivo('pos');
+onMounted(async () => {
+  if (!puedeVerPedidosTienda) return;
+  try {
+    pedidosTienda.value = await api.get('/pos/ordenes/resumen');
+  } catch {
+    /* el aviso es informativo */
+  }
+});
+const irAPedidosTienda = () => sessionStorage.setItem('cb-pedidos-pestana', 'tiendas');
+const irAAlertas = () => sessionStorage.setItem('cb-tienda-pestana', 'alertas');
+const puedeVerAlertas = auth.tienePermiso('inventario.ver') && auth.moduloActivo('inventario');
 const resumenVentas = ref([]);
 const cargandoVentas = ref(true);
 
@@ -208,6 +222,21 @@ onMounted(() => {
           <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">{{ t.etiqueta }}</p>
         </router-link>
       </div>
+    </div>
+
+    <!-- Pedidos de reposición de las tiendas -->
+    <router-link v-if="pedidosTienda && (pedidosTienda.pendientes > 0 || pedidosTienda.enProceso > 0 || pedidosTienda.enCamino > 0)" :to="{ name: 'admin-pedidos' }" class="card flex items-center justify-between gap-3 border-l-4 border-blue-500 hover:bg-slate-50" @click="irAPedidosTienda">
+      <div><p class="text-base font-bold text-slate-900">Pedidos de mercadería de las tiendas</p><p class="text-sm text-slate-600"><b>{{ pedidosTienda.pendientes }}</b> por revisar<span v-if="pedidosTienda.urgentes" class="font-semibold text-red-600"> ({{ pedidosTienda.urgentes }} urgente(s))</span> · {{ pedidosTienda.enProceso }} por alistar o enviar · {{ pedidosTienda.enCamino }} en camino</p></div>
+      <span class="text-sm font-semibold text-blue-600 underline">Atender</span>
+    </router-link>
+
+    <!-- Alertas de inventario bajo (bodega y tiendas) -->
+    <div v-if="puedeVerAlertas" class="card flex flex-col gap-3">
+      <div class="flex items-center justify-between gap-2">
+        <div class="flex items-center gap-2"><AlertTriangle class="size-5 text-amber-500" /><h2 class="text-base font-bold text-slate-900">Inventario bajo</h2></div>
+        <router-link v-if="auth.tienePermiso('pos.ver')" :to="{ name: 'admin-tienda' }" class="text-sm text-blue-600 underline" @click="irAAlertas">Ver todas</router-link>
+      </div>
+      <AlertasInventario compacto />
     </div>
 
     <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">

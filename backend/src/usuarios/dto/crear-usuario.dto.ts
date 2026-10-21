@@ -3,7 +3,7 @@ import { IsEmail, IsIn, IsOptional, IsString, IsUUID, MaxLength, MinLength } fro
 import { Rol } from '../../common/enums/rol.enum.js';
 
 // El rol "sistema" no se crea desde la app: es la cuenta del administrador del sistema.
-export const ROLES_ASIGNABLES = [Rol.GERENTE_GENERAL, Rol.ADMINISTRACION, Rol.CONTADOR, Rol.ASISTENTE, Rol.VENDEDOR];
+export const ROLES_ASIGNABLES = [Rol.GERENTE_GENERAL, Rol.ADMINISTRACION, Rol.CONTADOR, Rol.ASISTENTE, Rol.VENDEDOR, Rol.ENCARGADO_TIENDA];
 
 export class CrearUsuarioDto {
   // Si la cuenta es para un empleado de planilla ya registrado, se toman de ahí
@@ -35,4 +35,9 @@ export class CrearUsuarioDto {
 
   @IsIn(ROLES_ASIGNABLES, { message: 'Ese perfil no se puede asignar.' })
   rol: Rol;
+
+  // Solo para el perfil "encargado de tienda": la tienda donde trabaja.
+  @IsOptional()
+  @IsUUID()
+  ubicacionId?: string;
 }
