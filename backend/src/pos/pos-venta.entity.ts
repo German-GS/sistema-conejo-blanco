@@ -60,6 +60,10 @@ export class PosVenta {
   @Column({ type: 'uuid', name: 'anulada_por_id', nullable: true })
   anuladaPorId: string | null;
 
+  // Venta de productos de prueba: no genera asientos ni cuenta en el arqueo de caja ni en los reportes.
+  @Column({ type: 'boolean', name: 'es_prueba', default: false })
+  esPrueba: boolean;
+
   // Aviso para revisar: por ejemplo, un precio distinto al que tenía el producto al recibir la venta.
   @Column({ type: 'varchar', length: 200, nullable: true })
   alerta: string | null;

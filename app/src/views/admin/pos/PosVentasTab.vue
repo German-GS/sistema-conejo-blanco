@@ -17,6 +17,7 @@ const hace = (d) => {
 const desde = ref(hace(6));
 const hasta = ref(hoy);
 const tienda = ref('');
+const pruebas = ref(false);
 const resumen = ref(null);
 const ventas = ref([]);
 const error = ref('');
@@ -33,6 +34,7 @@ async function cargar() {
   if (desde.value) q.set('desde', desde.value);
   if (hasta.value) q.set('hasta', hasta.value);
   if (tienda.value) q.set('ubicacionId', tienda.value);
+  if (pruebas.value) q.set('pruebas', '1');
   try {
     [resumen.value, ventas.value] = await Promise.all([api.get(`/pos/resumen?${q}`), api.get(`/pos/ventas?${q}`)]);
     error.value = '';
@@ -41,7 +43,7 @@ async function cargar() {
   }
 }
 onMounted(cargar);
-watch([desde, hasta, tienda], cargar);
+watch([desde, hasta, tienda, pruebas], cargar);
 
 async function ver(v) {
   motivo.value = '';
@@ -75,6 +77,7 @@ async function anular() {
       <label class="flex flex-col text-xs font-semibold text-slate-500">Tienda
         <select v-model="tienda" class="input mt-1"><option value="">Todas</option><option v-for="u in ubicaciones" :key="u.id" :value="u.id">{{ u.nombre }}</option></select>
       </label>
+      <label v-if="auth.esSistema" class="flex items-center gap-2 pb-2 text-sm text-slate-700"><input v-model="pruebas" type="checkbox" class="size-4" /> Incluir ventas de prueba</label>
       <div class="flex gap-1.5"><button type="button" class="btn-secondary" @click="desde = hoy; hasta = hoy">Hoy</button><button type="button" class="btn-secondary" @click="desde = hace(6); hasta = hoy">7 días</button><button type="button" class="btn-secondary" @click="desde = hace(29); hasta = hoy">30 días</button></div>
     </div>
     <p v-if="error" class="text-sm font-medium text-red-600">{{ error }}</p>
@@ -100,7 +103,7 @@ async function anular() {
         <thead><tr class="border-b border-slate-200 text-left text-xs text-slate-500"><th class="py-1 pr-2">Tiquete</th><th class="py-1 pr-2">Fecha</th><th class="py-1 pr-2">Cajero</th><th class="py-1 pr-2">Pago</th><th class="py-1 pr-2 text-right">Pares</th><th class="py-1 pr-2 text-right">Total</th><th class="py-1">Estado</th></tr></thead>
         <tbody>
           <tr v-for="v in ventas" :key="v.id" class="cursor-pointer border-b border-slate-100 hover:bg-slate-50" :class="v.estado === 'anulada' ? 'opacity-60' : ''" @click="ver(v)">
-            <td class="py-1 pr-2 font-mono text-xs">{{ v.numeroTexto }}</td><td class="py-1 pr-2">{{ v.fecha }}</td><td class="py-1 pr-2">{{ v.cajero }}</td><td class="py-1 pr-2 text-xs">{{ (v.medios ?? '').split(', ').map((m) => MEDIO[m] ?? m).join(', ') }}</td>
+            <td class="py-1 pr-2 font-mono text-xs">{{ v.numeroTexto }}<span v-if="v.prueba" class="ml-1 rounded-full bg-amber-500 px-1.5 text-[10px] font-extrabold text-white">PRUEBA</span></td><td class="py-1 pr-2">{{ v.fecha }}</td><td class="py-1 pr-2">{{ v.cajero }}</td><td class="py-1 pr-2 text-xs">{{ (v.medios ?? '').split(', ').map((m) => MEDIO[m] ?? m).join(', ') }}</td>
             <td class="py-1 pr-2 text-right">{{ v.pares }}</td><td class="py-1 pr-2 text-right font-semibold tabular-nums">{{ crc(v.total) }}</td>
             <td class="py-1 text-xs"><span :class="v.estado === 'anulada' ? 'font-semibold text-red-600' : 'text-green-600'">{{ v.estado === 'anulada' ? 'Anulado' : 'Vigente' }}</span><span v-if="v.sinConexion" class="ml-1 text-slate-500">· sin internet</span><span v-if="v.alerta" class="ml-1 font-semibold text-amber-600" :title="v.alerta">· revisar precio</span></td>
           </tr>

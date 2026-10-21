@@ -29,6 +29,7 @@ async function guardar() {
       cuentaSinpeId: cfg.value.cuentaSinpeId || null,
       cuentaTransferenciaId: cfg.value.cuentaTransferenciaId || null,
       pieTiquete: cfg.value.pieTiquete,
+      ...(auth.esSistema ? { modoPrueba: Boolean(cfg.value.modoPrueba) } : {}),
     });
     aviso.value = 'Configuración guardada.';
   } catch (err) {
@@ -52,6 +53,10 @@ const CAMPOS = [
     </div>
     <label v-for="c in CAMPOS" :key="c[0]" class="flex flex-col text-sm font-medium text-slate-700">{{ c[1] }}
       <select v-model="cfg[c[0]]" class="input mt-1" :disabled="!puedeEditar"><option :value="null">Caja y Bancos (1100)</option><option v-for="b in cfg.cuentasBancarias" :key="b.id" :value="b.id">{{ b.nombre }}</option></select>
+    </label>
+    <label v-if="auth.esSistema" class="flex items-start gap-3 rounded-xl border-2 border-dashed border-amber-400 bg-amber-50 p-3 text-sm text-amber-900">
+      <input v-model="cfg.modoPrueba" type="checkbox" class="mt-0.5 size-5" />
+      <span><b>Modo de prueba</b> (solo el administrador del sistema). Mientras esté activo, la caja de las tiendas muestra los <b>productos de prueba</b> con su etiqueta PRUEBA y un aviso grande. Sus ventas y pedidos no generan asientos ni cuentan en la caja. Apáguelo al terminar la demostración.</span>
     </label>
     <label class="flex flex-col text-sm font-medium text-slate-700">Mensaje al pie del tiquete<input v-model="cfg.pieTiquete" type="text" maxlength="300" class="input mt-1" :disabled="!puedeEditar" /></label>
     <p v-if="error" class="text-sm font-medium text-red-600">{{ error }}</p>

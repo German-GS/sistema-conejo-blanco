@@ -82,7 +82,8 @@ const INVENTARIO_STOCK = `
   FROM stock_ubicaciones s
   JOIN ubicaciones u ON u.id = s.ubicacion_id
   JOIN variantes_producto v ON v.id = s.variante_id
-  JOIN productos p ON p.id = v.producto_id`;
+  JOIN productos p ON p.id = v.producto_id
+  WHERE NOT p.es_prueba`;
 
 const INVENTARIO_MOVIMIENTOS = `
   SELECT to_char(m.creado_en AT TIME ZONE 'America/Costa_Rica', 'YYYY-MM-DD') AS fecha,
@@ -92,7 +93,8 @@ const INVENTARIO_MOVIMIENTOS = `
   FROM movimientos_inventario m
   JOIN ubicaciones u ON u.id = m.ubicacion_id
   JOIN variantes_producto v ON v.id = m.variante_id
-  JOIN productos p ON p.id = v.producto_id`;
+  JOIN productos p ON p.id = v.producto_id
+  WHERE NOT p.es_prueba`;
 
 // Libro mayor: una fila por línea de asiento, con el documento que la originó ya resuelto (factura, cliente,
 // planilla). Las notas de crédito y las reversas apuntan al documento original, así que los totales por
@@ -145,12 +147,14 @@ const POS_VENTAS = `
     (l.cantidad * COALESCE(l.costo_unitario, 0))::float8 AS costo,
     (SELECT string_agg(DISTINCT p.medio, ', ' ORDER BY p.medio) FROM pos_pagos p WHERE p.venta_id = v.id) AS medios_pago,
     v.creada_sin_conexion AS sin_conexion
-  FROM pos_venta_lineas l JOIN pos_ventas v ON v.id = l.venta_id JOIN ubicaciones u ON u.id = v.ubicacion_id JOIN usuarios us ON us.id = v.cajero_id`;
+  FROM pos_venta_lineas l JOIN pos_ventas v ON v.id = l.venta_id JOIN ubicaciones u ON u.id = v.ubicacion_id JOIN usuarios us ON us.id = v.cajero_id
+  WHERE NOT v.es_prueba`;
 
 const DIM_PRODUCTOS = `
   SELECT v.id AS variante_id, p.id AS producto_id, p.codigo, p.nombre, v.color,
     v.precio_por_par::float8 AS precio_por_par, v.costo::float8 AS costo, (v.activo AND p.activo) AS activo
-  FROM variantes_producto v JOIN productos p ON p.id = v.producto_id`;
+  FROM variantes_producto v JOIN productos p ON p.id = v.producto_id
+  WHERE NOT p.es_prueba`;
 
 const DIM_CLIENTES = `
   SELECT c.id AS cliente_id, c.nombre, c.tipo_identificacion::text AS tipo_identificacion, c.provincia::text AS provincia,

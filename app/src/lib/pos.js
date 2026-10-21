@@ -212,7 +212,7 @@ export async function abrirCaja(fondoInicial, cajero) {
 export function efectivoEsperado(caja = pos.caja) {
   if (!caja) return 0;
   const efectivo = pos.ventas
-    .filter((v) => v.cajaId === caja.id && !v.anulada)
+    .filter((v) => v.cajaId === caja.id && !v.anulada && !v.esPrueba)
     .reduce((a, v) => a + v.pagos.filter((p) => p.medio === 'efectivo').reduce((s, p) => s + p.monto, 0), 0);
   return redondear(caja.fondoInicial + efectivo);
 }
@@ -229,7 +229,7 @@ export async function cerrarCaja(efectivoContado, notas) {
 }
 
 export function resumenTurno(caja = pos.caja) {
-  const ventas = pos.ventas.filter((v) => caja && v.cajaId === caja.id && !v.anulada);
+  const ventas = pos.ventas.filter((v) => caja && v.cajaId === caja.id && !v.anulada && !v.esPrueba);
   const porMedio = {};
   for (const v of ventas) for (const p of v.pagos) porMedio[p.medio] = redondear((porMedio[p.medio] ?? 0) + p.monto);
   return { ventas: ventas.length, total: redondear(ventas.reduce((a, v) => a + v.total, 0)), porMedio };
@@ -242,6 +242,8 @@ export async function cobrar(carrito, pagos, cajero) {
   if (!pos.tienda) throw new Error('Esta terminal no tiene tienda asignada.');
   if (!pos.caja) throw new Error('Abra la caja antes de vender.');
   if (!carrito.length) throw new Error('El tiquete está vacío.');
+  const esPrueba = carrito.every((l) => l.prueba);
+  if (!esPrueba && carrito.some((l) => l.prueba)) throw new Error('No se pueden mezclar productos de prueba con productos reales en el mismo tiquete.');
   const lineas = carrito.map((l) => ({ varianteId: l.varianteId, codigo: l.codigo, nombre: l.nombre, color: l.color, cantidad: l.cantidad, precioUnitario: l.precio, descuento: 0, subtotal: redondear(l.precio * l.cantidad) }));
   const total = redondear(lineas.reduce((a, l) => a + l.subtotal, 0));
   const pagado = redondear(pagos.reduce((a, p) => a + p.monto, 0));
@@ -257,6 +259,7 @@ export async function cobrar(carrito, pagos, cajero) {
     cajeroId: cajero.id,
     cajero: cajero.nombre,
     sinConexion: !navigator.onLine || !pos.enLinea,
+    esPrueba,
     lineas,
     pagos: pagos.map((p) => ({ medio: p.medio, monto: redondear(p.monto), referencia: p.referencia?.trim() || undefined, recibido: p.medio === 'efectivo' && p.recibido !== undefined ? redondear(p.recibido) : undefined })),
     total,

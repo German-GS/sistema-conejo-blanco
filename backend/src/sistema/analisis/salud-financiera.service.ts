@@ -123,7 +123,7 @@ const CRUCES: Cruce[] = [
                op AS (SELECT mes, SUM(v) AS v FROM (
                         SELECT to_char(f.fecha, 'YYYY-MM') AS mes, f.subtotal AS v FROM facturas f ${FACTURA_JOINS} WHERE ${FACTURA_VIGENTE}
                         UNION ALL
-                        SELECT to_char(pv.fecha AT TIME ZONE 'America/Costa_Rica', 'YYYY-MM') AS mes, pv.total AS v FROM pos_ventas pv WHERE pv.estado = 'vigente') x GROUP BY 1)
+                        SELECT to_char(pv.fecha AT TIME ZONE 'America/Costa_Rica', 'YYYY-MM') AS mes, pv.total AS v FROM pos_ventas pv WHERE pv.estado = 'vigente' AND NOT pv.es_prueba) x GROUP BY 1)
           SELECT COALESCE(mayor.mes, op.mes) AS mes, COALESCE(mayor.v, 0)::float8 AS mayor, COALESCE(op.v, 0)::float8 AS facturas,
                  (COALESCE(mayor.v, 0) - COALESCE(op.v, 0))::float8 AS diferencia
           FROM mayor FULL JOIN op ON op.mes = mayor.mes WHERE ABS(COALESCE(mayor.v, 0) - COALESCE(op.v, 0)) > 0.5 ORDER BY 1`,
@@ -161,7 +161,7 @@ const CRUCES: Cruce[] = [
     severidad: 'error',
     sql: `SELECT u.codigo || '-' || lpad(v.numero::text, 6, '0') AS tiquete, to_char(v.fecha AT TIME ZONE 'America/Costa_Rica', 'YYYY-MM-DD') AS fecha, v.total::float8 AS total
           FROM pos_ventas v JOIN ubicaciones u ON u.id = v.ubicacion_id
-          WHERE v.estado = 'vigente' AND NOT EXISTS (SELECT 1 FROM asientos_contables a WHERE a.origen_tipo = 'pos_venta' AND a.origen_id = v.id) ORDER BY v.fecha`,
+          WHERE v.estado = 'vigente' AND NOT v.es_prueba AND NOT EXISTS (SELECT 1 FROM asientos_contables a WHERE a.origen_tipo = 'pos_venta' AND a.origen_id = v.id) ORDER BY v.fecha`,
     donde: 'POS: la venta se cobró y descontó inventario, pero no llegó al libro mayor; las ventas contables quedan por debajo de las de la tienda.',
     resumen: (f) => `${f.length} tiquete(s) de tienda sin asiento contable.`,
   },
@@ -171,7 +171,7 @@ const CRUCES: Cruce[] = [
     titulo: 'Los productos vendidos en tienda tienen costo cargado',
     severidad: 'atencion',
     sql: `SELECT l.codigo AS producto_codigo, l.color, SUM(l.cantidad)::int AS pares_vendidos FROM pos_venta_lineas l JOIN pos_ventas v ON v.id = l.venta_id
-          WHERE v.estado = 'vigente' AND COALESCE(l.costo_unitario, 0) = 0 GROUP BY 1, 2 ORDER BY 3 DESC`,
+          WHERE v.estado = 'vigente' AND NOT v.es_prueba AND COALESCE(l.costo_unitario, 0) = 0 GROUP BY 1, 2 ORDER BY 3 DESC`,
     donde: 'Catálogo: cargue el costo de esos productos; sin él, el costo de ventas de la tienda queda en cero y el margen sale inflado.',
     resumen: (f) => `${f.length} producto(s) vendidos en tienda sin costo.`,
   },
@@ -182,7 +182,7 @@ const CRUCES: Cruce[] = [
     severidad: 'error',
     sql: `SELECT u.codigo || '-R' || lpad(o.numero::text, 4, '0') AS pedido, u.nombre AS tienda, to_char(o.atendida_en AT TIME ZONE 'America/Costa_Rica', 'YYYY-MM-DD') AS recibido
           FROM pos_ordenes o JOIN ubicaciones u ON u.id = o.ubicacion_id
-          WHERE o.estado = 'entregada' AND EXISTS (SELECT 1 FROM pos_orden_lineas l WHERE l.orden_id = o.id AND l.costo_tienda IS NOT NULL)
+          WHERE o.estado = 'entregada' AND NOT o.es_prueba AND EXISTS (SELECT 1 FROM pos_orden_lineas l WHERE l.orden_id = o.id AND l.costo_tienda IS NOT NULL)
             AND NOT EXISTS (SELECT 1 FROM asientos_contables a WHERE a.origen_tipo = 'pos_orden' AND a.origen_id = o.id) ORDER BY o.fecha`,
     donde: 'POS → Pedidos de tienda: el pedido figura recibido y el inventario de la tienda subió, pero el traslado no llegó al libro mayor (inventario de tiendas contra inventario de bodega).',
     resumen: (f) => `${f.length} pedido(s) de tienda recibidos sin asiento.`,

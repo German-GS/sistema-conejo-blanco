@@ -37,6 +37,17 @@ Cada tienda lleva su **costo promedio por producto** (promedio de lo que ya ten�
 
 Un traspaso de un pedido de tienda **no se puede recibir desde Bodega**: lo recibe la tienda (así siempre queda el asiento). Rechazar o cancelar solo se puede antes de revisar.
 
+## Productos de prueba (demostraciones)
+
+Solo el **administrador del sistema** puede crear **productos de prueba** (casilla «Producto de prueba» al crear un producto en Inventario). Sirven para mostrar todo el proceso sin ensuciar la contabilidad:
+
+- **No generan asientos**: ni las ventas de caja, ni el traslado al recibir un pedido de tienda. No cuentan en el arqueo de caja, ni en los reportes, ni en Análisis y Salud financiera, ni en las alertas de inventario.
+- Llevan la etiqueta **PRUEBA** (en el catálogo, en la caja, en el tiquete «DE PRUEBA — NO VÁLIDO» y en los pedidos de tienda).
+- Se usan en **la caja de las tiendas y en sus pedidos de mercadería** (con sus traspasos). **No** se pueden usar en pedidos de vendedores ni en facturas, y los vendedores no los ven.
+- Una venta, pedido o traspaso es **todo de prueba o todo real**: no se pueden mezclar.
+- Aparecen en la caja solo mientras el **Modo de prueba** esté activo (Tienda → Configuración); la caja muestra un aviso grande mientras tanto. Se apaga al terminar la demostración.
+- Se **eliminan** (botón Eliminar en Inventario, solo el sistema) junto con todo lo hecho con ellos: ventas, pedidos, traspasos, existencias y movimientos.
+
 ## Puesta en marcha de una tienda
 
 1. **Productos de tienda** (panel → Tienda → Productos de tienda): precio al detalle, código de barras y mínimo de cada producto y color. Un producto sin precio de tienda no aparece en la caja. El botón "Asignar códigos de barras faltantes" crea códigos EAN-13 internos.

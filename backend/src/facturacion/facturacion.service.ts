@@ -456,7 +456,7 @@ export class FacturacionService {
   private async calcularCostoVentas(lineas: PedidoLinea[]): Promise<number> {
     let total = 0;
     for (const linea of lineas) {
-      const variante = await this.catalogoService.buscarVariantePorIdOFallar(linea.varianteId);
+      const variante = await this.catalogoService.buscarVarianteParaVenta(linea.varianteId);
       if (variante.costo != null) {
         total += linea.pares * Number(variante.costo);
       }

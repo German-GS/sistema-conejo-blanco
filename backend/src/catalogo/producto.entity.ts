@@ -29,6 +29,11 @@ export class Producto {
   @Column({ type: 'boolean', default: true })
   activo: boolean;
 
+  // Producto de demostración (lo crea solo el administrador del sistema): se usa en el POS y en los pedidos de tienda para
+  // mostrar todo el proceso, NO genera asientos contables y se puede eliminar junto con todo lo que se hizo con él.
+  @Column({ type: 'boolean', name: 'es_prueba', default: false })
+  esPrueba: boolean;
+
   @OneToMany(() => VarianteProducto, (variante) => variante.producto)
   variantes: Relation<VarianteProducto>[];
 

@@ -65,6 +65,10 @@ export class OrdenTienda {
   @Column({ type: 'timestamptz', name: 'atendida_en', nullable: true })
   atendidaEn: Date | null;
 
+  // Pedido de productos de prueba: su traslado no genera asiento.
+  @Column({ type: 'boolean', name: 'es_prueba', default: false })
+  esPrueba: boolean;
+
   @Column({ type: 'boolean', name: 'creada_sin_conexion', default: false })
   creadaSinConexion: boolean;
 

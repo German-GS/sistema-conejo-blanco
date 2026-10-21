@@ -53,7 +53,7 @@ export class InventarioService {
        JOIN ubicaciones u ON u.id = s.ubicacion_id
        JOIN variantes_producto v ON v.id = s.variante_id
        JOIN productos p ON p.id = v.producto_id
-       WHERE u.activa AND v.activo AND p.activo AND ($1::uuid IS NULL OR s.ubicacion_id = $1::uuid)
+       WHERE u.activa AND v.activo AND p.activo AND NOT p.es_prueba AND ($1::uuid IS NULL OR s.ubicacion_id = $1::uuid)
          AND ((s.stock_minimo > 0 AND s.cantidad <= s.stock_minimo) OR s.cantidad < 0)
        ORDER BY (s.cantidad <= 0) DESC, (s.cantidad - s.stock_minimo) ASC, u.nombre, p.codigo`,
       [ubicacionId ?? null],

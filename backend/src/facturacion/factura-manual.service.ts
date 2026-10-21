@@ -111,7 +111,7 @@ export class FacturaManualService {
         if (!Number.isInteger(l.cantidad)) {
           throw new BadRequestException('Los productos del catálogo se facturan en pares enteros.');
         }
-        const variante = await this.catalogoService.buscarVariantePorIdOFallar(l.varianteId);
+        const variante = await this.catalogoService.buscarVarianteParaVenta(l.varianteId);
         const producto = await this.catalogoService.buscarProductoPorIdOFallar(variante.productoId);
         if (!descripcion) descripcion = `${producto.codigo} — ${producto.nombre} (${variante.color})`;
         costo = variante.costo != null ? Number(variante.costo) : null;

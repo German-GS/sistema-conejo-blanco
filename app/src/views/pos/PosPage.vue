@@ -1,7 +1,8 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
-import { Barcode, CloudOff, Cloud, Minus, Plus, Printer, RefreshCw, Trash2, TriangleAlert, X } from '@lucide/vue';
+import { Banknote, Barcode, Cloud, CloudOff, CircleCheck, CreditCard, Info, KeyRound, Landmark, LogOut, Minus, PackagePlus, Plus, Printer, Receipt, RefreshCw, ScanBarcode, Smartphone, Trash2, Truck, TriangleAlert, Wallet, X } from '@lucide/vue';
+import logoMenu from '../../logo/logo-menu.png';
 import { useAuthStore } from '../../stores/auth.js';
 import { api, ApiError } from '../../lib/api.js';
 import { formatearColones, formatearFechaHora } from '../../lib/format.js';
@@ -15,6 +16,7 @@ import PedidoReposicion from './PedidoReposicion.vue';
 const auth = useAuthStore();
 const router = useRouter();
 const cajero = computed(() => ({ id: auth.usuario.id, nombre: auth.usuario.nombre }));
+const ETIQUETA_ROL = { encargado_tienda: 'Encargado de tienda', administracion: 'Administración', gerente_general: 'Gerente general', sistema: 'Administrador del sistema' };
 
 // ---- Tienda de esta terminal
 const tiendas = ref([]);
@@ -46,7 +48,10 @@ function avisar(m) {
 function agregar(v) {
   const existente = carrito.value.find((l) => l.varianteId === v.varianteId);
   if (existente) existente.cantidad += 1;
-  else carrito.value.push({ varianteId: v.varianteId, codigo: v.codigo, nombre: v.nombre, color: v.color, precio: v.precio, cantidad: 1 });
+  else {
+    if (carrito.value.length && carrito.value.some((l) => !!l.prueba !== !!v.prueba)) return avisar('No se pueden mezclar productos de PRUEBA con productos reales en el mismo tiquete. Termine o borre el tiquete actual.');
+    carrito.value.push({ varianteId: v.varianteId, codigo: v.codigo, nombre: v.nombre, color: v.color, precio: v.precio, cantidad: 1, prueba: !!v.prueba });
+  }
   if (stockDe(v.varianteId) - (carrito.value.find((l) => l.varianteId === v.varianteId)?.cantidad ?? 0) < 0) avisar(`${v.codigo} ${v.color}: según el sistema no hay existencias suficientes. Puede venderlo igual y revisar el conteo después.`);
   texto.value = '';
   entrada.value?.focus();
@@ -77,20 +82,38 @@ const pagos = ref([]);
 const errorCobro = ref('');
 const guardando = ref(false);
 const MEDIOS = [
-  ['efectivo', 'Efectivo'],
-  ['tarjeta', 'Tarjeta'],
-  ['sinpe', 'SINPE Móvil'],
-  ['transferencia', 'Transferencia'],
+  ['efectivo', 'Efectivo', Banknote],
+  ['tarjeta', 'Tarjeta', CreditCard],
+  ['sinpe', 'SINPE Móvil', Smartphone],
+  ['transferencia', 'Transferencia', Landmark],
 ];
+// Qué tiene que hacer la persona según cómo paga el cliente (en palabras sencillas).
+const INSTRUCCION = {
+  efectivo: ['Cobre en efectivo', ['Reciba el dinero del cliente.', 'Escriba cuánto le dieron (o toque el billete).', 'Dé el VUELTO que le indica el sistema y entregue el tiquete.']],
+  tarjeta: ['Cobre en el datáfono', ['Cobre el monto en el datáfono.', 'Si el datáfono dice APROBADO, toque CONFIRMAR COBRO.', 'Si lo RECHAZÓ, NO confirme: pida otra forma de pago.']],
+  sinpe: ['Cobro por SINPE Móvil', ['Pídale al cliente que haga el SINPE por el monto exacto.', 'Revise en SU celular que el dinero YA LLEGÓ.', 'Solo entonces toque CONFIRMAR COBRO.']],
+  transferencia: ['Cobro por transferencia', ['Pídale al cliente que haga la transferencia por el monto exacto.', 'Revise que el dinero YA LLEGÓ a la cuenta.', 'Solo entonces toque CONFIRMAR COBRO.']],
+};
+const dividido = ref(false);
+function elegirMedio(m) {
+  const p = pagos.value[0];
+  p.medio = m;
+  p.recibido = '';
+  p.referencia = '';
+}
 const pagado = computed(() => Math.round(pagos.value.reduce((a, p) => a + (Number(p.monto) || 0), 0) * 100) / 100);
 const faltante = computed(() => Math.round((total.value - pagado.value) * 100) / 100);
 const vuelto = computed(() => pagos.value.filter((p) => p.medio === 'efectivo' && p.recibido !== '' && p.recibido !== null).reduce((a, p) => a + Math.max(0, Number(p.recibido) - Number(p.monto)), 0));
 
 function abrirCobro() {
   if (!carrito.value.length) return;
-  if (!pos.caja) return avisar('Abra la caja antes de cobrar.');
+  if (!pos.caja) {
+    panel.value = 'caja';
+    return;
+  }
   errorCobro.value = '';
   pagos.value = [{ medio: 'efectivo', monto: total.value, referencia: '', recibido: '' }];
+  dividido.value = false;
   cobrando.value = true;
 }
 function agregarPago(medio) {
@@ -127,6 +150,12 @@ async function confirmarCobro() {
   } finally {
     guardando.value = false;
   }
+}
+
+const vueltoVenta = (v) => (v ? v.pagos.filter((p) => p.medio === 'efectivo' && p.recibido !== undefined).reduce((a, p) => a + Math.max(0, p.recibido - p.monto), 0) : 0);
+function siguienteVenta() {
+  ultimaVenta.value = null;
+  entrada.value?.focus();
 }
 
 // ---- Tiquete e impresión
@@ -181,6 +210,26 @@ async function hacerCerrarCaja() {
 const turno = computed(() => resumenTurno());
 const ventasTurno = computed(() => [...pos.ventas].filter((v) => pos.caja && v.cajaId === pos.caja.id).reverse());
 const ETIQUETA = { efectivo: 'Efectivo', tarjeta: 'Tarjeta', sinpe: 'SINPE', transferencia: 'Transferencia' };
+
+// ---- Avisos grandes: lo que la persona debe saber o hacer ahora (los más importantes primero)
+const cajaDeOtroDia = computed(() => pos.caja && new Date(pos.caja.abiertaEn).toDateString() !== new Date().toDateString());
+const avisos = computed(() => {
+  const a = [];
+  if (!pos.enLinea) a.push({ tipo: 'error', icono: CloudOff, titulo: 'No hay internet', texto: 'Puede seguir vendiendo con toda normalidad. Las ventas se guardan en esta computadora y se envían solas cuando vuelva el internet. No apague la computadora ni borre los datos del navegador.' });
+  if (rechazadas.value.length) a.push({ tipo: 'error', icono: TriangleAlert, titulo: `${rechazadas.value.length} venta(s) no se pudieron enviar`, texto: 'Avise a la administración. Las ventas siguen guardadas en esta computadora.', accion: { texto: 'VER CUÁLES', fn: () => (panel.value = 'rechazadas') } });
+  if (pos.tienda && !pos.caja) a.push({ tipo: 'aviso', icono: Wallet, titulo: 'La caja está cerrada', texto: 'Para poder vender, primero abra la caja: cuente el efectivo con que empieza y escríbalo.', accion: { texto: 'ABRIR CAJA', fn: () => (panel.value = 'caja') } });
+  if (cajaDeOtroDia.value) a.push({ tipo: 'aviso', icono: Wallet, titulo: 'La caja se abrió otro día', texto: 'Cuente el efectivo y cierre la caja; después ábrala de nuevo para empezar el día ordenado.', accion: { texto: 'CERRAR CAJA', fn: () => (panel.value = 'caja') } });
+  if (enCaminoTienda.value) a.push({ tipo: 'info', icono: Truck, titulo: 'Viene mercadería en camino', texto: 'Cuando llegue, cuente lo que trae y compárelo con la orden. Si todo está bien, toque ACEPTAR. Si falta algo, anótelo.', accion: { texto: 'VER ENVÍO', fn: () => (pidiendo.value = true) } });
+  if (sugerenciasPedido.value.length) a.push({ tipo: 'aviso', icono: PackagePlus, titulo: 'Se está acabando la mercadería', texto: `Hay ${sugerenciasPedido.value.length} producto(s) agotados o por acabarse. Haga el pedido para que no se quede sin vender.`, accion: { texto: 'PEDIR MERCADERÍA', fn: () => (pidiendo.value = true) } });
+  if (pos.enLinea && pendientes.value.length) a.push({ tipo: 'info', icono: RefreshCw, titulo: `${pendientes.value.length} venta(s) por enviar`, texto: 'Se están enviando solas. No cierre la sesión hasta que este aviso desaparezca.', accion: { texto: 'ENVIAR AHORA', fn: () => sincronizar() } });
+  return a;
+});
+const ESTILO_AVISO = {
+  error: 'border-red-300 bg-red-50 text-red-900',
+  aviso: 'border-amber-300 bg-amber-50 text-amber-900',
+  info: 'border-blue-300 bg-blue-50 text-blue-900',
+};
+const ESTILO_BOTON_AVISO = { error: 'bg-red-600 hover:bg-red-700', aviso: 'bg-amber-600 hover:bg-amber-700', info: 'bg-blue-600 hover:bg-blue-700' };
 
 // ---- Salir
 function salir() {
@@ -242,203 +291,278 @@ watch(
   },
 );
 </script>
-
 <template>
-  <div class="fixed inset-0 z-40 flex flex-col bg-slate-100 text-slate-900">
-    <!-- Barra superior -->
-    <header class="flex flex-wrap items-center gap-2 border-b border-slate-300 bg-white px-3 py-2">
-      <p class="text-base font-bold">{{ pos.tienda?.nombre ?? 'Punto de venta' }}</p>
-      <span v-if="pos.caja" class="rounded bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-800">Caja abierta</span>
-      <span v-else-if="pos.tienda" class="rounded bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800">Caja cerrada</span>
-      <span class="ml-auto flex flex-wrap items-center gap-2 text-sm">
-        <span class="flex items-center gap-1 rounded px-2 py-0.5 text-xs font-semibold" :class="pos.enLinea ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'">
-          <component :is="pos.enLinea ? Cloud : CloudOff" class="h-3.5 w-3.5" /> {{ pos.enLinea ? 'En línea' : 'Sin conexión' }}
-        </span>
-        <button v-if="pendientes.length || rechazadas.length || pos.sincronizando" type="button" class="flex items-center gap-1 rounded border border-amber-400 bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-900" @click="rechazadas.length ? (panel = 'rechazadas') : sincronizar()">
-          <RefreshCw class="h-3.5 w-3.5" :class="pos.sincronizando ? 'animate-spin' : ''" />
-          {{ rechazadas.length ? `${rechazadas.length} rechazada(s)` : `${pendientes.length} sin enviar` }}
-        </button>
-        <button v-if="pos.tienda" type="button" class="rounded border border-slate-300 px-2 py-0.5 text-xs font-semibold" :class="alertasLocales.length ? 'border-red-400 bg-red-50 text-red-700' : ''" @click="panel = 'alertas'">
-          <TriangleAlert v-if="alertasLocales.length" class="mr-1 inline h-3.5 w-3.5" />Inventario bajo ({{ alertasLocales.length }})
-        </button>
-        <button v-if="pos.tienda" type="button" class="rounded border border-blue-500 bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-800" @click="pidiendo = true">Pedir mercadería<span v-if="sugerenciasPedido.length" class="ml-1 rounded-full bg-blue-600 px-1.5 text-white">{{ sugerenciasPedido.length }}</span><span v-if="ordenesPendientes.length" class="ml-1 text-amber-700">· {{ ordenesPendientes.length }} sin enviar</span><span v-if="enCaminoTienda" class="ml-1 rounded-full bg-indigo-600 px-1.5 text-white">{{ enCaminoTienda }} en camino</span></button>
-        <button v-if="pos.tienda" type="button" class="rounded border border-slate-300 px-2 py-0.5 text-xs font-semibold" @click="panel = 'turno'">Ventas del turno</button>
-        <button v-if="pos.tienda" type="button" class="rounded border border-slate-300 px-2 py-0.5 text-xs font-semibold" @click="panel = 'caja'">{{ pos.caja ? 'Cerrar caja' : 'Abrir caja' }}</button>
-        <span class="hidden text-xs text-slate-500 sm:inline">{{ auth.usuario?.nombre }}</span>
-        <button type="button" class="rounded bg-slate-800 px-2.5 py-1 text-xs font-semibold text-white" @click="salir">{{ auth.esAdministracion ? 'Volver al panel' : 'Salir' }}</button>
-      </span>
+  <div class="fixed inset-0 z-40 flex flex-col bg-slate-50 text-slate-900">
+    <!-- Barra superior: igual que el resto del sistema (logo, nombre, estado y salida) -->
+    <header class="flex flex-wrap items-center gap-3 border-b border-slate-200 bg-white/90 px-4 py-2 backdrop-blur">
+      <img :src="logoMenu" alt="" class="size-11 shrink-0 object-contain" />
+      <div class="leading-tight">
+        <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Conejo Blanco · Punto de venta</p>
+        <p class="text-2xl font-bold text-slate-900">{{ pos.tienda?.nombre ?? 'Caja' }}</p>
+      </div>
+      <div v-if="pos.tienda" class="ml-2 flex flex-wrap items-center gap-2">
+        <span class="flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-bold" :class="pos.caja ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'"><Wallet class="size-4" /> {{ pos.caja ? 'CAJA ABIERTA' : 'CAJA CERRADA' }}</span>
+        <span class="flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-bold" :class="pos.enLinea ? 'bg-green-100 text-green-800' : 'bg-red-600 text-white'"><component :is="pos.enLinea ? Cloud : CloudOff" class="size-4" /> {{ pos.enLinea ? 'Con internet' : 'SIN INTERNET' }}</span>
+      </div>
+      <div class="ml-auto flex items-center gap-3">
+        <div class="text-right leading-tight">
+          <p class="text-sm font-semibold text-slate-900">{{ auth.usuario?.nombre }}</p>
+          <p class="text-xs text-slate-500">{{ ETIQUETA_ROL[auth.usuario?.rol] ?? auth.usuario?.rol }}</p>
+        </div>
+        <router-link :to="{ name: 'cambiar-clave' }" class="rounded-lg p-2 text-slate-500 hover:bg-slate-100" aria-label="Cambiar contraseña" title="Cambiar contraseña"><KeyRound class="size-5" /></router-link>
+        <button type="button" class="flex items-center gap-2 rounded-lg bg-slate-800 px-3 py-2 text-sm font-semibold text-white hover:bg-slate-900" @click="salir"><LogOut class="size-4" /> {{ auth.esAdministracion ? 'Volver al panel' : 'Salir' }}</button>
+      </div>
     </header>
 
-    <p v-if="!pos.enLinea" class="bg-red-600 px-3 py-1 text-center text-sm font-semibold text-white">Sin conexión a internet: puede seguir vendiendo. Las ventas se guardan en esta computadora y se envían solas cuando vuelva la conexión.</p>
-    <p v-if="pos.avisoSync" class="bg-amber-100 px-3 py-1 text-center text-sm text-amber-900">{{ pos.avisoSync }}</p>
-    <p v-if="pos.error" class="bg-red-100 px-3 py-1 text-center text-sm text-red-800">{{ pos.error }}</p>
+    <!-- Acciones principales: botones grandes con ícono y nombre -->
+    <nav v-if="pos.tienda" class="grid grid-cols-2 gap-2 border-b border-slate-200 bg-white px-4 py-2 sm:grid-cols-4">
+      <button type="button" class="relative flex min-h-14 items-center justify-center gap-2 rounded-xl border-2 px-3 text-base font-bold transition" :class="pos.caja ? 'border-slate-300 bg-white text-slate-800 hover:bg-slate-100' : 'border-blue-600 bg-blue-600 text-white shadow-sm hover:bg-blue-700'" @click="panel = 'caja'"><Wallet class="size-5" /> {{ pos.caja ? 'Cerrar caja' : 'Abrir caja' }}</button>
+      <button type="button" class="relative flex min-h-14 items-center justify-center gap-2 rounded-xl border-2 border-slate-300 bg-white px-3 text-base font-bold text-slate-800 transition hover:bg-slate-100" @click="pidiendo = true">
+        <PackagePlus class="size-5" /> Pedir mercadería
+        <span v-if="sugerenciasPedido.length" class="absolute -right-1.5 -top-1.5 flex min-w-6 items-center justify-center rounded-full bg-amber-500 px-1.5 text-xs font-bold text-white">{{ sugerenciasPedido.length }}</span>
+        <span v-if="enCaminoTienda" class="absolute -left-1.5 -top-1.5 flex items-center gap-1 rounded-full bg-indigo-600 px-2 text-xs font-bold text-white"><Truck class="size-3" /> {{ enCaminoTienda }} en camino</span>
+      </button>
+      <button type="button" class="flex min-h-14 items-center justify-center gap-2 rounded-xl border-2 border-slate-300 bg-white px-3 text-base font-bold text-slate-800 transition hover:bg-slate-100" @click="panel = 'turno'"><Receipt class="size-5" /> Ventas de hoy</button>
+      <button type="button" class="flex min-h-14 items-center justify-center gap-2 rounded-xl border-2 px-3 text-base font-bold transition" :class="alertasLocales.length ? 'border-red-400 bg-red-50 text-red-700 hover:bg-red-100' : 'border-slate-300 bg-white text-slate-800 hover:bg-slate-100'" @click="panel = 'alertas'"><TriangleAlert class="size-5" /> Se está acabando <span v-if="alertasLocales.length" class="rounded-full bg-red-600 px-2 text-sm text-white">{{ alertasLocales.length }}</span></button>
+    </nav>
 
-    <!-- Elegir la tienda de esta terminal (solo la primera vez) -->
+    <p v-if="pos.catalogo?.modoPrueba" class="flex items-center justify-center gap-2 bg-amber-500 px-4 py-2 text-center text-base font-extrabold text-white"><TriangleAlert class="size-5" /> MODO DE PRUEBA: los productos marcados PRUEBA son de demostración. No generan asientos ni cuentan en la caja. No los venda a clientes reales.</p>
+    <p v-if="pos.error" class="bg-red-100 px-4 py-2 text-center text-base font-semibold text-red-800">{{ pos.error }}</p>
+    <p v-if="pos.avisoSync" class="bg-amber-100 px-4 py-2 text-center text-base text-amber-900">{{ pos.avisoSync }}</p>
+
+    <!-- Elegir la tienda (solo gerencia/sistema; el encargado entra directo a la suya) -->
     <main v-if="pos.listo && !pos.tienda && auth.esEncargadoTienda" class="flex flex-1 items-center justify-center p-4">
-      <div class="w-full max-w-md rounded-2xl border border-slate-300 bg-white p-6 text-center">
-        <p class="text-lg font-bold">Caja de tienda</p>
-        <p v-if="errorTienda" class="mt-2 text-sm font-medium text-red-600">{{ errorTienda }}</p>
-        <p v-else class="mt-2 text-sm text-slate-600">Preparando la caja de su tienda…</p>
+      <div class="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+        <p class="text-2xl font-bold">Preparando su caja…</p>
+        <p v-if="errorTienda" class="mt-3 text-lg font-semibold text-red-600">{{ errorTienda }}</p>
+        <p v-else class="mt-3 text-lg text-slate-600">Espere unos segundos. Si es la primera vez en esta computadora, necesita internet.</p>
       </div>
     </main>
     <main v-else-if="pos.listo && !pos.tienda" class="flex flex-1 items-center justify-center p-4">
-      <div class="w-full max-w-md rounded-2xl border border-slate-300 bg-white p-6">
-        <p class="text-lg font-bold">¿De qué tienda es esta terminal?</p>
-        <p class="mb-3 text-sm text-slate-600">Se elige una sola vez (hace falta internet). Después la terminal trabaja sola, también sin conexión.</p>
-        <p v-if="errorTienda" class="mb-2 text-sm font-medium text-red-600">{{ errorTienda }}</p>
-        <button v-for="t in tiendas" :key="t.id" type="button" class="mb-2 w-full rounded-xl border-2 border-slate-300 px-4 py-3 text-left text-base font-semibold hover:border-blue-500 hover:bg-blue-50" @click="elegir(t)">{{ t.nombre }} <span class="text-sm font-normal text-slate-500">({{ t.codigo }})</span></button>
-        <p v-if="!tiendas.length && !errorTienda" class="text-sm text-slate-500">No hay tiendas activas. Cree una en Bodega → Ubicaciones.</p>
-        <button type="button" class="mt-2 text-sm text-slate-500 underline" @click="cargarTiendas">Actualizar lista</button>
+      <div class="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <p class="text-xl font-bold">¿De qué tienda es esta terminal?</p>
+        <p class="mb-3 text-base text-slate-600">Se elige una sola vez (hace falta internet). Después la terminal trabaja sola, también sin conexión.</p>
+        <p v-if="errorTienda" class="mb-2 text-base font-medium text-red-600">{{ errorTienda }}</p>
+        <button v-for="t in tiendas" :key="t.id" type="button" class="mb-2 w-full rounded-xl border-2 border-slate-300 px-4 py-4 text-left text-lg font-semibold hover:border-blue-500 hover:bg-blue-50" @click="elegir(t)">{{ t.nombre }} <span class="text-base font-normal text-slate-500">({{ t.codigo }})</span></button>
+        <p v-if="!tiendas.length && !errorTienda" class="text-base text-slate-500">No hay tiendas activas. Cree una en Bodega → Ubicaciones.</p>
+        <button type="button" class="mt-2 text-base text-slate-500 underline" @click="cargarTiendas">Actualizar lista</button>
       </div>
     </main>
 
     <!-- Pantalla de venta -->
-    <main v-else-if="pos.listo" class="grid min-h-0 flex-1 grid-cols-1 gap-3 p-3 lg:grid-cols-[minmax(0,1fr)_26rem]">
-      <section class="flex min-h-0 flex-col gap-2">
-        <div class="relative">
-          <Barcode class="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
-          <input ref="entrada" v-model="texto" type="text" autocomplete="off" placeholder="Escanee el código o escriba el producto (F2)" class="w-full rounded-xl border-2 border-slate-300 bg-white py-3 pl-11 pr-3 text-lg outline-none focus:border-blue-500" @keydown.enter.prevent="alEnter" />
+    <main v-else-if="pos.listo" class="grid min-h-0 flex-1 grid-cols-1 gap-4 p-4 lg:grid-cols-[minmax(0,1fr)_28rem]">
+      <section class="flex min-h-0 flex-col gap-3">
+        <!-- Avisos: lo que hay que hacer ahora -->
+        <div v-if="avisos.length" class="flex max-h-[38%] flex-col gap-2 overflow-y-auto">
+          <div v-for="(a, i) in avisos.slice(0, 3)" :key="i" class="flex flex-wrap items-center gap-3 rounded-2xl border-2 px-4 py-3" :class="ESTILO_AVISO[a.tipo]">
+            <component :is="a.icono" class="size-8 shrink-0" />
+            <div class="min-w-0 flex-1"><p class="text-lg font-extrabold leading-tight">{{ a.titulo }}</p><p class="text-base leading-snug">{{ a.texto }}</p></div>
+            <button v-if="a.accion" type="button" class="rounded-xl px-5 py-3 text-base font-extrabold text-white shadow-sm" :class="ESTILO_BOTON_AVISO[a.tipo]" @click="a.accion.fn()">{{ a.accion.texto }}</button>
+          </div>
+          <p v-if="avisos.length > 3" class="text-sm font-semibold text-slate-500">y {{ avisos.length - 3 }} aviso(s) más…</p>
         </div>
-        <p v-if="aviso" class="rounded-lg bg-amber-100 px-3 py-2 text-sm text-amber-900">{{ aviso }}</p>
-        <p v-if="!pos.catalogo" class="rounded-lg bg-slate-200 px-3 py-2 text-sm text-slate-700">Descargando el catálogo de la tienda… (se necesita internet la primera vez)</p>
-        <p v-else-if="!pos.catalogo.variantes.length" class="rounded-lg bg-amber-100 px-3 py-2 text-sm text-amber-900">Todavía no hay productos con precio de tienda. En el panel, Tienda → Productos de tienda, asigne el precio al detalle.</p>
+
+        <div class="relative">
+          <ScanBarcode class="pointer-events-none absolute left-4 top-1/2 size-7 -translate-y-1/2 text-slate-400" />
+          <input ref="entrada" v-model="texto" type="text" autocomplete="off" :disabled="!pos.caja" :placeholder="pos.caja ? 'Escanee el producto o escriba su nombre aquí' : 'Primero abra la caja'" class="w-full rounded-2xl border-2 border-slate-300 bg-white py-4 pl-14 pr-4 text-xl outline-none focus:border-blue-500 disabled:bg-slate-100" @keydown.enter.prevent="alEnter" />
+        </div>
+        <p v-if="aviso" class="rounded-xl bg-amber-100 px-4 py-3 text-base font-semibold text-amber-900">{{ aviso }}</p>
+        <p v-if="!pos.catalogo" class="rounded-xl bg-slate-200 px-4 py-3 text-base text-slate-700">Descargando los productos de la tienda… (se necesita internet la primera vez)</p>
+        <p v-else-if="!pos.catalogo.variantes.length" class="rounded-xl bg-amber-100 px-4 py-3 text-base font-semibold text-amber-900">Todavía no hay productos con precio de tienda. Avise a la administración para que los configure.</p>
+
         <div class="min-h-0 flex-1 overflow-y-auto">
           <ul v-if="resultados.length" class="grid grid-cols-1 gap-2 xl:grid-cols-2">
             <li v-for="v in resultados" :key="v.varianteId">
-              <button type="button" class="flex w-full items-center justify-between gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-left hover:border-blue-500 hover:bg-blue-50" @click="agregar(v)">
-                <span class="min-w-0"><span class="block truncate text-base font-semibold">{{ v.codigo }} · {{ v.color }}</span><span class="block truncate text-xs text-slate-500">{{ v.nombre }}</span></span>
-                <span class="text-right"><span class="block text-base font-bold">{{ formatearColones(v.precio) }}</span><span class="block text-xs" :class="stockDe(v.varianteId) <= 0 ? 'font-semibold text-red-600' : stockDe(v.varianteId) <= v.minimo ? 'font-semibold text-amber-600' : 'text-slate-500'">{{ stockDe(v.varianteId) <= 0 ? 'Sin existencias' : `${stockDe(v.varianteId)} en tienda` }}</span></span>
+              <button type="button" class="flex w-full items-center justify-between gap-3 rounded-2xl border-2 border-slate-200 bg-white px-4 py-3 text-left shadow-sm hover:border-blue-500 hover:bg-blue-50" @click="agregar(v)">
+                <span class="min-w-0"><span class="flex items-center gap-2 truncate text-lg font-bold">{{ v.codigo }} · {{ v.color }}<span v-if="v.prueba" class="rounded-full bg-amber-500 px-2 text-xs font-extrabold text-white">PRUEBA</span></span><span class="block truncate text-sm text-slate-500">{{ v.nombre }}</span></span>
+                <span class="text-right"><span class="block text-xl font-extrabold">{{ formatearColones(v.precio) }}</span><span class="block text-sm" :class="stockDe(v.varianteId) <= 0 ? 'font-bold text-red-600' : stockDe(v.varianteId) <= v.minimo ? 'font-bold text-amber-600' : 'text-slate-500'">{{ stockDe(v.varianteId) <= 0 ? 'SIN EXISTENCIAS' : `${stockDe(v.varianteId)} en tienda` }}</span></span>
               </button>
             </li>
           </ul>
-          <div v-else-if="ultimaVenta" class="rounded-xl border border-green-300 bg-green-50 p-4">
-            <p class="text-base font-bold text-green-900">Venta guardada: tiquete {{ numeroTexto(ultimaVenta) }} · {{ formatearColones(ultimaVenta.total) }}</p>
-            <p v-if="ultimaVenta.pagos.some((p) => p.medio === 'efectivo' && p.recibido > p.monto)" class="text-lg font-bold text-green-900">Vuelto: {{ formatearColones(ultimaVenta.pagos.filter((p) => p.medio === 'efectivo' && p.recibido !== undefined).reduce((a, p) => a + Math.max(0, p.recibido - p.monto), 0)) }}</p>
-            <p class="text-xs text-green-800">{{ ultimaVenta.enviada ? 'Ya está en el sistema.' : pos.enLinea ? 'Enviando…' : 'Guardada en esta computadora; se enviará cuando haya internet.' }}</p>
-            <div class="mt-2 flex gap-2">
-              <button type="button" class="btn-secondary" @click="imprimir(ultimaVenta)"><Printer class="h-4 w-4" /> Reimprimir tiquete</button>
-              <button type="button" class="btn-secondary" @click="ultimaVenta = null">Cerrar</button>
+
+          <!-- Venta terminada: qué entregar -->
+          <div v-else-if="ultimaVenta" class="rounded-3xl border-2 border-green-400 bg-green-50 p-6 text-center">
+            <CircleCheck class="mx-auto size-14 text-green-600" />
+            <p class="mt-1 text-3xl font-extrabold text-green-800">VENTA REGISTRADA</p>
+            <p class="text-lg text-green-900">Tiquete {{ numeroTexto(ultimaVenta) }} · {{ formatearColones(ultimaVenta.total) }}<span v-if="ultimaVenta.esPrueba" class="ml-2 rounded-full bg-amber-500 px-2 text-sm font-extrabold text-white">DE PRUEBA</span></p>
+            <div v-if="vueltoVenta(ultimaVenta) > 0" class="mx-auto mt-3 max-w-md rounded-2xl bg-white px-6 py-4 shadow-sm">
+              <p class="text-lg font-bold text-slate-700">ENTREGUE EL VUELTO</p>
+              <p class="text-5xl font-extrabold text-green-700">{{ formatearColones(vueltoVenta(ultimaVenta)) }}</p>
             </div>
+            <p class="mt-3 text-lg font-semibold text-green-900">Entregue el tiquete al cliente.</p>
+            <p class="text-sm text-green-800">{{ ultimaVenta.enviada ? 'Ya está guardada en el sistema.' : pos.enLinea ? 'Enviándola al sistema…' : 'Quedó guardada en esta computadora; se enviará cuando haya internet.' }}</p>
+            <div class="mt-4 flex flex-wrap justify-center gap-3">
+              <button type="button" class="rounded-2xl bg-green-600 px-8 py-4 text-xl font-extrabold text-white shadow-sm hover:bg-green-700" @click="siguienteVenta">SIGUIENTE VENTA</button>
+              <button type="button" class="flex items-center gap-2 rounded-2xl border-2 border-slate-300 bg-white px-5 py-4 text-base font-bold text-slate-800 hover:bg-slate-100" @click="imprimir(ultimaVenta)"><Printer class="size-5" /> Imprimir otra copia</button>
+            </div>
+          </div>
+
+          <!-- Cómo vender -->
+          <div v-else-if="pos.caja && !carrito.length && pos.catalogo?.variantes.length" class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+            <p class="text-2xl font-extrabold text-slate-900">Cómo hacer una venta</p>
+            <ol class="mt-4 grid gap-3 sm:grid-cols-2">
+              <li class="flex items-start gap-3 rounded-2xl bg-blue-50 p-4"><span class="flex size-10 shrink-0 items-center justify-center rounded-full bg-blue-600 text-xl font-extrabold text-white">1</span><span class="text-lg"><b>Escanee</b> el código de barras del producto. Si no lee, escriba el nombre arriba y toque el producto.</span></li>
+              <li class="flex items-start gap-3 rounded-2xl bg-blue-50 p-4"><span class="flex size-10 shrink-0 items-center justify-center rounded-full bg-blue-600 text-xl font-extrabold text-white">2</span><span class="text-lg"><b>Revise</b> a la derecha que los productos y el total estén bien.</span></li>
+              <li class="flex items-start gap-3 rounded-2xl bg-blue-50 p-4"><span class="flex size-10 shrink-0 items-center justify-center rounded-full bg-blue-600 text-xl font-extrabold text-white">3</span><span class="text-lg">Toque el botón verde <b>COBRAR</b> y elija cómo paga el cliente.</span></li>
+              <li class="flex items-start gap-3 rounded-2xl bg-blue-50 p-4"><span class="flex size-10 shrink-0 items-center justify-center rounded-full bg-blue-600 text-xl font-extrabold text-white">4</span><span class="text-lg">Entregue el <b>vuelto</b> y el <b>tiquete</b>. ¡Listo!</span></li>
+            </ol>
+            <p class="mt-4 rounded-xl bg-amber-50 px-4 py-3 text-base text-amber-900"><Info class="mr-1 inline size-5" /> Al terminar su turno <b>cierre la caja</b> (botón «Cerrar caja» arriba): cuente el dinero y escríbalo.</p>
           </div>
         </div>
       </section>
 
       <!-- Tiquete en curso -->
-      <aside class="flex min-h-0 flex-col rounded-2xl border border-slate-300 bg-white">
-        <div class="flex items-center justify-between border-b border-slate-200 px-3 py-2">
-          <p class="font-semibold">Tiquete en curso <span class="text-sm font-normal text-slate-500">({{ pares }} {{ pares === 1 ? 'par' : 'pares' }})</span></p>
-          <button v-if="carrito.length" type="button" class="text-sm text-slate-500 underline" @click="vaciar">Vaciar</button>
+      <aside class="flex min-h-0 flex-col rounded-3xl border-2 border-slate-200 bg-white shadow-sm">
+        <div class="flex items-center justify-between border-b border-slate-200 px-4 py-3">
+          <p class="text-lg font-extrabold">Tiquete <span class="text-base font-semibold text-slate-500">({{ pares }} {{ pares === 1 ? 'par' : 'pares' }})</span></p>
+          <button v-if="carrito.length" type="button" class="rounded-lg px-3 py-1.5 text-base font-semibold text-red-600 hover:bg-red-50" @click="vaciar">Borrar todo</button>
         </div>
         <ul class="min-h-0 flex-1 divide-y divide-slate-100 overflow-y-auto">
-          <li v-for="l in carrito" :key="l.varianteId" class="flex items-center gap-2 px-3 py-2">
-            <div class="min-w-0 flex-1"><p class="truncate text-sm font-semibold">{{ l.codigo }} · {{ l.color }}</p><p class="text-xs text-slate-500">{{ formatearColones(l.precio) }} c/u</p></div>
+          <li v-for="l in carrito" :key="l.varianteId" class="flex items-center gap-2 px-4 py-3">
+            <div class="min-w-0 flex-1"><p class="truncate text-base font-bold">{{ l.codigo }} · {{ l.color }}<span v-if="l.prueba" class="ml-2 rounded-full bg-amber-500 px-2 text-xs font-extrabold text-white">PRUEBA</span></p><p class="text-sm text-slate-500">{{ formatearColones(l.precio) }} cada par</p></div>
             <div class="flex items-center gap-1">
-              <button type="button" class="rounded border border-slate-300 p-1.5" aria-label="Menos" @click="cambiarCantidad(l, -1)"><Minus class="h-4 w-4" /></button>
-              <span class="w-8 text-center text-base font-bold">{{ l.cantidad }}</span>
-              <button type="button" class="rounded border border-slate-300 p-1.5" aria-label="Más" @click="cambiarCantidad(l, 1)"><Plus class="h-4 w-4" /></button>
+              <button type="button" class="rounded-lg border-2 border-slate-300 p-2 hover:bg-slate-100" aria-label="Menos" @click="cambiarCantidad(l, -1)"><Minus class="size-5" /></button>
+              <span class="w-10 text-center text-xl font-extrabold">{{ l.cantidad }}</span>
+              <button type="button" class="rounded-lg border-2 border-slate-300 p-2 hover:bg-slate-100" aria-label="Más" @click="cambiarCantidad(l, 1)"><Plus class="size-5" /></button>
             </div>
-            <p class="w-24 text-right text-sm font-semibold">{{ formatearColones(l.precio * l.cantidad) }}</p>
-            <button type="button" class="p-1 text-slate-400 hover:text-red-600" aria-label="Quitar" @click="quitar(l)"><Trash2 class="h-4 w-4" /></button>
+            <p class="w-24 text-right text-base font-extrabold">{{ formatearColones(l.precio * l.cantidad) }}</p>
+            <button type="button" class="p-1.5 text-slate-400 hover:text-red-600" aria-label="Quitar" @click="quitar(l)"><Trash2 class="size-5" /></button>
           </li>
-          <li v-if="!carrito.length" class="px-3 py-8 text-center text-sm text-slate-500">Escanee un producto para empezar.</li>
+          <li v-if="!carrito.length" class="px-4 py-10 text-center text-lg text-slate-400">Aquí aparecen los productos que escanee.</li>
         </ul>
-        <div class="border-t border-slate-200 p-3">
-          <p class="flex items-baseline justify-between text-2xl font-extrabold"><span>Total</span><span>{{ formatearColones(total) }}</span></p>
-          <button type="button" class="btn-primary mt-2 w-full !min-h-14 text-lg" :disabled="!carrito.length" @click="abrirCobro">{{ pos.caja ? 'Cobrar (F12)' : 'Abrir caja para cobrar' }}</button>
+        <div class="border-t-2 border-slate-200 p-4">
+          <p class="flex items-baseline justify-between"><span class="text-xl font-bold text-slate-600">TOTAL</span><span class="text-4xl font-extrabold text-slate-900">{{ formatearColones(total) }}</span></p>
+          <button type="button" class="mt-3 w-full rounded-2xl py-5 text-2xl font-extrabold text-white shadow-sm transition disabled:cursor-not-allowed disabled:bg-slate-300" :class="pos.caja ? 'bg-green-600 hover:bg-green-700' : 'bg-blue-600 hover:bg-blue-700'" :disabled="!!pos.caja && !carrito.length" @click="abrirCobro">{{ !pos.caja ? 'ABRIR LA CAJA PRIMERO' : carrito.length ? `COBRAR ${formatearColones(total)}` : 'COBRAR' }}</button>
+          <p class="mt-1 text-center text-xs text-slate-400">Atajos: F2 buscar · F12 cobrar</p>
         </div>
       </aside>
     </main>
 
     <!-- Cobro -->
     <div v-if="cobrando" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-3">
-      <div class="max-h-full w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-5">
-        <div class="mb-2 flex items-start justify-between"><p class="text-lg font-bold">Cobrar</p><button type="button" aria-label="Cerrar" @click="cobrando = false"><X class="h-5 w-5" /></button></div>
-        <p class="text-3xl font-extrabold">{{ formatearColones(total) }}</p>
-        <div v-for="(p, i) in pagos" :key="i" class="mt-3 rounded-xl border border-slate-300 p-3">
-          <div class="flex items-center gap-2">
-            <select v-model="p.medio" class="input !w-auto"><option v-for="m in MEDIOS" :key="m[0]" :value="m[0]">{{ m[1] }}</option></select>
-            <input v-model="p.monto" type="number" min="0" step="0.01" class="input" aria-label="Monto" />
-            <button v-if="pagos.length > 1" type="button" class="p-1 text-slate-400 hover:text-red-600" aria-label="Quitar pago" @click="quitarPago(i)"><Trash2 class="h-4 w-4" /></button>
-          </div>
-          <template v-if="p.medio === 'efectivo'">
-            <div class="mt-2 flex flex-wrap gap-1.5">
-              <button type="button" class="rounded border border-slate-300 px-2 py-1 text-xs font-semibold" @click="billete(p, p.monto)">Exacto</button>
-              <button v-for="b in RAPIDOS" :key="b" type="button" class="rounded border border-slate-300 px-2 py-1 text-xs font-semibold" @click="billete(p, b)">{{ formatearColones(b).replace(',00', '') }}</button>
-            </div>
-            <input v-model="p.recibido" type="number" min="0" step="1" placeholder="Efectivo recibido" class="input mt-2" aria-label="Efectivo recibido" />
-            <p v-if="p.recibido !== '' && Number(p.recibido) >= Number(p.monto)" class="mt-1 text-lg font-bold text-green-700">Vuelto: {{ formatearColones(Number(p.recibido) - Number(p.monto)) }}</p>
-          </template>
-          <input v-else v-model="p.referencia" type="text" maxlength="60" :placeholder="p.medio === 'tarjeta' ? 'Voucher o últimos 4 dígitos (opcional)' : 'Número de comprobante (opcional)'" class="input mt-2" />
+      <div class="max-h-full w-full max-w-2xl overflow-y-auto rounded-3xl bg-white p-6 shadow-xl">
+        <div class="flex items-start justify-between"><p class="text-xl font-bold text-slate-600">COBRAR</p><button type="button" class="rounded-lg p-1 hover:bg-slate-100" aria-label="Cerrar" @click="cobrando = false"><X class="size-6" /></button></div>
+        <p class="text-6xl font-extrabold text-slate-900">{{ formatearColones(total) }}</p>
+        <div v-if="!dividido && pagos[0].medio === 'efectivo' && pagos[0].recibido !== '' && Number(pagos[0].recibido) >= Number(pagos[0].monto)" class="mt-2 flex items-center justify-between rounded-2xl bg-green-100 px-5 py-3">
+          <p class="text-xl font-extrabold text-green-900">DÉ DE VUELTO</p>
+          <p class="text-5xl font-extrabold text-green-700">{{ formatearColones(Number(pagos[0].recibido) - Number(pagos[0].monto)) }}</p>
         </div>
-        <div class="mt-2 flex flex-wrap gap-1.5"><span class="text-xs text-slate-500">Dividir el pago:</span><button v-for="m in MEDIOS" :key="m[0]" type="button" class="rounded border border-slate-300 px-2 py-0.5 text-xs font-semibold" @click="agregarPago(m[0])">+ {{ m[1] }}</button></div>
-        <p class="mt-2 text-sm" :class="Math.abs(faltante) < 0.005 ? 'text-green-700' : 'text-amber-700'">{{ Math.abs(faltante) < 0.005 ? 'El pago cubre el total.' : faltante > 0 ? `Faltan ${formatearColones(faltante)}` : `Se pasa por ${formatearColones(-faltante)}` }}</p>
-        <label class="mt-2 flex items-center gap-2 text-sm"><input type="checkbox" :checked="pos.imprimirAuto" @change="guardarImprimirAuto($event.target.checked)" /> Imprimir el tiquete al cobrar</label>
-        <p v-if="errorCobro" class="mt-2 text-sm font-medium text-red-600">{{ errorCobro }}</p>
-        <button type="button" class="btn-primary mt-3 w-full !min-h-14 text-lg" :disabled="guardando" @click="confirmarCobro">{{ guardando ? 'Guardando…' : 'Confirmar cobro (F12)' }}</button>
+
+        <template v-if="!dividido">
+          <p class="mt-4 text-lg font-bold">¿Cómo paga el cliente?</p>
+          <div class="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <button v-for="m in MEDIOS" :key="m[0]" type="button" class="flex flex-col items-center gap-1 rounded-2xl border-2 px-2 py-4 text-base font-extrabold transition" :class="pagos[0].medio === m[0] ? 'border-blue-600 bg-blue-600 text-white shadow-sm' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100'" @click="elegirMedio(m[0])"><component :is="m[2]" class="size-8" /> {{ m[1] }}</button>
+          </div>
+          <div class="mt-4 rounded-2xl border border-blue-200 bg-blue-50 p-4">
+            <p class="text-lg font-extrabold text-blue-900">{{ INSTRUCCION[pagos[0].medio][0] }}</p>
+            <ol class="mt-1 list-decimal space-y-0.5 pl-6 text-base text-blue-900"><li v-for="(paso, i) in INSTRUCCION[pagos[0].medio][1]" :key="i">{{ paso }}</li></ol>
+          </div>
+          <template v-if="pagos[0].medio === 'efectivo'">
+            <p class="mt-4 text-lg font-bold">¿Cuánto dinero le dieron?</p>
+            <input v-model="pagos[0].recibido" type="number" min="0" step="1" placeholder="Escriba el monto" class="mt-1 w-full rounded-2xl border-2 border-slate-300 px-4 py-4 text-3xl font-extrabold outline-none focus:border-blue-500" aria-label="Efectivo recibido" />
+            <div class="mt-2 flex flex-wrap gap-2">
+              <button type="button" class="rounded-xl border-2 border-slate-300 px-4 py-2.5 text-base font-bold hover:bg-slate-100" @click="billete(pagos[0], pagos[0].monto)">Exacto</button>
+              <button v-for="b in RAPIDOS" :key="b" type="button" class="rounded-xl border-2 border-slate-300 px-4 py-2.5 text-base font-bold hover:bg-slate-100" @click="billete(pagos[0], b)">{{ formatearColones(b).replace(',00', '') }}</button>
+            </div>
+            <p v-if="pagos[0].recibido !== '' && Number(pagos[0].recibido) < Number(pagos[0].monto)" class="mt-3 rounded-2xl bg-red-100 px-5 py-3 text-lg font-bold text-red-700">Lo que le dieron NO alcanza: faltan {{ formatearColones(Number(pagos[0].monto) - Number(pagos[0].recibido)) }}.</p>
+          </template>
+          <input v-else v-model="pagos[0].referencia" type="text" maxlength="60" :placeholder="pagos[0].medio === 'tarjeta' ? 'Número del voucher (opcional)' : 'Número de comprobante (opcional)'" class="mt-4 w-full rounded-2xl border-2 border-slate-300 px-4 py-3 text-lg outline-none focus:border-blue-500" />
+          <button type="button" class="mt-3 text-base font-semibold text-slate-500 underline" @click="dividido = true">El cliente paga con dos formas de pago (dividir)</button>
+        </template>
+
+        <template v-else>
+          <p class="mt-4 text-lg font-bold">Pago dividido: agregue cada forma de pago hasta cubrir el total.</p>
+          <div v-for="(p, i) in pagos" :key="i" class="mt-3 rounded-2xl border-2 border-slate-200 p-3">
+            <div class="flex items-center gap-2">
+              <select v-model="p.medio" class="input !w-auto"><option v-for="m in MEDIOS" :key="m[0]" :value="m[0]">{{ m[1] }}</option></select>
+              <input v-model="p.monto" type="number" min="0" step="0.01" class="input" aria-label="Monto" />
+              <button v-if="pagos.length > 1" type="button" class="p-1 text-slate-400 hover:text-red-600" aria-label="Quitar pago" @click="quitarPago(i)"><Trash2 class="size-5" /></button>
+            </div>
+            <input v-if="p.medio === 'efectivo'" v-model="p.recibido" type="number" min="0" step="1" placeholder="Efectivo que le dieron" class="input mt-2" aria-label="Efectivo recibido" />
+            <input v-else v-model="p.referencia" type="text" maxlength="60" placeholder="Voucher o comprobante (opcional)" class="input mt-2" />
+            <p v-if="p.medio === 'efectivo' && p.recibido !== '' && Number(p.recibido) >= Number(p.monto)" class="mt-1 text-lg font-bold text-green-700">Vuelto: {{ formatearColones(Number(p.recibido) - Number(p.monto)) }}</p>
+          </div>
+          <div class="mt-2 flex flex-wrap items-center gap-2"><span class="text-base text-slate-500">Agregar:</span><button v-for="m in MEDIOS" :key="m[0]" type="button" class="rounded-xl border-2 border-slate-300 px-3 py-1.5 text-base font-semibold hover:bg-slate-100" @click="agregarPago(m[0])">+ {{ m[1] }}</button></div>
+          <p class="mt-2 text-lg font-bold" :class="Math.abs(faltante) < 0.005 ? 'text-green-700' : 'text-amber-700'">{{ Math.abs(faltante) < 0.005 ? 'El pago cubre el total.' : faltante > 0 ? `Todavía faltan ${formatearColones(faltante)}` : `Se pasa por ${formatearColones(-faltante)}` }}</p>
+          <button type="button" class="mt-1 text-base font-semibold text-slate-500 underline" @click="dividido = false; pagos = [{ medio: 'efectivo', monto: total, referencia: '', recibido: '' }]">Volver a una sola forma de pago</button>
+        </template>
+
+        <label class="mt-3 flex items-center gap-2 text-base"><input type="checkbox" class="size-5" :checked="pos.imprimirAuto" @change="guardarImprimirAuto($event.target.checked)" /> Imprimir el tiquete al cobrar</label>
+        <div class="sticky bottom-0 -mx-6 -mb-6 mt-3 bg-white px-6 pb-4 pt-2">
+          <p v-if="errorCobro" class="mb-2 rounded-xl bg-red-100 px-4 py-3 text-lg font-bold text-red-700">{{ errorCobro }}</p>
+          <button type="button" class="w-full rounded-2xl bg-green-600 py-5 text-2xl font-extrabold text-white shadow-sm hover:bg-green-700 disabled:bg-slate-300" :disabled="guardando" @click="confirmarCobro">{{ guardando ? 'Guardando…' : 'CONFIRMAR COBRO (F12)' }}</button>
+          <button type="button" class="mt-1 w-full py-1.5 text-base font-semibold text-slate-500 hover:text-slate-800" @click="cobrando = false">Volver al tiquete</button>
+        </div>
       </div>
     </div>
 
     <!-- Paneles -->
-    <div v-if="panel" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-3" @click.self="panel = ''">
-      <div class="max-h-full w-full max-w-xl overflow-y-auto rounded-2xl bg-white p-5">
-        <div class="mb-3 flex items-start justify-between">
-          <p class="text-lg font-bold">{{ { caja: cierreHecho ? 'Caja cerrada' : pos.caja ? 'Cerrar caja' : 'Abrir caja', turno: 'Ventas del turno', alertas: 'Inventario bajo en la tienda', rechazadas: 'Ventas que el servidor rechazó' }[panel] }}</p>
-          <button type="button" aria-label="Cerrar" @click="panel = ''; cierreHecho = null"><X class="h-5 w-5" /></button>
+    <div v-if="panel" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-3" @click.self="panel = ''; cierreHecho = null">
+      <div class="max-h-full w-full max-w-2xl overflow-y-auto rounded-3xl bg-white p-6 shadow-xl">
+        <div class="mb-4 flex items-start justify-between">
+          <p class="text-2xl font-extrabold text-slate-900">{{ { caja: cierreHecho ? 'Caja cerrada' : pos.caja ? 'Cerrar la caja' : 'Abrir la caja', turno: 'Ventas de hoy', alertas: 'Se está acabando', rechazadas: 'Ventas que no se pudieron enviar' }[panel] }}</p>
+          <button type="button" class="rounded-lg p-1 hover:bg-slate-100" aria-label="Cerrar" @click="panel = ''; cierreHecho = null"><X class="size-6" /></button>
         </div>
 
         <template v-if="panel === 'caja'">
           <template v-if="!pos.caja && !cierreHecho">
-            <p class="mb-2 text-sm text-slate-600">Cuente el efectivo con que empieza la gaveta (fondo de caja).</p>
-            <input v-model="fondo" type="number" min="0" step="1" placeholder="Fondo inicial ₡" class="input" />
-            <p v-if="errorCaja" class="mt-2 text-sm font-medium text-red-600">{{ errorCaja }}</p>
-            <button type="button" class="btn-primary mt-3 w-full" @click="hacerAbrirCaja">Abrir caja</button>
+            <ol class="list-decimal space-y-1 rounded-2xl bg-blue-50 p-4 pl-9 text-lg text-blue-900"><li>Abra la gaveta y <b>cuente</b> el efectivo con que empieza el día.</li><li>Escriba ese monto aquí abajo.</li><li>Toque <b>ABRIR CAJA</b>.</li></ol>
+            <p class="mt-4 text-lg font-bold">¿Con cuánto efectivo empieza?</p>
+            <input v-model="fondo" type="number" min="0" step="1" placeholder="₡ Escriba el monto (si empieza sin dinero, escriba 0)" class="mt-1 w-full rounded-2xl border-2 border-slate-300 px-4 py-4 text-3xl font-extrabold outline-none focus:border-blue-500" />
+            <p v-if="errorCaja" class="mt-2 rounded-xl bg-red-100 px-4 py-3 text-lg font-bold text-red-700">{{ errorCaja }}</p>
+            <button type="button" class="mt-4 w-full rounded-2xl bg-blue-600 py-5 text-2xl font-extrabold text-white shadow-sm hover:bg-blue-700" @click="hacerAbrirCaja">ABRIR CAJA</button>
           </template>
           <template v-else-if="pos.caja">
-            <div class="mb-3 rounded-xl bg-slate-100 p-3 text-sm">
-              <p>Abierta desde {{ formatearFechaHora(pos.caja.abiertaEn) }} · fondo {{ formatearColones(pos.caja.fondoInicial) }}</p>
-              <p>{{ turno.ventas }} venta(s) · {{ formatearColones(turno.total) }}</p>
-              <p v-for="(m, k) in turno.porMedio" :key="k">{{ ETIQUETA[k] ?? k }}: {{ formatearColones(m) }}</p>
-              <p class="mt-1 font-semibold">Efectivo que debería haber en la gaveta: {{ formatearColones(efectivoEsperado()) }}</p>
+            <div class="mb-4 rounded-2xl bg-slate-100 p-4 text-lg">
+              <p>Abierta desde <b>{{ formatearFechaHora(pos.caja.abiertaEn) }}</b> con {{ formatearColones(pos.caja.fondoInicial) }}</p>
+              <p><b>{{ turno.ventas }}</b> venta(s) por <b>{{ formatearColones(turno.total) }}</b></p>
+              <p v-for="(m, k) in turno.porMedio" :key="k" class="text-base text-slate-600">{{ ETIQUETA[k] ?? k }}: {{ formatearColones(m) }}</p>
             </div>
-            <input v-model="contado" type="number" min="0" step="1" placeholder="Efectivo contado ₡" class="input" />
-            <input v-model="notasCaja" type="text" maxlength="300" placeholder="Notas (opcional)" class="input mt-2" />
-            <p v-if="errorCaja" class="mt-2 text-sm font-medium text-red-600">{{ errorCaja }}</p>
-            <button type="button" class="btn-danger mt-3 w-full" @click="hacerCerrarCaja">Cerrar caja</button>
+            <ol class="list-decimal space-y-1 rounded-2xl bg-blue-50 p-4 pl-9 text-lg text-blue-900"><li>Abra la gaveta y <b>cuente TODO el efectivo</b> que hay (incluya el que tenía al empezar).</li><li>Escriba el monto aquí abajo.</li><li>Toque <b>CERRAR CAJA</b>. El sistema compara con lo que vendió.</li></ol>
+            <p class="mt-4 text-lg font-bold">¿Cuánto efectivo hay en la gaveta?</p>
+            <input v-model="contado" type="number" min="0" step="1" placeholder="₡ Escriba lo que contó" class="mt-1 w-full rounded-2xl border-2 border-slate-300 px-4 py-4 text-3xl font-extrabold outline-none focus:border-blue-500" />
+            <input v-model="notasCaja" type="text" maxlength="300" placeholder="Nota (si algo no cuadra, explíquelo aquí)" class="mt-2 w-full rounded-2xl border-2 border-slate-300 px-4 py-3 text-lg outline-none focus:border-blue-500" />
+            <p v-if="errorCaja" class="mt-2 rounded-xl bg-red-100 px-4 py-3 text-lg font-bold text-red-700">{{ errorCaja }}</p>
+            <button type="button" class="mt-4 w-full rounded-2xl bg-red-600 py-5 text-2xl font-extrabold text-white shadow-sm hover:bg-red-700" @click="hacerCerrarCaja">CERRAR CAJA</button>
           </template>
           <template v-else-if="cierreHecho">
-            <p class="text-base font-bold" :class="cierreHecho.diferencia === 0 ? 'text-green-700' : 'text-amber-700'">{{ cierreHecho.diferencia === 0 ? 'Caja cerrada: cuadra exacto.' : cierreHecho.diferencia < 0 ? `Caja cerrada con faltante de ${formatearColones(-cierreHecho.diferencia)}.` : `Caja cerrada con sobrante de ${formatearColones(cierreHecho.diferencia)}.` }}</p>
-            <p class="text-sm text-slate-600">Esperado {{ formatearColones(cierreHecho.efectivoEsperado) }} · contado {{ formatearColones(cierreHecho.efectivoContado) }}</p>
-            <button type="button" class="btn-secondary mt-3 w-full" @click="panel = ''; cierreHecho = null">Listo</button>
+            <div class="rounded-2xl p-5 text-center" :class="cierreHecho.diferencia === 0 ? 'bg-green-100' : 'bg-amber-100'">
+              <p class="text-3xl font-extrabold" :class="cierreHecho.diferencia === 0 ? 'text-green-800' : 'text-amber-800'">{{ cierreHecho.diferencia === 0 ? 'La caja cuadra exacto' : cierreHecho.diferencia < 0 ? `Faltan ${formatearColones(-cierreHecho.diferencia)}` : `Sobran ${formatearColones(cierreHecho.diferencia)}` }}</p>
+              <p class="mt-1 text-lg text-slate-700">Debía haber {{ formatearColones(cierreHecho.efectivoEsperado) }} · usted contó {{ formatearColones(cierreHecho.efectivoContado) }}</p>
+              <p v-if="cierreHecho.diferencia !== 0" class="mt-2 text-base font-semibold text-amber-900">La administración verá esta diferencia. Si sabe por qué pasó, avísele.</p>
+            </div>
+            <button type="button" class="mt-4 w-full rounded-2xl bg-slate-800 py-4 text-xl font-extrabold text-white hover:bg-slate-900" @click="panel = ''; cierreHecho = null">LISTO</button>
           </template>
         </template>
 
         <template v-else-if="panel === 'turno'">
-          <p v-if="!pos.caja" class="text-sm text-slate-500">No hay un turno abierto.</p>
+          <p v-if="!pos.caja" class="text-lg text-slate-500">La caja está cerrada: no hay un turno abierto.</p>
           <ul v-else class="divide-y divide-slate-100">
-            <li v-for="v in ventasTurno" :key="v.id" class="flex items-center justify-between gap-2 py-2 text-sm">
-              <span><span class="font-semibold">{{ numeroTexto(v) }}</span> · {{ new Date(v.fecha).toLocaleTimeString('es-CR', { hour: '2-digit', minute: '2-digit', hour12: false }) }}<span v-if="!v.enviada" class="ml-1 rounded bg-amber-100 px-1.5 text-xs text-amber-800">{{ v.rechazada ? 'rechazada' : 'sin enviar' }}</span></span>
-              <span class="flex items-center gap-2"><b>{{ formatearColones(v.total) }}</b><button type="button" class="rounded border border-slate-300 p-1.5" aria-label="Reimprimir" @click="imprimir(v)"><Printer class="h-4 w-4" /></button></span>
+            <li v-for="v in ventasTurno" :key="v.id" class="flex items-center justify-between gap-2 py-3 text-lg">
+              <span><span class="font-bold">{{ numeroTexto(v) }}</span> · {{ new Date(v.fecha).toLocaleTimeString('es-CR', { hour: '2-digit', minute: '2-digit', hour12: false }) }}<span v-if="!v.enviada" class="ml-2 rounded-full bg-amber-100 px-2 text-sm font-semibold text-amber-800">{{ v.rechazada ? 'rechazada' : 'por enviar' }}</span></span>
+              <span class="flex items-center gap-3"><b>{{ formatearColones(v.total) }}</b><button type="button" class="rounded-lg border-2 border-slate-300 p-2 hover:bg-slate-100" aria-label="Reimprimir" @click="imprimir(v)"><Printer class="size-5" /></button></span>
             </li>
-            <li v-if="!ventasTurno.length" class="py-3 text-sm text-slate-500">Todavía no hay ventas en este turno.</li>
+            <li v-if="!ventasTurno.length" class="py-4 text-lg text-slate-500">Todavía no hay ventas en este turno.</li>
           </ul>
         </template>
 
         <template v-else-if="panel === 'alertas'">
-          <p class="mb-2 text-xs text-slate-500">Productos que llegaron a su mínimo. Avise a la bodega para pedir un traspaso.</p>
+          <p class="mb-3 rounded-2xl bg-amber-50 p-4 text-lg text-amber-900">Estos productos ya llegaron al mínimo o se agotaron. Haga el pedido a la bodega para que no se queden sin vender.</p>
           <ul class="divide-y divide-slate-100">
-            <li v-for="a in alertasLocales" :key="a.varianteId" class="flex items-center justify-between py-2 text-sm"><span>{{ a.codigo }} · {{ a.color }}</span><span class="font-semibold" :class="a.stock <= 0 ? 'text-red-600' : 'text-amber-600'">{{ a.stock <= 0 ? 'Agotado' : `${a.stock} (mín. ${a.minimo})` }}</span></li>
-            <li v-if="!alertasLocales.length" class="py-3 text-sm text-slate-500">Todo en orden: ningún producto está en su mínimo.</li>
+            <li v-for="a in alertasLocales" :key="a.varianteId" class="flex items-center justify-between py-3 text-lg"><span class="font-semibold">{{ a.codigo }} · {{ a.color }}</span><span class="font-extrabold" :class="a.stock <= 0 ? 'text-red-600' : 'text-amber-600'">{{ a.stock <= 0 ? 'AGOTADO' : `Quedan ${a.stock}` }}</span></li>
+            <li v-if="!alertasLocales.length" class="py-4 text-lg text-green-700">Todo en orden: ningún producto se está acabando.</li>
           </ul>
-          <button type="button" class="btn-secondary mt-3 w-full" @click="descargarCatalogo">Actualizar existencias</button>
-          <button v-if="!auth.esEncargadoTienda" type="button" class="mt-2 w-full text-xs text-slate-500 underline" @click="cambiar">Cambiar la tienda de esta terminal</button>
+          <button v-if="alertasLocales.length" type="button" class="mt-4 w-full rounded-2xl bg-blue-600 py-4 text-xl font-extrabold text-white hover:bg-blue-700" @click="panel = ''; pidiendo = true">PEDIR MERCADERÍA</button>
+          <button type="button" class="mt-2 w-full rounded-2xl border-2 border-slate-300 py-3 text-lg font-bold hover:bg-slate-100" @click="descargarCatalogo">Actualizar existencias</button>
+          <button v-if="!auth.esEncargadoTienda" type="button" class="mt-2 w-full text-sm text-slate-500 underline" @click="cambiar">Cambiar la tienda de esta terminal</button>
         </template>
 
         <template v-else-if="panel === 'rechazadas'">
-          <p class="mb-2 text-sm text-slate-600">El servidor no aceptó estas ventas (por ejemplo, un producto que ya no existe). Avise al administrador; las ventas siguen guardadas aquí.</p>
+          <p class="mb-3 rounded-2xl bg-red-50 p-4 text-lg text-red-900">El sistema no aceptó estas ventas (por ejemplo, porque un producto ya no existe). <b>Avise a la administración.</b> Las ventas siguen guardadas aquí.</p>
           <ul class="divide-y divide-slate-100">
-            <li v-for="v in rechazadas" :key="v.id" class="py-2 text-sm"><span class="font-semibold">{{ numeroTexto(v) }}</span> · {{ formatearColones(v.total) }}<p class="text-xs text-red-600">{{ v.error }}</p></li>
+            <li v-for="v in rechazadas" :key="v.id" class="py-3 text-lg"><span class="font-bold">{{ numeroTexto(v) }}</span> · {{ formatearColones(v.total) }}<p class="text-base text-red-600">{{ v.error }}</p></li>
           </ul>
-          <button type="button" class="btn-primary mt-3 w-full" @click="reintentarRechazadas">Reintentar envío</button>
+          <button type="button" class="mt-4 w-full rounded-2xl bg-blue-600 py-4 text-xl font-extrabold text-white hover:bg-blue-700" @click="reintentarRechazadas">REINTENTAR ENVÍO</button>
         </template>
       </div>
     </div>

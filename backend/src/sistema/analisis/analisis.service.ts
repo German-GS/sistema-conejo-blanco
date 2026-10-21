@@ -172,7 +172,7 @@ export class AnalisisService {
       this.q(
         `SELECT (COALESCE((SELECT SUM(f.subtotal) FROM facturas f ${FACTURA_JOINS}
                  WHERE ${FACTURA_VIGENTE} AND ($1::text IS NULL OR to_char(f.fecha, 'YYYY-MM-DD') >= $1::text) AND ($2::text IS NULL OR to_char(f.fecha, 'YYYY-MM-DD') <= $2::text)), 0)
-               + COALESCE((SELECT SUM(pv.total) FROM pos_ventas pv WHERE pv.estado = 'vigente'
+               + COALESCE((SELECT SUM(pv.total) FROM pos_ventas pv WHERE pv.estado = 'vigente' AND NOT pv.es_prueba
                  AND ($1::text IS NULL OR to_char(pv.fecha AT TIME ZONE 'America/Costa_Rica', 'YYYY-MM-DD') >= $1::text) AND ($2::text IS NULL OR to_char(pv.fecha AT TIME ZONE 'America/Costa_Rica', 'YYYY-MM-DD') <= $2::text)), 0))::float8 AS subtotal`,
         p,
       ),

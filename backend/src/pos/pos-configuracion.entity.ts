@@ -16,6 +16,10 @@ export class PosConfiguracion {
   @Column({ type: 'uuid', name: 'cuenta_transferencia_id', nullable: true })
   cuentaTransferenciaId: string | null;
 
+  // Modo de demostración: mientras está activo, la caja de las tiendas muestra los productos de prueba.
+  @Column({ type: 'boolean', name: 'modo_prueba', default: false })
+  modoPrueba: boolean;
+
   @Column({ type: 'varchar', length: 300, name: 'pie_tiquete', default: '¡Gracias por su compra!' })
   pieTiquete: string;
 }

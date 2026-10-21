@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, In, Repository } from 'typeorm';
 import { unlink } from 'node:fs/promises';
@@ -121,10 +121,15 @@ export class CatalogoService {
   // Elimina un producto que nunca se usó: sin pedidos, facturas ni traspasos y sin existencias. Se llevan
   // consigo sus colores, fotos, bitácora de ediciones y sus movimientos de inventario (que quedan en cero).
   // Un producto que ya se vendió no se elimina —se desactiva— para no perder el historial.
-  async eliminarProducto(id: string): Promise<void> {
+  async eliminarProducto(id: string, esSistema = false): Promise<void> {
     const producto = await this.productoRepo.findOne({ where: { id }, relations: { variantes: true, fotos: true } });
     if (!producto) throw new NotFoundException('El producto no existe.');
     const ids = producto.variantes.map((v) => v.id);
+    if (producto.esPrueba) {
+      if (!esSistema) throw new ForbiddenException('Solo el administrador del sistema elimina productos de prueba.');
+      await this.purgarProductoDePrueba(producto, ids);
+      return;
+    }
     if (ids.length > 0) {
       const [{ usos }] = await this.dataSource.query(
         `SELECT (SELECT COUNT(*) FROM pedido_lineas WHERE variante_id = ANY($1))
@@ -156,10 +161,51 @@ export class CatalogoService {
     }
   }
 
-  async crearProducto(dto: CrearProductoDto, usuarioId: string): Promise<Producto> {
-    const producto = this.productoRepo.create(dto);
+  // Un producto de prueba se elimina con TODO lo que se hizo con él (ventas de caja, pedidos y traspasos de tienda, existencias y
+  // movimientos). No hay asientos que deshacer porque nunca se generaron. Los documentos que quedan sin ninguna línea se borran.
+  private async purgarProductoDePrueba(producto: Producto, ids: string[]): Promise<void> {
+    if (ids.length > 0) {
+      const [{ usos }] = await this.dataSource.query(
+        `SELECT (SELECT COUNT(*) FROM pedido_lineas WHERE variante_id = ANY($1)) + (SELECT COUNT(*) FROM factura_lineas WHERE variante_id = ANY($1)) AS usos`,
+        [ids],
+      );
+      if (Number(usos) > 0) throw new BadRequestException('Este producto de prueba aparece en pedidos o facturas reales: no se puede eliminar.');
+    }
+    await this.dataSource.transaction(async (manager) => {
+      if (ids.length > 0) {
+        await manager.query('DELETE FROM pos_venta_lineas WHERE variante_id = ANY($1)', [ids]);
+        await manager.query('DELETE FROM pos_ventas v WHERE NOT EXISTS (SELECT 1 FROM pos_venta_lineas l WHERE l.venta_id = v.id)');
+        await manager.query('DELETE FROM pos_orden_lineas WHERE variante_id = ANY($1)', [ids]);
+        await manager.query('DELETE FROM pos_ordenes o WHERE NOT EXISTS (SELECT 1 FROM pos_orden_lineas l WHERE l.orden_id = o.id)');
+        await manager.query('DELETE FROM traspaso_lineas WHERE variante_id = ANY($1)', [ids]);
+        await manager.query('DELETE FROM traspasos t WHERE NOT EXISTS (SELECT 1 FROM traspaso_lineas l WHERE l.traspaso_id = t.id)');
+        await manager.query('DELETE FROM movimientos_inventario WHERE variante_id = ANY($1)', [ids]);
+        await manager.query('DELETE FROM stock_ubicaciones WHERE variante_id = ANY($1)', [ids]);
+      }
+      await manager.delete(Producto, { id: producto.id });
+    });
+    for (const foto of producto.fotos) {
+      try {
+        await unlink(join(process.cwd(), foto.url));
+      } catch {
+        // el archivo ya no estaba
+      }
+    }
+  }
+
+  // Para armar pedidos de vendedores y facturas: los productos de prueba no se pueden usar ahí (no son reales).
+  async buscarVarianteParaVenta(id: string): Promise<VarianteProducto> {
+    const variante = await this.buscarVariantePorIdOFallar(id);
+    const [{ prueba }] = await this.dataSource.query('SELECT es_prueba AS prueba FROM productos WHERE id = $1', [variante.productoId]);
+    if (prueba) throw new BadRequestException('Ese producto es de prueba: solo se usa en la caja de las tiendas y en sus pedidos, no en pedidos ni facturas.');
+    return variante;
+  }
+
+  async crearProducto(dto: CrearProductoDto, usuarioId: string, esSistema = false): Promise<Producto> {
+    if (dto.esPrueba && !esSistema) throw new ForbiddenException('Solo el administrador del sistema puede crear productos de prueba.');
+    const producto = this.productoRepo.create({ ...dto, esPrueba: Boolean(dto.esPrueba) });
     const guardado = await this.productoRepo.save(producto);
-    await this.registrarEdicion(guardado.id, usuarioId, [`Producto creado: ${guardado.codigo} — ${guardado.nombre}`]);
+    await this.registrarEdicion(guardado.id, usuarioId, [`Producto ${guardado.esPrueba ? 'de PRUEBA ' : ''}creado: ${guardado.codigo} — ${guardado.nombre}`]);
     return guardado;
   }
 

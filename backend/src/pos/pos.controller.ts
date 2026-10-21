@@ -51,7 +51,7 @@ export class PosController {
   @UseGuards(PermissionsGuard)
   @RequirePermissions(Permiso.POS_VER)
   ventas(@Query() q: Record<string, string>) {
-    return this.pos.listar({ desde: q.desde, hasta: q.hasta, ubicacionId: q.ubicacionId, estado: q.estado });
+    return this.pos.listar({ desde: q.desde, hasta: q.hasta, ubicacionId: q.ubicacionId, estado: q.estado, pruebas: q.pruebas === '1' });
   }
 
   @Get('ventas/:id')
@@ -72,7 +72,7 @@ export class PosController {
   @UseGuards(PermissionsGuard)
   @RequirePermissions(Permiso.POS_VER)
   resumen(@Query() q: Record<string, string>) {
-    return this.pos.resumen({ desde: q.desde, hasta: q.hasta, ubicacionId: q.ubicacionId });
+    return this.pos.resumen({ desde: q.desde, hasta: q.hasta, ubicacionId: q.ubicacionId, pruebas: q.pruebas === '1' });
   }
 
   @Get('cajas')
@@ -92,8 +92,8 @@ export class PosController {
   @Patch('configuracion')
   @UseGuards(PermissionsGuard)
   @RequirePermissions(Permiso.POS_GESTIONAR)
-  actualizarConfiguracion(@Body() dto: ActualizarPosConfigDto) {
-    return this.pos.actualizarConfiguracion(dto);
+  actualizarConfiguracion(@Body() dto: ActualizarPosConfigDto, @CurrentUser() usuario: UsuarioAutenticado) {
+    return this.pos.actualizarConfiguracion(dto, usuario.rol === Rol.SISTEMA);
   }
 
   // ---- Pedidos de reposición de las tiendas (llegan desde el POS)

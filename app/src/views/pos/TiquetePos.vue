@@ -14,6 +14,7 @@ const pares = computed(() => props.venta.lineas.reduce((a, l) => a + l.cantidad,
 
 <template>
   <div class="tiquete">
+    <p v-if="venta.esPrueba" class="centro negrita">*** TIQUETE DE PRUEBA — NO VÁLIDO ***</p>
     <p class="centro negrita">{{ enc.razonSocial || 'Conejo Blanco' }}</p>
     <p v-if="enc.cedulaJuridica" class="centro">Céd. jurídica {{ enc.cedulaJuridica }}</p>
     <p v-if="enc.direccion" class="centro">{{ enc.direccion }}</p>

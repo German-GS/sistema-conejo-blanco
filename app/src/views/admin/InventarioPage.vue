@@ -54,7 +54,7 @@ function colorCoincide(color) {
 
 const mostrarFormProducto = ref(false);
 const guardandoProducto = ref(false);
-const nuevoProducto = reactive({ codigo: '', nombre: '', descripcion: '' });
+const nuevoProducto = reactive({ codigo: '', nombre: '', descripcion: '', esPrueba: false });
 
 // Colores del producto nuevo, capturados junto con el producto en el mismo
 // formulario — el color es texto libre, así que sirve igual para un color
@@ -86,6 +86,17 @@ const guardandoVariante = ref(false);
 
 // Solo gerencia y el administrador del sistema; solo si el producto nunca se usó y no tiene existencias.
 async function eliminarProducto(producto) {
+  if (producto.esPrueba) {
+    if (!window.confirm(`¿Eliminar el producto de PRUEBA "${producto.codigo} — ${producto.nombre}"?\n\nSe borra también TODO lo que se hizo con él: ventas de caja, pedidos y traspasos de tienda, existencias y movimientos. No se puede deshacer.`)) return;
+    error.value = '';
+    try {
+      await api.delete(`/catalogo/productos/${producto.id}`);
+      await cargar();
+    } catch (err) {
+      error.value = err instanceof ApiError ? err.message : 'No se pudo eliminar el producto de prueba.';
+    }
+    return;
+  }
   if (!window.confirm(`¿Eliminar "${producto.codigo} — ${producto.nombre}" con todos sus colores y fotos? No se puede deshacer. Solo se elimina si nunca se usó en pedidos, facturas o traspasos y no tiene pares en bodega.`)) return;
   error.value = '';
   try {
@@ -119,6 +130,7 @@ async function crearProducto() {
       codigo: normalizarCodigoProducto(nuevoProducto.codigo),
       nombre: nuevoProducto.nombre.trim(),
       descripcion: nuevoProducto.descripcion.trim() || undefined,
+      ...(auth.esSistema && nuevoProducto.esPrueba ? { esPrueba: true } : {}),
     });
 
     // Los colores se crean uno por uno porque el backend no tiene (todavía)
@@ -135,7 +147,7 @@ async function crearProducto() {
       });
     }
 
-    Object.assign(nuevoProducto, { codigo: '', nombre: '', descripcion: '' });
+    Object.assign(nuevoProducto, { codigo: '', nombre: '', descripcion: '', esPrueba: false });
     variantesNuevas.value = [{ color: '', precioPorPar: '', costo: '' }];
     mostrarFormProducto.value = false;
     await cargar();
@@ -399,6 +411,10 @@ async function cargarEdiciones(productoId) {
         <label class="label">Descripción</label>
         <input v-model="nuevoProducto.descripcion" type="text" class="input" />
       </div>
+      <label v-if="auth.esSistema" class="flex items-start gap-3 rounded-xl border-2 border-dashed border-amber-400 bg-amber-50 p-3 text-sm text-amber-900">
+        <input v-model="nuevoProducto.esPrueba" type="checkbox" class="mt-0.5 size-5" />
+        <span><b>Producto de prueba</b> (solo el administrador del sistema). Sirve para demostrar todo el proceso en el POS y en los pedidos de tienda: <b>no genera asientos contables</b>, no aparece en los reportes y se puede eliminar junto con todo lo que se hizo con él. No se puede usar en pedidos de vendedores ni en facturas.</span>
+      </label>
 
       <div>
         <label class="label">Colores * (al menos uno)</label>
@@ -465,7 +481,7 @@ async function cargarEdiciones(productoId) {
     <ul v-else class="flex flex-col gap-4">
       <li v-for="producto in productosFiltrados" :key="producto.id" class="card">
         <div class="mb-3 flex items-center justify-between gap-2">
-          <p class="text-base font-bold text-slate-900">{{ producto.codigo }} — {{ producto.nombre }}</p>
+          <p class="flex flex-wrap items-center gap-2 text-base font-bold text-slate-900">{{ producto.codigo }} — {{ producto.nombre }}<span v-if="producto.esPrueba" class="rounded-full bg-amber-500 px-2.5 py-0.5 text-xs font-extrabold tracking-wide text-white">PRUEBA</span></p>
           <div class="flex shrink-0 items-center gap-3">
             <button type="button" class="flex items-center gap-1 text-sm font-semibold text-slate-600 underline" @click="alternarHistorial(producto)">
               <History class="size-4" />
@@ -482,7 +498,7 @@ async function cargarEdiciones(productoId) {
             <button type="button" class="text-sm font-semibold text-teal-700 underline" @click="abrirFormVariante(producto)">
               + Agregar color
             </button>
-            <button v-if="auth.esAdministracion" type="button" class="flex items-center gap-1 text-sm font-semibold text-red-700 underline" @click="eliminarProducto(producto)">
+            <button v-if="auth.esAdministracion && (!producto.esPrueba || auth.esSistema)" type="button" class="flex items-center gap-1 text-sm font-semibold text-red-700 underline" @click="eliminarProducto(producto)">
               <Trash2 class="size-4" />
               Eliminar
             </button>

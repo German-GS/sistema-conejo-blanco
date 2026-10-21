@@ -129,7 +129,7 @@ export class PedidosService {
     const lineas: PedidoLinea[] = [];
     let subtotal = 0;
     for (const lineaDto of dto.lineas) {
-      const variante = await this.catalogoService.buscarVariantePorIdOFallar(lineaDto.varianteId);
+      const variante = await this.catalogoService.buscarVarianteParaVenta(lineaDto.varianteId);
       const producto = await this.catalogoService.buscarProductoPorIdOFallar(variante.productoId);
 
       const descuentoPorcentaje = lineaDto.descuentoPorcentaje ?? 0;
@@ -313,7 +313,7 @@ export class PedidosService {
       // El costo de producción se chequea siempre contra el dato actual
       // de la variante (no queda congelado) — el piso de margen protege
       // la venta de HOY, no la de cuando se armó el pedido originalmente.
-      const variante = await this.catalogoService.buscarVariantePorIdOFallar(lineaDto.varianteId);
+      const variante = await this.catalogoService.buscarVarianteParaVenta(lineaDto.varianteId);
       const pares = Math.round(lineaDto.docenas * UNIDADES_POR_DOCENA);
       if (pares < 1) throw new BadRequestException('Cada línea debe tener al menos 1 par.');
 

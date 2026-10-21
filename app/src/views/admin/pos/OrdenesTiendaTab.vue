@@ -122,6 +122,7 @@ const enRevision = computed(() => detalle.value && (detalle.value.estado === 'en
         <button type="button" class="card flex w-full flex-wrap items-center justify-between gap-2 text-left" @click="abrir(o.id)">
           <div>
             <p class="flex flex-wrap items-center gap-1.5 text-base font-semibold text-slate-900">{{ o.numeroTexto }} — {{ o.tienda }}
+              <span v-if="o.prueba" class="rounded-full bg-amber-500 px-2 py-0.5 text-xs font-extrabold text-white">PRUEBA · sin asiento</span>
               <span v-if="o.urgente" class="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700">Urgente</span>
               <span v-if="o.resolucion" class="rounded-full bg-slate-200 px-2 py-0.5 text-xs font-semibold text-slate-700">{{ o.resolucion === 'aceptada' ? 'Aceptado' : 'Corregido' }}</span>
               <span v-if="o.sinConexion" class="rounded-full bg-slate-200 px-2 py-0.5 text-xs font-semibold text-slate-600">hecho sin internet</span></p>
@@ -138,7 +139,7 @@ const enRevision = computed(() => detalle.value && (detalle.value.estado === 'en
         <div class="flex flex-wrap items-start justify-between gap-2">
           <div>
             <p class="text-lg font-bold text-slate-900">Pedido {{ detalle.numeroTexto }} — {{ detalle.tienda }}</p>
-            <p class="text-sm text-slate-500">{{ detalle.solicitante }} · {{ new Date(detalle.fecha).toLocaleString('es-CR', { timeZone: 'America/Costa_Rica' }) }}<span v-if="detalle.urgente" class="ml-1 font-semibold text-red-600"> · URGENTE</span></p>
+            <p class="text-sm text-slate-500">{{ detalle.solicitante }} · {{ new Date(detalle.fecha).toLocaleString('es-CR', { timeZone: 'America/Costa_Rica' }) }}<span v-if="detalle.urgente" class="ml-1 font-semibold text-red-600"> · URGENTE</span><span v-if="detalle.prueba" class="ml-2 rounded-full bg-amber-500 px-2 py-0.5 text-xs font-extrabold text-white">PRUEBA · no genera asiento</span></p>
           </div>
           <span class="rounded px-2 py-0.5 text-sm font-semibold" :class="COLOR[detalle.estado]">{{ detalle.etiqueta }}</span>
         </div>

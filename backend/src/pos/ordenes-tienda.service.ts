@@ -71,6 +71,8 @@ export class OrdenesTiendaService {
       const variantes = await manager.find(VarianteProducto, { where: { id: In(o.lineas.map((l) => l.varianteId)) }, relations: { producto: true } });
       const porId = new Map(variantes.map((v) => [v.id, v]));
       for (const l of o.lineas) if (!porId.has(l.varianteId)) throw new BadRequestException('Un producto del pedido ya no existe en el catálogo.');
+      const pruebas = variantes.filter((v) => v.producto.esPrueba).length;
+      if (pruebas > 0 && pruebas < variantes.length) throw new BadRequestException('No se pueden mezclar productos de prueba con productos reales en el mismo pedido.');
       let numero = o.numero;
       if (await manager.exists(OrdenTienda, { where: { ubicacionId: tienda.id, numero } })) {
         const [{ n }] = await manager.query('SELECT COALESCE(MAX(numero), 0)::int + 1 AS n FROM pos_ordenes WHERE ubicacion_id = $1', [tienda.id]);
@@ -87,6 +89,7 @@ export class OrdenesTiendaService {
           urgente: Boolean(o.urgente),
           notas: o.notas?.trim() || null,
           estado: E.ENVIADA,
+          esPrueba: pruebas > 0,
           creadaSinConexion: Boolean(o.sinConexion),
           lineas: o.lineas.map((l) => {
             const v = porId.get(l.varianteId)!;
@@ -112,6 +115,7 @@ export class OrdenesTiendaService {
       estado: o.estado,
       etiqueta: ETIQUETA_ESTADO[o.estado] ?? o.estado,
       urgente: o.urgente,
+      prueba: o.esPrueba,
       resolucion: o.resolucion,
       respuesta: o.respuesta,
       pares: o.lineas.reduce((a, l) => a + l.cantidad, 0),
@@ -145,7 +149,7 @@ export class OrdenesTiendaService {
       `SELECT COUNT(*) FILTER (WHERE estado IN ('enviada', 'recibida'))::int AS por_revisar,
               COUNT(*) FILTER (WHERE estado IN ('enviada', 'recibida') AND urgente)::int AS urgentes,
               COUNT(*) FILTER (WHERE estado IN ('revisada', 'alistada'))::int AS en_proceso,
-              COUNT(*) FILTER (WHERE estado = 'en_camino')::int AS en_camino FROM pos_ordenes`,
+              COUNT(*) FILTER (WHERE estado = 'en_camino')::int AS en_camino FROM pos_ordenes WHERE NOT es_prueba`,
     );
     return { pendientes: r.por_revisar, urgentes: r.urgentes, enProceso: r.en_proceso, enCamino: r.en_camino };
   }
@@ -155,7 +159,7 @@ export class OrdenesTiendaService {
     const grupo = f.estado === 'abiertos' ? ['enviada', 'recibida', 'revisada', 'alistada', 'en_camino'] : f.estado ? [f.estado] : null;
     const filas: Array<Record<string, unknown>> = await this.dataSource.query(
       `SELECT o.id, o.numero, u.codigo AS "tiendaCodigo", u.nombre AS tienda, to_char(o.fecha AT TIME ZONE '${ZONA}', 'YYYY-MM-DD HH24:MI') AS fecha,
-              us.nombre AS solicitante, o.estado, o.resolucion, o.urgente, o.notas, o.respuesta, o.creada_sin_conexion AS "sinConexion",
+              us.nombre AS solicitante, o.estado, o.resolucion, o.urgente, o.notas, o.respuesta, o.creada_sin_conexion AS "sinConexion", o.es_prueba AS prueba,
               (SELECT COALESCE(SUM(l.cantidad), 0)::int FROM pos_orden_lineas l WHERE l.orden_id = o.id) AS pares,
               (SELECT COUNT(*)::int FROM pos_orden_lineas l WHERE l.orden_id = o.id) AS productos,
               t.numero_traspaso AS "numeroTraspaso"
@@ -202,6 +206,7 @@ export class OrdenesTiendaService {
       urgente: orden.urgente,
       notas: orden.notas,
       respuesta: orden.respuesta,
+      prueba: orden.esPrueba,
       sinConexion: orden.creadaSinConexion,
       traspaso: traspaso ?? null,
       asiento: asiento?.numero ?? null,
@@ -354,6 +359,7 @@ export class OrdenesTiendaService {
         }
       }
     }
+    if (orden.esPrueba) return; // los traslados de prueba no generan asiento
     const r = asientoTraslado(lineas, { tiendas: CUENTA.INVENTARIO_TIENDAS, bodega: CUENTA.INVENTARIO, merma: CUENTA.PERDIDA_MERMAS, diferencia: CUENTA.DIFERENCIA_COSTO_TRASLADOS });
     if (r.vacio) return;
     await this.contabilidad.registrarAsientoEnTransaccion(manager, {

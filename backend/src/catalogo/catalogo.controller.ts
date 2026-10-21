@@ -78,7 +78,8 @@ export class CatalogoController {
       buscar && buscar.trim().length > 0
         ? await this.catalogoService.buscarProductos(buscar.trim())
         : await this.catalogoService.listarProductos();
-    return ocultarCosto(productos, usuario);
+    // Los vendedores nunca ven los productos de prueba.
+    return ocultarCosto(usuario.rol === Rol.VENDEDOR ? productos.filter((p) => !p.esPrueba) : productos, usuario);
   }
 
   @Get(':id')
@@ -97,15 +98,15 @@ export class CatalogoController {
   @UseGuards(PermissionsGuard)
   @RequirePermissions(Permiso.CATALOGO_GESTIONAR)
   crear(@Body() dto: CrearProductoDto, @CurrentUser() usuario: UsuarioAutenticado) {
-    return this.catalogoService.crearProducto(dto, usuario.id);
+    return this.catalogoService.crearProducto(dto, usuario.id, usuario.rol === Rol.SISTEMA);
   }
 
-  // Eliminar un producto (solo si nunca se usó): gerencia y administrador del sistema.
+  // Eliminar un producto (solo si nunca se usó): gerencia y administrador del sistema. Los de prueba los elimina el sistema, con todo lo hecho con ellos.
   @Delete(':id')
   @UseGuards(RolesGuard)
   @RequireRole(Rol.ADMINISTRACION)
-  async eliminar(@Param('id', ParseUUIDPipe) id: string) {
-    await this.catalogoService.eliminarProducto(id);
+  async eliminar(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() usuario: UsuarioAutenticado) {
+    await this.catalogoService.eliminarProducto(id, usuario.rol === Rol.SISTEMA);
     return { eliminado: true };
   }
 

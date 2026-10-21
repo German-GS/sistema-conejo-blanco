@@ -299,4 +299,8 @@ export class ActualizarPosConfigDto {
   @IsString()
   @MaxLength(300)
   pieTiquete?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  modoPrueba?: boolean;
 }

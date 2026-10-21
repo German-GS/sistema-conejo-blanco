@@ -9,7 +9,7 @@ const emit = defineEmits(['cerrar']);
 const auth = useAuthStore();
 const vista = ref('nuevo'); // 'nuevo' | 'mios'
 const lineas = ref(
-  sugerenciasPedido.value.map((s) => ({ varianteId: s.varianteId, codigo: s.codigo, nombre: s.nombre, color: s.color, bodega: s.bodega, stock: s.stock, minimo: s.minimo, sugerida: s.sugerida, cantidad: s.sugerida, incluir: true })),
+  sugerenciasPedido.value.map((s) => ({ varianteId: s.varianteId, codigo: s.codigo, nombre: s.nombre, color: s.color, bodega: s.bodega, prueba: !!s.prueba, stock: s.stock, minimo: s.minimo, sugerida: s.sugerida, cantidad: s.sugerida, incluir: true })),
 );
 const texto = ref('');
 const notas = ref('');
@@ -22,7 +22,7 @@ const resultados = computed(() => buscar(texto.value, 8).filter((v) => !lineas.v
 function agregarOtro(v) {
   const stock = stockDe(v.varianteId);
   const minimo = minimoDe(v.varianteId);
-  lineas.value.push({ varianteId: v.varianteId, codigo: v.codigo, nombre: v.nombre, color: v.color, bodega: v.bodega, stock, minimo, sugerida: sugeridaPara(stock, minimo), cantidad: 12, incluir: true, manual: true });
+  lineas.value.push({ varianteId: v.varianteId, codigo: v.codigo, nombre: v.nombre, color: v.color, bodega: v.bodega, prueba: !!v.prueba, stock, minimo, sugerida: sugeridaPara(stock, minimo), cantidad: 12, incluir: true, manual: true });
   texto.value = '';
 }
 const incluidas = computed(() => lineas.value.filter((l) => l.incluir && Number(l.cantidad) > 0));
@@ -32,6 +32,8 @@ const cambiar = (l, d) => (l.cantidad = Math.max(1, Number(l.cantidad || 0) + d)
 async function enviar() {
   error.value = '';
   if (!incluidas.value.length) return (error.value = 'Marque al menos un producto con cantidad.');
+  const hayPrueba = incluidas.value.some((l) => l.prueba);
+  if (hayPrueba && incluidas.value.some((l) => !l.prueba)) return (error.value = 'No mezcle productos de PRUEBA con productos reales en el mismo pedido: desmarque unos u otros.');
   enviando.value = true;
   try {
     enviado.value = await crearOrden(
@@ -81,11 +83,11 @@ const enCamino = computed(() => remotos.value.filter((o) => o.puedeRecibir).leng
 
 <template>
   <div class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-3" @click.self="emit('cerrar')">
-    <div class="flex max-h-full w-full max-w-3xl flex-col rounded-2xl bg-white">
+    <div class="flex max-h-full w-full max-w-4xl flex-col rounded-3xl bg-white text-base shadow-xl">
       <div class="flex items-center justify-between border-b border-slate-200 px-5 py-3">
         <div class="flex gap-2">
-          <button type="button" class="rounded-lg px-3 py-1.5 text-sm font-semibold" :class="vista === 'nuevo' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-700'" @click="vista = 'nuevo'; enviado = null">Pedir mercadería</button>
-          <button type="button" class="rounded-lg px-3 py-1.5 text-sm font-semibold" :class="vista === 'mios' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-700'" @click="vista = 'mios'">Mis pedidos ({{ locales.length + remotos.length }})<span v-if="enCamino" class="ml-1 rounded-full bg-indigo-600 px-1.5 text-white">{{ enCamino }}</span></button>
+          <button type="button" class="rounded-xl px-4 py-2.5 text-base font-extrabold" :class="vista === 'nuevo' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-700'" @click="vista = 'nuevo'; enviado = null">Pedir mercadería</button>
+          <button type="button" class="rounded-xl px-4 py-2.5 text-base font-extrabold" :class="vista === 'mios' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-700'" @click="vista = 'mios'">Mis pedidos ({{ locales.length + remotos.length }})<span v-if="enCamino" class="ml-1 rounded-full bg-indigo-600 px-1.5 text-white">{{ enCamino }}</span></button>
         </div>
         <button type="button" aria-label="Cerrar" @click="emit('cerrar')"><X class="h-5 w-5" /></button>
       </div>
@@ -114,7 +116,7 @@ const enCamino = computed(() => remotos.value.filter((o) => o.puedeRecibir).leng
                     <td class="py-1 pr-2 font-medium">{{ l.codigo }} · {{ l.color }}</td>
                     <td class="py-1 pr-2 text-right">{{ l.pedido }}</td>
                     <td class="py-1 pr-2 text-right font-semibold" :class="l.aprobada !== null && l.aprobada !== l.pedido ? 'text-amber-600' : ''">{{ l.aprobada ?? 'por definir' }}</td>
-                    <td v-if="o.puedeRecibir" class="py-1 text-right"><input v-if="(l.aprobada ?? 0) > 0" v-model="cantidades[l.varianteId]" type="number" min="0" :max="l.aprobada" class="input !min-h-9 !w-20 text-right" /></td>
+                    <td v-if="o.puedeRecibir" class="py-1 text-right"><input v-if="(l.aprobada ?? 0) > 0" v-model="cantidades[l.varianteId]" type="number" min="0" :max="l.aprobada" class="input !min-h-11 !w-24 text-right text-lg font-bold" /></td>
                     <td v-else-if="o.estado === 'entregada'" class="py-1 text-right">{{ l.recibida ?? '—' }}</td>
                   </tr>
                 </tbody>
@@ -124,7 +126,7 @@ const enCamino = computed(() => remotos.value.filter((o) => o.puedeRecibir).leng
                 <p class="mt-2 text-sm font-semibold text-slate-800">Verifique lo que llegó contra la orden y acepte.</p>
                 <input v-model="notaRecepcion" type="text" maxlength="300" :placeholder="hayDiferencia(o) ? 'Obligatorio: qué faltó o llegó dañado' : 'Nota (opcional)'" class="input mt-1" />
                 <p v-if="errorRecepcion" class="mt-1 text-sm font-medium text-red-600">{{ errorRecepcion }}</p>
-                <button type="button" class="btn-primary mt-2 w-full" :disabled="aceptando" @click="aceptar(o)">{{ aceptando ? 'Guardando…' : hayDiferencia(o) ? 'Aceptar con diferencias' : 'Todo coincide: aceptar mercadería' }}</button>
+                <button type="button" class="mt-2 w-full rounded-2xl bg-green-600 py-4 text-xl font-extrabold text-white shadow-sm hover:bg-green-700 disabled:bg-slate-300" :disabled="aceptando" @click="aceptar(o)">{{ aceptando ? 'Guardando…' : hayDiferencia(o) ? 'ACEPTAR CON DIFERENCIAS' : 'TODO COINCIDE: ACEPTAR MERCADERÍA' }}</button>
               </template>
             </div>
           </li>
@@ -134,24 +136,24 @@ const enCamino = computed(() => remotos.value.filter((o) => o.puedeRecibir).leng
       </div>
 
       <div v-else-if="enviado" class="p-6 text-center">
-        <p class="text-lg font-bold text-green-700">Pedido {{ numeroOrdenTexto(enviado) }} guardado</p>
+        <p class="text-3xl font-extrabold text-green-700">PEDIDO ENVIADO</p><p class="text-xl font-bold text-slate-800">{{ numeroOrdenTexto(enviado) }}</p>
         <p class="mt-1 text-sm text-slate-600">{{ enviado.enviada ? 'Ya llegó a la administración.' : pos.enLinea ? 'Enviando a la administración…' : 'Quedó guardado en esta computadora y se enviará solo cuando haya internet.' }}</p>
-        <button type="button" class="btn-primary mt-4" @click="emit('cerrar')">Listo</button>
+        <button type="button" class="mt-4 rounded-2xl bg-slate-800 px-10 py-4 text-xl font-extrabold text-white hover:bg-slate-900" @click="emit('cerrar')">LISTO</button>
       </div>
 
       <template v-else>
         <div class="min-h-0 flex-1 overflow-y-auto p-5">
-          <p class="text-sm text-slate-600">Ya van marcados los productos <b>agotados</b> o que llegaron a su <b>mínimo</b>, con la cantidad sugerida (hasta el doble del mínimo, en docenas). Ajuste lo que necesite.</p>
-          <table class="mt-3 w-full text-sm">
+          <ol class="list-decimal space-y-0.5 rounded-2xl bg-blue-50 p-4 pl-9 text-base text-blue-900"><li>Ya van marcados los productos que se <b>acabaron</b> o se están acabando, con la cantidad que recomienda el sistema.</li><li>Cambie la cantidad si hace falta, o desmarque lo que no necesite.</li><li>Toque <b>ENVIAR PEDIDO</b>. La administración lo recibirá y usted podrá ver cómo va en «Mis pedidos».</li></ol>
+          <table class="mt-3 w-full text-base">
             <thead><tr class="border-b border-slate-200 text-left text-xs text-slate-500"><th class="w-8 py-1"></th><th class="py-1 pr-2">Producto</th><th class="py-1 pr-2 text-right">En tienda</th><th class="py-1 pr-2 text-right">Mínimo</th><th class="py-1 pr-2 text-right">En bodega</th><th class="py-1 text-right">Pedir (pares)</th></tr></thead>
             <tbody>
               <tr v-for="l in lineas" :key="l.varianteId" class="border-b border-slate-100" :class="l.incluir ? '' : 'opacity-50'">
-                <td class="py-1.5"><input v-model="l.incluir" type="checkbox" :aria-label="`Incluir ${l.codigo} ${l.color}`" /></td>
-                <td class="py-1.5 pr-2"><span class="font-semibold">{{ l.codigo }} · {{ l.color }}</span><span v-if="l.stock <= 0" class="ml-1 rounded bg-red-100 px-1.5 text-xs font-semibold text-red-700">Agotado</span><span v-else-if="l.minimo > 0 && l.stock <= l.minimo" class="ml-1 rounded bg-amber-100 px-1.5 text-xs font-semibold text-amber-800">Bajo</span><span v-if="l.manual" class="ml-1 text-xs text-slate-400">agregado</span></td>
+                <td class="py-1.5"><input v-model="l.incluir" type="checkbox" class="size-5" :aria-label="`Incluir ${l.codigo} ${l.color}`" /></td>
+                <td class="py-1.5 pr-2"><span class="font-semibold">{{ l.codigo }} · {{ l.color }}</span><span v-if="l.prueba" class="ml-1 rounded-full bg-amber-500 px-2 text-xs font-extrabold text-white">PRUEBA</span><span v-if="l.stock <= 0" class="ml-1 rounded bg-red-100 px-1.5 text-xs font-semibold text-red-700">Agotado</span><span v-else-if="l.minimo > 0 && l.stock <= l.minimo" class="ml-1 rounded bg-amber-100 px-1.5 text-xs font-semibold text-amber-800">Bajo</span><span v-if="l.manual" class="ml-1 text-xs text-slate-400">agregado</span></td>
                 <td class="py-1.5 pr-2 text-right font-semibold" :class="l.stock <= 0 ? 'text-red-600' : ''">{{ l.stock }}</td>
                 <td class="py-1.5 pr-2 text-right text-slate-500">{{ l.minimo || '—' }}</td>
                 <td class="py-1.5 pr-2 text-right" :class="l.bodega <= 0 ? 'text-red-600' : 'text-slate-600'">{{ l.bodega <= 0 ? 'sin existencias' : l.bodega }}</td>
-                <td class="py-1.5"><span class="flex items-center justify-end gap-1"><button type="button" class="rounded border border-slate-300 p-1" aria-label="Menos" @click="cambiar(l, -12)"><Minus class="h-3.5 w-3.5" /></button><input v-model="l.cantidad" type="number" min="1" step="1" class="input !min-h-9 !w-20 text-right" /><button type="button" class="rounded border border-slate-300 p-1" aria-label="Más una docena" @click="cambiar(l, 12)"><Plus class="h-3.5 w-3.5" /></button></span></td>
+                <td class="py-1.5"><span class="flex items-center justify-end gap-1"><button type="button" class="rounded border border-slate-300 p-1" aria-label="Menos" @click="cambiar(l, -12)"><Minus class="h-3.5 w-3.5" /></button><input v-model="l.cantidad" type="number" min="1" step="1" class="input !min-h-11 !w-24 text-right text-lg font-bold" /><button type="button" class="rounded border border-slate-300 p-1" aria-label="Más una docena" @click="cambiar(l, 12)"><Plus class="h-3.5 w-3.5" /></button></span></td>
               </tr>
               <tr v-if="!lineas.length"><td colspan="6" class="py-4 text-center text-sm text-green-700">Ningún producto está agotado ni en su mínimo. Si necesita algo más, búsquelo abajo.</td></tr>
             </tbody>
@@ -167,8 +169,8 @@ const enCamino = computed(() => remotos.value.filter((o) => o.puedeRecibir).leng
           <p v-if="error" class="mt-2 text-sm font-medium text-red-600">{{ error }}</p>
         </div>
         <div class="flex items-center justify-between gap-3 border-t border-slate-200 px-5 py-3">
-          <p class="text-sm text-slate-600">{{ incluidas.length }} producto(s) · <b>{{ totalPares }}</b> pares</p>
-          <button type="button" class="btn-primary" :disabled="enviando" @click="enviar">{{ enviando ? 'Guardando…' : 'Enviar pedido' }}</button>
+          <p class="text-lg text-slate-700">{{ incluidas.length }} producto(s) · <b>{{ totalPares }}</b> pares</p>
+          <button type="button" class="rounded-2xl bg-green-600 px-8 py-4 text-xl font-extrabold text-white shadow-sm hover:bg-green-700 disabled:bg-slate-300" :disabled="enviando" @click="enviar">{{ enviando ? 'Guardando…' : 'ENVIAR PEDIDO' }}</button>
         </div>
       </template>
     </div>

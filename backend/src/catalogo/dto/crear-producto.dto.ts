@@ -1,5 +1,5 @@
 import { Transform } from 'class-transformer';
-import { IsOptional, IsString, Matches, MaxLength, MinLength } from 'class-validator';
+import { IsBoolean, IsOptional, IsString, Matches, MaxLength, MinLength } from 'class-validator';
 import {
   CODIGO_PRODUCTO_MENSAJE,
   CODIGO_PRODUCTO_REGEX,
@@ -21,4 +21,9 @@ export class CrearProductoDto {
   @IsString()
   @MaxLength(255)
   descripcion?: string;
+
+  // Solo lo acepta el administrador del sistema.
+  @IsOptional()
+  @IsBoolean()
+  esPrueba?: boolean;
 }

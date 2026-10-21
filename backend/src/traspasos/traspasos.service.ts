@@ -57,6 +57,11 @@ export class TraspasosService {
     }
     await this.ubicacionesService.buscarPorIdOFallar(dto.origenId);
     await this.ubicacionesService.buscarPorIdOFallar(dto.destinoId);
+    const [{ pruebas, total }] = await this.dataSource.query(
+      'SELECT COUNT(*) FILTER (WHERE p.es_prueba)::int AS pruebas, COUNT(*)::int AS total FROM variantes_producto v JOIN productos p ON p.id = v.producto_id WHERE v.id = ANY($1::uuid[])',
+      [dto.lineas.map((l) => l.varianteId)],
+    );
+    if (pruebas > 0 && pruebas < total) throw new BadRequestException('No se pueden mezclar productos de prueba con productos reales en el mismo traspaso.');
 
     const traspaso = this.traspasoRepo.create({
       origenId: dto.origenId,

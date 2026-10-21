@@ -79,15 +79,16 @@ export class PosService {
   async catalogo(usuario: { id: string; rol: string }, ubicacionId: string) {
     await this.exigirTiendaPropia(usuario, ubicacionId);
     const tienda = await this.tiendaOFallar(ubicacionId);
+    const modoPrueba = (await this.obtenerConfig()).modoPrueba;
     const [variantes, ultimo, encabezado, cfg, ultimaOrden, recientes] = await Promise.all([
       this.dataSource.query(
         `SELECT v.id AS "varianteId", p.codigo, p.nombre, v.color, v.precio_tienda::float8 AS precio, v.codigo_barras AS "codigoBarras",
-                COALESCE(s.cantidad, 0)::int AS stock, COALESCE(s.stock_minimo, 0)::int AS minimo,
+                p.es_prueba AS prueba, COALESCE(s.cantidad, 0)::int AS stock, COALESCE(s.stock_minimo, 0)::int AS minimo,
                 COALESCE((SELECT SUM(sb.cantidad) FROM stock_ubicaciones sb JOIN ubicaciones ub ON ub.id = sb.ubicacion_id WHERE sb.variante_id = v.id AND ub.tipo = 'bodega_distribucion' AND ub.activa), 0)::int AS bodega
          FROM variantes_producto v JOIN productos p ON p.id = v.producto_id
          LEFT JOIN stock_ubicaciones s ON s.variante_id = v.id AND s.ubicacion_id = $1
-         WHERE v.activo AND p.activo AND v.precio_tienda IS NOT NULL ORDER BY p.codigo, v.color`,
-        [ubicacionId],
+         WHERE v.activo AND p.activo AND v.precio_tienda IS NOT NULL AND (NOT p.es_prueba OR $2::boolean) ORDER BY p.codigo, v.color`,
+        [ubicacionId, modoPrueba],
       ),
       this.dataSource.query('SELECT COALESCE(MAX(numero), 0)::int AS n FROM pos_ventas WHERE ubicacion_id = $1', [ubicacionId]),
       this.configuracion.obtenerFactura(),
@@ -98,6 +99,7 @@ export class PosService {
     return {
       generadoEn: new Date().toISOString(),
       tienda: { id: tienda.id, nombre: tienda.nombre, codigo: tienda.codigo },
+      modoPrueba,
       encabezado: { razonSocial: encabezado.razonSocial, cedulaJuridica: encabezado.cedulaJuridica, telefono: encabezado.telefono, direccion: encabezado.direccion, pie: cfg.pieTiquete },
       ultimoNumero: ultimo[0].n,
       ultimoNumeroOrden: ultimaOrden[0].n,
@@ -191,7 +193,7 @@ export class PosService {
     if (caja.cerradaEn) return;
     const [{ efectivo }] = await this.dataSource.query(
       `SELECT COALESCE(SUM(p.monto), 0)::float8 AS efectivo FROM pos_pagos p JOIN pos_ventas v ON v.id = p.venta_id
-       WHERE v.caja_id = $1 AND v.estado = 'vigente' AND p.medio = 'efectivo'`,
+       WHERE v.caja_id = $1 AND v.estado = 'vigente' AND NOT v.es_prueba AND p.medio = 'efectivo'`,
       [c.id],
     );
     const esperado = redondear(Number(caja.fondoInicial) + Number(efectivo));
@@ -223,6 +225,10 @@ export class PosService {
 
     const variantes = await manager.find(VarianteProducto, { where: { id: In(v.lineas.map((l) => l.varianteId)) }, relations: { producto: true } });
     const porId = new Map(variantes.map((x) => [x.id, x]));
+    // Productos de prueba: una venta es toda de prueba o toda real (nunca mezcladas).
+    const pruebas = variantes.filter((x) => x.producto.esPrueba).length;
+    if (pruebas > 0 && pruebas < variantes.length) throw new BadRequestException('No se pueden mezclar productos de prueba con productos reales en el mismo tiquete.');
+    const esPrueba = pruebas > 0;
     // Costo de la tienda (promedio de lo recibido a costo especial); sin dato, el costo del producto.
     const costosTienda = new Map((await manager.find(StockUbicacion, { where: { ubicacionId: tienda.id, varianteId: In(v.lineas.map((l) => l.varianteId)) } })).map((s) => [s.varianteId, s.costoPromedio]));
     const lineas = v.lineas.map((l) => {
@@ -262,6 +268,7 @@ export class PosService {
       total: total.toFixed(2),
       estado: ESTADO_POS_VENTA.VIGENTE,
       creadaSinConexion: Boolean(v.sinConexion),
+      esPrueba,
       alerta,
       lineas: lineas.map((x) =>
         manager.create(PosVentaLinea, {
@@ -302,7 +309,8 @@ export class PosService {
       });
     }
 
-    await this.registrarAsientos(manager, tienda, venta, lineas, cfg, new Date(v.fecha));
+    // Las ventas de prueba no llegan al libro mayor.
+    if (!esPrueba) await this.registrarAsientos(manager, tienda, venta, lineas, cfg, new Date(v.fecha));
     return { id: v.id, estado: 'ok', numero };
   }
 
@@ -379,7 +387,7 @@ export class PosService {
           permitirNegativo: true,
         });
       }
-      await this.contabilidad.reversarPorOrigenEnTransaccion(manager, REFERENCIA, venta.id, motivo, `Anulación de venta POS ${numeroTexto(venta.ubicacion.codigo, venta.numero)} — ${motivo.trim()}`);
+      if (!venta.esPrueba) await this.contabilidad.reversarPorOrigenEnTransaccion(manager, REFERENCIA, venta.id, motivo, `Anulación de venta POS ${numeroTexto(venta.ubicacion.codigo, venta.numero)} — ${motivo.trim()}`);
       await manager.update(PosVenta, venta.id, { estado: ESTADO_POS_VENTA.ANULADA, motivoAnulacion: motivo.trim().slice(0, 200), anuladaEn: new Date(), anuladaPorId: usuarioId });
     });
     return { ok: true };
@@ -390,18 +398,18 @@ export class PosService {
     return [f.desde || null, f.hasta || null];
   }
 
-  async listar(f: { desde?: string; hasta?: string; ubicacionId?: string; estado?: string }) {
+  async listar(f: { desde?: string; hasta?: string; ubicacionId?: string; estado?: string; pruebas?: boolean }) {
     const [desde, hasta] = this.rango(f);
     const filas: Array<Record<string, unknown>> = await this.dataSource.query(
       `SELECT v.id, v.numero, u.codigo AS "tiendaCodigo", u.nombre AS tienda, to_char(v.fecha AT TIME ZONE '${ZONA}', 'YYYY-MM-DD HH24:MI') AS fecha,
-              us.nombre AS cajero, v.total::float8 AS total, v.estado, v.creada_sin_conexion AS "sinConexion", v.alerta,
+              us.nombre AS cajero, v.total::float8 AS total, v.estado, v.creada_sin_conexion AS "sinConexion", v.alerta, v.es_prueba AS prueba,
               (SELECT string_agg(DISTINCT p.medio, ', ' ORDER BY p.medio) FROM pos_pagos p WHERE p.venta_id = v.id) AS medios,
               (SELECT COALESCE(SUM(l.cantidad), 0)::int FROM pos_venta_lineas l WHERE l.venta_id = v.id) AS pares
        FROM pos_ventas v JOIN ubicaciones u ON u.id = v.ubicacion_id JOIN usuarios us ON us.id = v.cajero_id
        WHERE ($1::text IS NULL OR to_char(v.fecha AT TIME ZONE '${ZONA}', 'YYYY-MM-DD') >= $1) AND ($2::text IS NULL OR to_char(v.fecha AT TIME ZONE '${ZONA}', 'YYYY-MM-DD') <= $2)
-         AND ($3::uuid IS NULL OR v.ubicacion_id = $3::uuid) AND ($4::text IS NULL OR v.estado = $4)
+         AND ($3::uuid IS NULL OR v.ubicacion_id = $3::uuid) AND ($4::text IS NULL OR v.estado = $4) AND ($5::boolean OR NOT v.es_prueba)
        ORDER BY v.fecha DESC LIMIT 300`,
-      [desde, hasta, f.ubicacionId || null, f.estado || null],
+      [desde, hasta, f.ubicacionId || null, f.estado || null, Boolean(f.pruebas)],
     );
     return filas.map((x) => ({ ...x, numeroTexto: numeroTexto(String(x.tiendaCodigo), Number(x.numero)) }));
   }
@@ -419,6 +427,7 @@ export class PosService {
       estado: venta.estado,
       motivoAnulacion: venta.motivoAnulacion,
       alerta: venta.alerta,
+      prueba: venta.esPrueba,
       subtotal: venta.subtotal,
       descuento: venta.descuento,
       total: venta.total,
@@ -428,17 +437,17 @@ export class PosService {
     };
   }
 
-  async resumen(f: { desde?: string; hasta?: string; ubicacionId?: string }) {
+  async resumen(f: { desde?: string; hasta?: string; ubicacionId?: string; pruebas?: boolean }) {
     const [desde, hasta] = this.rango(f);
-    const donde = `v.estado = 'vigente' AND ($1::text IS NULL OR to_char(v.fecha AT TIME ZONE '${ZONA}', 'YYYY-MM-DD') >= $1) AND ($2::text IS NULL OR to_char(v.fecha AT TIME ZONE '${ZONA}', 'YYYY-MM-DD') <= $2) AND ($3::uuid IS NULL OR v.ubicacion_id = $3::uuid)`;
-    const p = [desde, hasta, f.ubicacionId || null];
+    const donde = `v.estado = 'vigente' AND ($4::boolean OR NOT v.es_prueba) AND ($1::text IS NULL OR to_char(v.fecha AT TIME ZONE '${ZONA}', 'YYYY-MM-DD') >= $1) AND ($2::text IS NULL OR to_char(v.fecha AT TIME ZONE '${ZONA}', 'YYYY-MM-DD') <= $2) AND ($3::uuid IS NULL OR v.ubicacion_id = $3::uuid)`;
+    const p = [desde, hasta, f.ubicacionId || null, Boolean(f.pruebas)];
     const [[k], porMedio, porDia, porTienda, topProductos, [anuladas], pendientes] = await Promise.all([
       this.dataSource.query(`SELECT COALESCE(SUM(v.total), 0)::float8 AS total, COUNT(*)::int AS tiquetes, COALESCE(SUM((SELECT SUM(l.cantidad) FROM pos_venta_lineas l WHERE l.venta_id = v.id)), 0)::int AS pares FROM pos_ventas v WHERE ${donde}`, p),
       this.dataSource.query(`SELECT pg.medio AS etiqueta, SUM(pg.monto)::float8 AS monto FROM pos_pagos pg JOIN pos_ventas v ON v.id = pg.venta_id WHERE ${donde} GROUP BY 1 ORDER BY 2 DESC`, p),
       this.dataSource.query(`SELECT to_char(v.fecha AT TIME ZONE '${ZONA}', 'YYYY-MM-DD') AS etiqueta, SUM(v.total)::float8 AS monto, COUNT(*)::int AS tiquetes FROM pos_ventas v WHERE ${donde} GROUP BY 1 ORDER BY 1`, p),
       this.dataSource.query(`SELECT u.nombre AS etiqueta, SUM(v.total)::float8 AS monto, COUNT(*)::int AS tiquetes FROM pos_ventas v JOIN ubicaciones u ON u.id = v.ubicacion_id WHERE ${donde} GROUP BY 1 ORDER BY 2 DESC`, p),
       this.dataSource.query(`SELECT l.codigo || ' ' || l.color AS etiqueta, SUM(l.cantidad)::int AS pares, SUM(l.subtotal)::float8 AS monto FROM pos_venta_lineas l JOIN pos_ventas v ON v.id = l.venta_id WHERE ${donde} GROUP BY 1 ORDER BY 3 DESC LIMIT 10`, p),
-      this.dataSource.query(`SELECT COUNT(*)::int AS n FROM pos_ventas v WHERE v.estado = 'anulada' AND ($1::text IS NULL OR to_char(v.fecha AT TIME ZONE '${ZONA}', 'YYYY-MM-DD') >= $1) AND ($2::text IS NULL OR to_char(v.fecha AT TIME ZONE '${ZONA}', 'YYYY-MM-DD') <= $2) AND ($3::uuid IS NULL OR v.ubicacion_id = $3::uuid)`, p),
+      this.dataSource.query(`SELECT COUNT(*)::int AS n FROM pos_ventas v WHERE v.estado = 'anulada' AND ($4::boolean OR NOT v.es_prueba) AND ($1::text IS NULL OR to_char(v.fecha AT TIME ZONE '${ZONA}', 'YYYY-MM-DD') >= $1) AND ($2::text IS NULL OR to_char(v.fecha AT TIME ZONE '${ZONA}', 'YYYY-MM-DD') <= $2) AND ($3::uuid IS NULL OR v.ubicacion_id = $3::uuid)`, p),
       this.dataSource.query(`SELECT COUNT(*)::int AS n FROM pos_ventas v WHERE v.creada_sin_conexion AND ${donde}`, p),
     ]);
     return {
@@ -456,7 +465,7 @@ export class PosService {
       `SELECT c.id, u.nombre AS tienda, us.nombre AS cajero, to_char(c.abierta_en AT TIME ZONE '${ZONA}', 'YYYY-MM-DD HH24:MI') AS "abiertaEn",
               to_char(c.cerrada_en AT TIME ZONE '${ZONA}', 'YYYY-MM-DD HH24:MI') AS "cerradaEn", c.fondo_inicial::float8 AS "fondoInicial",
               c.efectivo_esperado::float8 AS "efectivoEsperado", c.efectivo_contado::float8 AS "efectivoContado", c.diferencia::float8 AS diferencia, c.notas,
-              (SELECT COALESCE(SUM(v.total), 0)::float8 FROM pos_ventas v WHERE v.caja_id = c.id AND v.estado = 'vigente') AS ventas
+              (SELECT COALESCE(SUM(v.total), 0)::float8 FROM pos_ventas v WHERE v.caja_id = c.id AND v.estado = 'vigente' AND NOT v.es_prueba) AS ventas
        FROM pos_cajas c JOIN ubicaciones u ON u.id = c.ubicacion_id JOIN usuarios us ON us.id = c.cajero_id
        WHERE ($1::text IS NULL OR to_char(c.abierta_en AT TIME ZONE '${ZONA}', 'YYYY-MM-DD') >= $1) AND ($2::text IS NULL OR to_char(c.abierta_en AT TIME ZONE '${ZONA}', 'YYYY-MM-DD') <= $2)
          AND ($3::uuid IS NULL OR c.ubicacion_id = $3::uuid)
@@ -471,12 +480,16 @@ export class PosService {
     return { ...cfg, cuentasBancarias: cuentas };
   }
 
-  async actualizarConfiguracion(dto: ActualizarPosConfigDto) {
+  async actualizarConfiguracion(dto: ActualizarPosConfigDto, esSistema = false) {
     const cfg = await this.obtenerConfig();
     for (const k of ['cuentaTarjetaId', 'cuentaSinpeId', 'cuentaTransferenciaId'] as const) {
       if (dto[k] !== undefined) cfg[k] = dto[k] || null;
     }
     if (dto.pieTiquete !== undefined) cfg.pieTiquete = dto.pieTiquete.trim();
+    if (dto.modoPrueba !== undefined) {
+      if (!esSistema) throw new ForbiddenException('Solo el administrador del sistema activa el modo de prueba.');
+      cfg.modoPrueba = dto.modoPrueba;
+    }
     await this.configRepo.save(cfg);
     return this.configuracionActual();
   }
