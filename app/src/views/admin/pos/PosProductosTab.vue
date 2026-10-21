@@ -126,7 +126,11 @@ async function guardar() {
     }
     const minimos = sucias.value.filter(cambioMinimo).map((f) => ({ varianteId: f.varianteId, minimo: Number(f.minimo || 0) }));
     if (minimos.length) {
-      await api.put('/inventario/minimos', { ubicacionId: tienda.value, minimos });
+      try {
+        await api.put('/inventario/minimos', { ubicacionId: tienda.value, minimos });
+      } catch (err) {
+        throw new Error(`No se pudieron guardar los mínimos${hechos ? ' (los precios y códigos sí se guardaron)' : ''}: ${err instanceof ApiError ? err.message : 'error de conexión'}.`);
+      }
       for (const f of filas.value) f.orig.minimo = Number(f.minimo || 0);
       hechos += minimos.length;
     }

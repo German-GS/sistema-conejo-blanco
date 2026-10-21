@@ -7,6 +7,9 @@ Versionado `MAYOR.MENOR.PARCHE`:
 
 La versión se cambia en `app/package.json` y `backend/package.json` (el pie de página y el panel del sistema la leen solos).
 
+## 1.5.2 — 22 oct 2026 — Arreglo al guardar mínimos de stock
+- Productos de tienda: al guardar los **mínimos de stock** salía el error «put is not a function» (los precios y códigos sí se guardaban). Corregido; además, si algo falla al guardar los mínimos, el mensaje lo explica y aclara qué sí se guardó.
+
 ## 1.5.1 — 22 oct 2026 — Inventario en la caja y búsqueda de productos
 - **Nuevo botón «Inventario» en la caja:** lista lo que hay en la tienda (existencias, mínimo y precio), con buscador y opción de ver también lo que no tiene existencias.
 - **La búsqueda de la caja ve todo lo que está en la tienda**, también lo que aún no tiene precio de tienda: se muestra como «SIN PRECIO DE TIENDA» y explica por qué no se puede vender. La administración tiene el botón «Poner precios».
