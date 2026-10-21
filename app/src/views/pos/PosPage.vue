@@ -482,7 +482,8 @@ watch(
 
     <!-- Cobro -->
     <div v-if="cobrando" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-3">
-      <div class="max-h-full w-full max-w-2xl overflow-y-auto rounded-3xl bg-white p-6 shadow-xl">
+      <div class="flex max-h-full w-full max-w-2xl flex-col rounded-3xl bg-white shadow-xl">
+        <div class="min-h-0 flex-1 overflow-y-auto p-6 pb-3">
         <div class="flex items-start justify-between"><p class="text-xl font-bold text-slate-600">COBRAR</p><button type="button" class="rounded-lg p-1 hover:bg-slate-100" aria-label="Cerrar" @click="cobrando = false"><X class="size-6" /></button></div>
         <p class="text-6xl font-extrabold text-slate-900">{{ formatearColones(total) }}</p>
         <div v-if="!dividido && pagos[0].medio === 'efectivo' && pagos[0].recibido !== '' && Number(pagos[0].recibido) >= Number(pagos[0].monto)" class="mt-2 flex items-center justify-between rounded-2xl bg-green-100 px-5 py-3">
@@ -495,9 +496,9 @@ watch(
           <div class="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-4">
             <button v-for="m in MEDIOS" :key="m[0]" type="button" class="flex flex-col items-center gap-1 rounded-2xl border-2 px-2 py-4 text-base font-extrabold transition" :class="pagos[0].medio === m[0] ? 'border-blue-600 bg-blue-600 text-white shadow-sm' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100'" @click="elegirMedio(m[0])"><component :is="m[2]" class="size-8" /> {{ m[1] }}</button>
           </div>
-          <div class="mt-4 rounded-2xl border border-blue-200 bg-blue-50 p-4">
-            <p class="text-lg font-extrabold text-blue-900">{{ INSTRUCCION[pagos[0].medio][0] }}</p>
-            <ol class="mt-1 list-decimal space-y-0.5 pl-6 text-base text-blue-900"><li v-for="(paso, i) in INSTRUCCION[pagos[0].medio][1]" :key="i">{{ paso }}</li></ol>
+          <div class="mt-4 rounded-2xl bg-blue-600 p-4 text-white">
+            <p class="text-lg font-extrabold">{{ INSTRUCCION[pagos[0].medio][0] }}</p>
+            <ol class="mt-1 list-decimal space-y-0.5 pl-6 text-base"><li v-for="(paso, i) in INSTRUCCION[pagos[0].medio][1]" :key="i">{{ paso }}</li></ol>
           </div>
           <template v-if="pagos[0].medio === 'efectivo'">
             <p class="mt-4 text-lg font-bold">¿Cuánto dinero le dieron?</p>
@@ -530,7 +531,8 @@ watch(
         </template>
 
         <label class="mt-3 flex items-center gap-2 text-base"><input type="checkbox" class="size-5" :checked="pos.imprimirAuto" @change="guardarImprimirAuto($event.target.checked)" /> Imprimir el tiquete al cobrar</label>
-        <div class="sticky bottom-0 -mx-6 -mb-6 mt-3 bg-white px-6 pb-4 pt-2">
+        </div>
+        <div class="shrink-0 rounded-b-3xl border-t border-slate-200 bg-white px-6 pb-4 pt-3">
           <p v-if="errorCobro" class="mb-2 rounded-xl bg-red-100 px-4 py-3 text-lg font-bold text-red-700">{{ errorCobro }}</p>
           <button type="button" class="w-full rounded-2xl bg-green-600 py-5 text-2xl font-extrabold text-white shadow-sm hover:bg-green-700 disabled:bg-slate-300" :disabled="guardando" @click="confirmarCobro">{{ guardando ? 'Guardando…' : 'CONFIRMAR COBRO (F12)' }}</button>
           <button type="button" class="mt-1 w-full py-1.5 text-base font-semibold text-slate-500 hover:text-slate-800" @click="cobrando = false">Volver al tiquete</button>
@@ -548,7 +550,7 @@ watch(
 
         <template v-if="panel === 'caja'">
           <template v-if="!pos.caja && !cierreHecho">
-            <ol class="list-decimal space-y-1 rounded-2xl bg-blue-50 p-4 pl-9 text-lg text-blue-900"><li>Abra la gaveta y <b>cuente</b> el efectivo con que empieza el día.</li><li>Escriba ese monto aquí abajo.</li><li>Toque <b>ABRIR CAJA</b>.</li></ol>
+            <ol class="list-decimal space-y-1 rounded-2xl bg-blue-600 p-4 pl-9 text-lg text-white"><li>Abra la gaveta y <b>cuente</b> el efectivo con que empieza el día.</li><li>Escriba ese monto aquí abajo.</li><li>Toque <b>ABRIR CAJA</b>.</li></ol>
             <p class="mt-4 text-lg font-bold">¿Con cuánto efectivo empieza?</p>
             <input v-model="fondo" type="number" min="0" step="1" placeholder="₡ Escriba el monto (si empieza sin dinero, escriba 0)" class="mt-1 w-full rounded-2xl border-2 border-slate-300 px-4 py-4 text-3xl font-extrabold outline-none focus:border-blue-500" />
             <p v-if="errorCaja" class="mt-2 rounded-xl bg-red-100 px-4 py-3 text-lg font-bold text-red-700">{{ errorCaja }}</p>
@@ -560,7 +562,7 @@ watch(
               <p><b>{{ turno.ventas }}</b> venta(s) por <b>{{ formatearColones(turno.total) }}</b></p>
               <p v-for="(m, k) in turno.porMedio" :key="k" class="text-base text-slate-600">{{ ETIQUETA[k] ?? k }}: {{ formatearColones(m) }}</p>
             </div>
-            <ol class="list-decimal space-y-1 rounded-2xl bg-blue-50 p-4 pl-9 text-lg text-blue-900"><li>Abra la gaveta y <b>cuente TODO el efectivo</b> que hay (incluya el que tenía al empezar).</li><li>Escriba el monto aquí abajo.</li><li>Toque <b>CERRAR CAJA</b>. El sistema compara con lo que vendió.</li></ol>
+            <ol class="list-decimal space-y-1 rounded-2xl bg-blue-600 p-4 pl-9 text-lg text-white"><li>Abra la gaveta y <b>cuente TODO el efectivo</b> que hay (incluya el que tenía al empezar).</li><li>Escriba el monto aquí abajo.</li><li>Toque <b>CERRAR CAJA</b>. El sistema compara con lo que vendió.</li></ol>
             <p class="mt-4 text-lg font-bold">¿Cuánto efectivo hay en la gaveta?</p>
             <input v-model="contado" type="number" min="0" step="1" placeholder="₡ Escriba lo que contó" class="mt-1 w-full rounded-2xl border-2 border-slate-300 px-4 py-4 text-3xl font-extrabold outline-none focus:border-blue-500" />
             <input v-model="notasCaja" type="text" maxlength="300" placeholder="Nota (si algo no cuadra, explíquelo aquí)" class="mt-2 w-full rounded-2xl border-2 border-slate-300 px-4 py-3 text-lg outline-none focus:border-blue-500" />

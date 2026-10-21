@@ -7,6 +7,10 @@ Versionado `MAYOR.MENOR.PARCHE`:
 
 La versión se cambia en `app/package.json` y `backend/package.json` (el pie de página y el panel del sistema la leen solos).
 
+## 1.5.3 — 22 oct 2026 — Ventana de cobro sin texto tapado
+- Caja: el botón «Confirmar cobro» ya no tapa el contenido de la ventana de cobro (queda en un pie separado y el contenido se desplaza por encima).
+- Los cuadros de instrucciones (cobro con tarjeta, SINPE y transferencia, abrir y cerrar caja) ahora son azul sólido con letra blanca para que se lean también en el tema oscuro.
+
 ## 1.5.2 — 22 oct 2026 — Arreglo al guardar mínimos de stock
 - Productos de tienda: al guardar los **mínimos de stock** salía el error «put is not a function» (los precios y códigos sí se guardaban). Corregido; además, si algo falla al guardar los mínimos, el mensaje lo explica y aclara qué sí se guardó.
 
