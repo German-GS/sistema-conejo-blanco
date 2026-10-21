@@ -220,10 +220,17 @@ html.tema-oscuro ::placeholder {
   body.imprimiendo-tiquete #app {
     display: none !important;
   }
+  /* Las impresoras de rollo no imprimen hasta el borde del papel: se deja un margen generoso arriba y a los lados
+     (se ajusta desde la caja: Ventas de hoy → Márgenes del tiquete) para que no se corten las letras. */
+  body.imprimiendo-tiquete {
+    margin: 0 !important;
+    padding: 0 !important;
+  }
   body.imprimiendo-tiquete #ticket-print {
     display: block !important;
-    width: 72mm;
-    padding: 2mm;
+    box-sizing: border-box;
+    width: 80mm;
+    padding: var(--tq-sup, 8mm) var(--tq-lado, 8mm) 10mm;
     background: #fff;
     color: #000;
   }

@@ -193,6 +193,13 @@ export class SincronizarPosDto {
   @ValidateNested({ each: true })
   @Type(() => PosOrdenDto)
   ordenes?: PosOrdenDto[];
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(50)
+  @ValidateNested({ each: true })
+  @Type(() => PosRecepcionDto)
+  recepciones?: PosRecepcionDto[];
 }
 
 export class NotaOrdenDto {
@@ -264,6 +271,12 @@ export class RecibirTiendaDto {
   @IsString()
   @MaxLength(300)
   nota?: string;
+}
+
+// Mercadería aceptada en la tienda mientras no había internet; se envía al reconectarse.
+export class PosRecepcionDto extends RecibirTiendaDto {
+  @IsUUID()
+  ordenId: string;
 }
 
 export class EstadoOrdenDto {

@@ -17,6 +17,7 @@ export const pos = reactive({
   cajas: [],
   ordenes: [], // pedidos de reposición hechos en esta terminal
   ordenesRecientes: [], // pedidos de la tienda según el servidor (con su estado)
+  recepciones: [], // mercadería aceptada en la tienda que aún no se envió al servidor
   ultimoNumeroOrden: 0,
   enLinea: typeof navigator === 'undefined' ? true : navigator.onLine,
   sincronizando: false,
@@ -25,7 +26,7 @@ export const pos = reactive({
   imprimirAuto: true,
 });
 
-const DIAS_GUARDAR = 3;
+const DIAS_GUARDAR = 45; // lo ya enviado se conserva para poder sacar el informe de ventas sin internet
 const CADA_CATALOGO_MS = 10 * 60_000;
 const CADA_SYNC_MS = 30_000;
 let temporizadores = [];
@@ -51,7 +52,17 @@ const vendidoPendiente = computed(() => {
   return m;
 });
 
-export const stockDe = (varianteId) => (pos.stockServidor[varianteId]?.stock ?? 0) - (vendidoPendiente.value[varianteId] ?? 0);
+// La mercadería aceptada sin internet ya cuenta en la existencia de la tienda aunque el servidor todavía no lo sepa.
+const recibidoPendiente = computed(() => {
+  const m = {};
+  for (const r of pos.recepciones) {
+    if (r.rechazada) continue;
+    for (const l of r.lineas) m[l.varianteId] = (m[l.varianteId] ?? 0) + l.cantidadRecibida;
+  }
+  return m;
+});
+
+export const stockDe = (varianteId) => (pos.stockServidor[varianteId]?.stock ?? 0) - (vendidoPendiente.value[varianteId] ?? 0) + (recibidoPendiente.value[varianteId] ?? 0);
 export const minimoDe = (varianteId) => pos.stockServidor[varianteId]?.minimo ?? 0;
 
 // Se vende solo lo que tiene precio de tienda; el resto del catálogo solo se puede pedir a la bodega.
@@ -108,6 +119,7 @@ async function cargarLocal() {
   pos.ordenes = ordenes.sort((a, b) => a.numero - b.numero);
   pos.ordenesRecientes = recientes ?? [];
   pos.ultimoNumeroOrden = ultimaOrden ?? 0;
+  pos.recepciones = (await dbGet('kv', 'recepciones')) ?? [];
   pos.caja = cajaAbiertaDe(pos.tienda?.id);
 }
 
@@ -169,6 +181,7 @@ export async function elegirTienda(tienda) {
 }
 
 export async function cambiarTienda() {
+  if (recepcionesPorEnviar.value.length) throw new Error('Hay mercadería aceptada sin enviar. Conéctese a internet y espere a que se envíe antes de cambiar la tienda.');
   if (pendientes.value.length) throw new Error('Hay ventas sin enviar. Conéctese a internet y espere a que se envíen antes de cambiar la tienda.');
   pos.tienda = null;
   pos.catalogo = null;
@@ -324,19 +337,32 @@ export async function crearOrden(lineas, { urgente, notas }, usuario) {
   return orden;
 }
 
-// La tienda verifica lo que llegó contra lo que dice la orden y lo acepta. Necesita internet (mueve inventario y contabilidad).
+// La tienda verifica lo que llegó contra lo que dice la orden y lo acepta. Se guarda en esta computadora y la existencia sube
+// de una vez; el servidor mueve el inventario y la contabilidad cuando hay internet.
+export const recepcionPendiente = (ordenId) => pos.recepciones.find((r) => r.ordenId === ordenId && !r.rechazada);
+export const recepcionesPorEnviar = computed(() => pos.recepciones.filter((r) => !r.rechazada));
+export const recepcionesRechazadas = computed(() => pos.recepciones.filter((r) => r.rechazada));
+
 export async function recibirOrdenTienda(ordenId, lineas, nota) {
-  if (!navigator.onLine) throw new Error('Para aceptar la mercadería se necesita internet. Verifique lo recibido y acéptelo cuando vuelva la conexión.');
-  try {
-    await api.post(`/pos/ordenes/${ordenId}/recibir-tienda`, { lineas, nota: nota?.trim() || undefined });
-  } catch (err) {
-    if (err instanceof ApiError && err.status === 0) {
-      pos.enLinea = false;
-      throw new Error('No hay conexión con el servidor. Intente de nuevo en unos minutos.');
-    }
-    throw err;
+  if (!pos.tienda) throw new Error('Esta terminal no tiene tienda asignada.');
+  if (recepcionPendiente(ordenId)) throw new Error('Esa mercadería ya se aceptó y está por enviarse.');
+  const r = { ordenId, ubicacionId: pos.tienda.id, fecha: new Date().toISOString(), lineas: lineas.map((l) => ({ varianteId: l.varianteId, cantidadRecibida: l.cantidadRecibida })), nota: nota?.trim() || undefined, rechazada: false, error: '' };
+  pos.recepciones = [...pos.recepciones.filter((x) => x.ordenId !== ordenId), r];
+  await dbPut('kv', JSON.parse(JSON.stringify(pos.recepciones)), 'recepciones');
+  await sincronizar();
+  // Con internet el servidor responde enseguida: si no la aceptó, se le dice a la persona por qué y no queda atascada.
+  const rechazada = pos.recepciones.find((x) => x.ordenId === ordenId && x.rechazada);
+  if (rechazada) {
+    pos.recepciones = pos.recepciones.filter((x) => x !== rechazada);
+    await dbPut('kv', JSON.parse(JSON.stringify(pos.recepciones)), 'recepciones');
+    throw new Error(rechazada.error);
   }
-  await descargarCatalogo();
+}
+
+export async function reintentarRecepciones() {
+  for (const r of pos.recepciones) r.rechazada = false;
+  await dbPut('kv', JSON.parse(JSON.stringify(pos.recepciones)), 'recepciones');
+  await sincronizar();
 }
 
 export const ordenesPendientes = computed(() => pos.ordenes.filter((o) => !o.enviada && !o.rechazada));
@@ -375,17 +401,19 @@ export async function sincronizar() {
   const ventas = pos.ventas.filter((v) => !v.enviada && !v.rechazada);
   const cajas = pos.cajas.filter((c) => !c.aperturaEnviada || (c.cerradaEn && !c.cierreEnviado));
   const ordenes = pos.ordenes.filter((o) => !o.enviada && !o.rechazada);
-  if (!ventas.length && !cajas.length && !ordenes.length) return;
+  const recepciones = pos.recepciones.filter((r) => !r.rechazada);
+  if (!ventas.length && !cajas.length && !ordenes.length && !recepciones.length) return;
   pos.sincronizando = true;
   try {
     // Se envía por tienda: lo pendiente de otra tienda (si la terminal cambió de tienda) viaja a la suya.
-    const tiendas = new Set([...ventas, ...cajas, ...ordenes].map(tiendaDe));
+    const tiendas = new Set([...ventas, ...cajas, ...ordenes, ...recepciones].map(tiendaDe));
     for (const ubicacionId of tiendas) {
       const r = await api.post('/pos/sincronizar', {
         ubicacionId,
         ventas: ventas.filter((v) => tiendaDe(v) === ubicacionId).map(ventaParaServidor),
         cajas: cajas.filter((c) => tiendaDe(c) === ubicacionId).map(cajaParaServidor),
         ordenes: ordenes.filter((o) => tiendaDe(o) === ubicacionId).map(ordenParaServidor),
+        recepciones: recepciones.filter((x) => tiendaDe(x) === ubicacionId).map((x) => ({ ordenId: x.ordenId, lineas: x.lineas, nota: x.nota })),
       });
       await aplicarResultado(r, ubicacionId, cajas.filter((c) => tiendaDe(c) === ubicacionId));
     }
@@ -405,6 +433,17 @@ function ordenParaServidor(o) {
 }
 
 async function aplicarResultado(r, ubicacionId, cajasEnviadas) {
+  for (const res of r.recepciones ?? []) {
+    const x = pos.recepciones.find((q) => q.ordenId === res.ordenId);
+    if (!x) continue;
+    if (res.estado === 'error') {
+      x.rechazada = true;
+      x.error = res.mensaje ?? 'El servidor no aceptó la recepción.';
+    } else {
+      pos.recepciones = pos.recepciones.filter((q) => q !== x);
+    }
+  }
+  if (r.recepciones?.length) await dbPut('kv', JSON.parse(JSON.stringify(pos.recepciones)), 'recepciones');
   for (const res of r.ordenes ?? []) {
     const o = pos.ordenes.find((x) => x.id === res.id);
     if (!o) continue;

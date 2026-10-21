@@ -150,6 +150,9 @@ export class PosService {
         resultadosOrdenes.push({ id: o.id, estado: 'error', mensaje: err instanceof Error ? err.message : 'No se pudo guardar el pedido.' });
       }
     }
+    // 2c. Mercadería que la tienda aceptó sin internet.
+    const resultadosRecepciones = [];
+    for (const r of dto.recepciones ?? []) resultadosRecepciones.push(await this.ordenes.recibirDesdeTerminal(usuario, tienda.id, r));
     // 3. Cierres de caja (ya con todas las ventas del turno).
     for (const c of dto.cajas) {
       if (resultadosCajas.some((r) => r.id === c.id)) continue;
@@ -169,7 +172,7 @@ export class PosService {
       this.dataSource.query('SELECT COALESCE(MAX(numero), 0)::int AS n FROM pos_ordenes WHERE ubicacion_id = $1', [tienda.id]),
       this.ordenes.recientes(tienda.id),
     ]);
-    return { ventas: resultados, cajas: resultadosCajas, ordenes: resultadosOrdenes, ordenesRecientes: recientes, ultimoNumeroOrden: ultimaOrden[0].n, stock, ultimoNumero: ultimo[0].n, sincronizadoEn: new Date().toISOString() };
+    return { ventas: resultados, cajas: resultadosCajas, ordenes: resultadosOrdenes, recepciones: resultadosRecepciones, ordenesRecientes: recientes, ultimoNumeroOrden: ultimaOrden[0].n, stock, ultimoNumero: ultimo[0].n, sincronizadoEn: new Date().toISOString() };
   }
 
   private async guardarApertura(tienda: Ubicacion, usuarioId: string, c: PosCajaDto): Promise<void> {
@@ -413,6 +416,24 @@ export class PosService {
       [desde, hasta, f.ubicacionId || null, f.estado || null, Boolean(f.pruebas)],
     );
     return filas.map((x) => ({ ...x, numeroTexto: numeroTexto(String(x.tiendaCodigo), Number(x.numero)) }));
+  }
+
+  // Una fila por producto vendido: sirve para el informe de ventas en CSV (la lista de tiquetes solo trae los totales).
+  async lineasParaInforme(f: { desde?: string; hasta?: string; ubicacionId?: string; pruebas?: boolean }) {
+    const [desde, hasta] = this.rango(f);
+    const filas: Array<Record<string, unknown>> = await this.dataSource.query(
+      `SELECT u.codigo AS "tiendaCodigo", v.numero, to_char(v.fecha AT TIME ZONE '${ZONA}', 'YYYY-MM-DD') AS fecha, to_char(v.fecha AT TIME ZONE '${ZONA}', 'HH24:MI') AS hora,
+              u.nombre AS tienda, us.nombre AS cajero, v.estado, v.es_prueba AS prueba, v.creada_sin_conexion AS "sinConexion",
+              p.codigo, p.nombre AS producto, va.color, l.cantidad::int AS cantidad, l.precio_unitario::float8 AS precio, l.subtotal::float8 AS subtotal, v.total::float8 AS "totalTiquete",
+              (SELECT string_agg(DISTINCT pg.medio, ', ' ORDER BY pg.medio) FROM pos_pagos pg WHERE pg.venta_id = v.id) AS medios
+       FROM pos_venta_lineas l JOIN pos_ventas v ON v.id = l.venta_id JOIN ubicaciones u ON u.id = v.ubicacion_id JOIN usuarios us ON us.id = v.cajero_id
+       JOIN variantes_producto va ON va.id = l.variante_id JOIN productos p ON p.id = va.producto_id
+       WHERE ($1::text IS NULL OR to_char(v.fecha AT TIME ZONE '${ZONA}', 'YYYY-MM-DD') >= $1) AND ($2::text IS NULL OR to_char(v.fecha AT TIME ZONE '${ZONA}', 'YYYY-MM-DD') <= $2)
+         AND ($3::uuid IS NULL OR v.ubicacion_id = $3::uuid) AND ($4::boolean OR NOT v.es_prueba)
+       ORDER BY v.fecha, v.numero, p.codigo, va.color LIMIT 20000`,
+      [desde, hasta, f.ubicacionId || null, Boolean(f.pruebas)],
+    );
+    return filas.map((x) => ({ ...x, tiquete: numeroTexto(String(x.tiendaCodigo), Number(x.numero)) }));
   }
 
   async detalle(id: string) {

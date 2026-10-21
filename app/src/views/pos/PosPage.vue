@@ -1,15 +1,16 @@
 <script setup>
 import CambiarVista from '../../layout/CambiarVista.vue';
+import { descargarCsv, fechaArchivo } from '../../lib/csv.js';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
-import { Banknote, Barcode, Boxes, Cloud, CloudOff, CircleCheck, FlaskConical, CreditCard, Info, KeyRound, Landmark, LogOut, Minus, PackagePlus, Plus, Printer, Receipt, RefreshCw, ScanBarcode, Smartphone, Trash2, Truck, TriangleAlert, Wallet, X } from '@lucide/vue';
+import { Banknote, Barcode, Boxes, Cloud, Download, CloudOff, CircleCheck, FlaskConical, CreditCard, Info, KeyRound, Landmark, LogOut, Minus, PackagePlus, Plus, Printer, Receipt, RefreshCw, ScanBarcode, Smartphone, Trash2, Truck, TriangleAlert, Wallet, X } from '@lucide/vue';
 import logoMenu from '../../logo/logo-menu.png';
 import { useAuthStore } from '../../stores/auth.js';
 import { api, ApiError } from '../../lib/api.js';
 import { formatearColones, formatearFechaHora } from '../../lib/format.js';
 import {
   abrirCaja, alertasLocales, buscar, buscarExacto, cambiarTienda, esVendible, cerrarCaja, cobrar, descargarCatalogo, detenerPos, efectivoEsperado, elegirTienda,
-  guardarImprimirAuto, iniciarPos, minimoDe, numeroTexto, pendientes, pos, rechazadas, reintentarRechazadas, resumenTurno, sincronizar, stockDe, sugerenciasPedido, ordenesPendientes,
+  guardarImprimirAuto, iniciarPos, minimoDe, recepcionPendiente, recepcionesPorEnviar, recepcionesRechazadas, reintentarRecepciones, numeroTexto, pendientes, pos, rechazadas, reintentarRechazadas, resumenTurno, sincronizar, stockDe, sugerenciasPedido, ordenesPendientes,
 } from '../../lib/pos.js';
 import TiquetePos from './TiquetePos.vue';
 import PedidoReposicion from './PedidoReposicion.vue';
@@ -50,6 +51,58 @@ function irAPrecios() {
     /* sin sessionStorage solo abre la primera pestaña */
   }
   router.push({ name: 'admin-tienda' });
+}
+
+// ---- Informes en CSV (se arman con lo guardado en esta computadora, así que funcionan sin internet)
+const informePeriodo = ref('hoy');
+const PERIODOS = [['hoy', 'Hoy'], ['7', 'Últimos 7 días'], ['30', 'Últimos 30 días'], ['todo', 'Todo lo guardado']];
+const ZONA_CR = 'America/Costa_Rica';
+const diaCR = (d) => new Date(d).toLocaleDateString('en-CA', { timeZone: ZONA_CR });
+const horaCR = (d) => new Date(d).toLocaleTimeString('es-CR', { timeZone: ZONA_CR, hour: '2-digit', minute: '2-digit', hour12: false });
+const ventasInforme = computed(() => {
+  const desde = informePeriodo.value === 'todo' ? null : diaCR(Date.now() - (informePeriodo.value === 'hoy' ? 0 : (Number(informePeriodo.value) - 1) * 86_400_000));
+  return pos.ventas.filter((v) => (v.ubicacionId ?? pos.tienda?.id) === pos.tienda?.id && (!desde || diaCR(v.fecha) >= desde)).sort((a, b) => a.numero - b.numero);
+});
+function exportarVentas() {
+  const filas = [];
+  for (const v of ventasInforme.value) v.lineas.forEach((l, i) => filas.push({ v, l, primera: i === 0 }));
+  const columnas = [
+    ['Tiquete', (f) => numeroTexto(f.v)],
+    ['Fecha', (f) => diaCR(f.v.fecha)],
+    ['Hora', (f) => horaCR(f.v.fecha)],
+    ['Cajero', (f) => f.v.cajero],
+    ['Estado', (f) => (f.v.anulada ? 'Anulado' : 'Vigente')],
+    ['Prueba', (f) => !!f.v.esPrueba],
+    ['Código', (f) => f.l.codigo],
+    ['Producto', (f) => f.l.nombre],
+    ['Color', (f) => f.l.color],
+    ['Cantidad', (f) => f.l.cantidad],
+    ['Precio unitario', (f) => f.l.precioUnitario],
+    ['Subtotal', (f) => f.l.subtotal],
+    ['Total del tiquete (solo en su primera línea)', (f) => (f.primera ? f.v.total : '')],
+    ['Formas de pago', (f) => f.v.pagos.map((p) => ETIQUETA[p.medio] ?? p.medio).join(' + ')],
+    ['Cobrado sin internet', (f) => !!f.v.sinConexion],
+    ['Enviado al sistema', (f) => !!f.v.enviada],
+  ];
+  descargarCsv(`ventas-${pos.tienda.codigo}-${fechaArchivo()}`, columnas, filas);
+  avisar(`Se descargó el informe de ventas (${ventasInforme.value.length} tiquete(s)).`);
+}
+function exportarInventario() {
+  const estado = (v) => (stockDe(v.varianteId) <= 0 ? 'Agotado' : minimoDe(v.varianteId) > 0 && stockDe(v.varianteId) <= minimoDe(v.varianteId) ? 'Bajo' : 'Normal');
+  const columnas = [
+    ['Tienda', () => pos.tienda.nombre],
+    ['Código', (v) => v.codigo],
+    ['Producto', (v) => v.nombre],
+    ['Color', (v) => v.color],
+    ['Código de barras', (v) => v.codigoBarras ?? ''],
+    ['Existencia en tienda', (v) => stockDe(v.varianteId)],
+    ['Mínimo', (v) => minimoDe(v.varianteId)],
+    ['Estado', estado],
+    ['Precio de tienda', (v) => (esVendible(v) ? v.precio : '')],
+    ['Prueba', (v) => !!v.prueba],
+  ];
+  descargarCsv(`inventario-${pos.tienda.codigo}-${fechaArchivo()}`, columnas, invFilas.value);
+  avisar(`Se descargó el inventario (${invFilas.value.length} producto(s)).`);
 }
 
 // ---- Tienda de esta terminal
@@ -195,6 +248,30 @@ function siguienteVenta() {
 }
 
 // ---- Tiquete e impresión
+// Márgenes del tiquete (mm): cada impresora de rollo corta un poco distinto, así que se ajustan aquí y quedan guardados en esta computadora.
+const MARGENES_LADO = [4, 6, 8, 10, 12, 14];
+const MARGENES_SUP = [4, 6, 8, 10, 14, 18];
+const margenLado = ref(8);
+const margenSup = ref(8);
+try {
+  const g = JSON.parse(localStorage.getItem('cb-tiquete-margenes') ?? 'null');
+  if (g?.lado) margenLado.value = Number(g.lado);
+  if (g?.sup) margenSup.value = Number(g.sup);
+} catch {
+  /* sin almacenamiento se usan los márgenes por defecto */
+}
+watch([margenLado, margenSup], () => {
+  document.documentElement.style.setProperty('--tq-lado', `${margenLado.value}mm`);
+  document.documentElement.style.setProperty('--tq-sup', `${margenSup.value}mm`);
+  try {
+    localStorage.setItem('cb-tiquete-margenes', JSON.stringify({ lado: margenLado.value, sup: margenSup.value }));
+  } catch {
+    /* no pasa nada: se pierde el ajuste al cerrar */
+  }
+}, { immediate: true });
+function imprimirPrueba() {
+  imprimir({ id: 'prueba', numero: 0, tiendaCodigo: pos.tienda?.codigo, fecha: new Date().toISOString(), cajero: auth.usuario?.nombre ?? 'Cajero', esPrueba: true, total: 12500, lineas: [{ cantidad: 2, codigo: 'KW000', color: 'Negro', precioUnitario: 5000, subtotal: 10000 }, { cantidad: 1, codigo: 'KW111', color: 'Azul', precioUnitario: 2500, subtotal: 2500 }], pagos: [{ medio: 'efectivo', monto: 12500, recibido: 15000 }] });
+}
 const ultimaVenta = ref(null);
 const ventaImpresion = ref(null);
 async function imprimir(venta) {
@@ -213,7 +290,7 @@ async function imprimir(venta) {
 // ---- Caja
 const panel = ref(''); // '', 'caja', 'turno', 'alertas', 'rechazadas'
 const pidiendo = ref(false);
-const enCaminoTienda = computed(() => pos.ordenesRecientes.filter((o) => o.puedeRecibir).length);
+const enCaminoTienda = computed(() => pos.ordenesRecientes.filter((o) => o.puedeRecibir && !recepcionPendiente(o.id)).length);
 const fondo = ref('');
 const contado = ref('');
 const notasCaja = ref('');
@@ -251,8 +328,10 @@ const ETIQUETA = { efectivo: 'Efectivo', tarjeta: 'Tarjeta', sinpe: 'SINPE', tra
 const cajaDeOtroDia = computed(() => pos.caja && new Date(pos.caja.abiertaEn).toDateString() !== new Date().toDateString());
 const avisos = computed(() => {
   const a = [];
-  if (!pos.enLinea) a.push({ tipo: 'error', icono: CloudOff, titulo: 'No hay internet', texto: 'Puede seguir vendiendo con toda normalidad. Las ventas se guardan en esta computadora y se envían solas cuando vuelva el internet. No apague la computadora ni borre los datos del navegador.' });
+  if (!pos.enLinea) a.push({ tipo: 'error', icono: CloudOff, titulo: 'No hay internet', texto: 'Puede seguir trabajando con toda normalidad: vender, recibir mercadería y hacer pedidos. Todo se guarda en esta computadora y se envía solo cuando vuelva el internet. No apague la computadora ni borre los datos del navegador.' });
   if (rechazadas.value.length) a.push({ tipo: 'error', icono: TriangleAlert, titulo: `${rechazadas.value.length} venta(s) no se pudieron enviar`, texto: 'Avise a la administración. Las ventas siguen guardadas en esta computadora.', accion: { texto: 'VER CUÁLES', fn: () => (panel.value = 'rechazadas') } });
+  if (recepcionesRechazadas.value.length) a.push({ tipo: 'error', icono: TriangleAlert, titulo: `${recepcionesRechazadas.value.length} recepción(es) de mercadería no se pudieron enviar`, texto: `${recepcionesRechazadas.value[0].error} Avise a la administración.`, accion: { texto: 'REINTENTAR', fn: () => void reintentarRecepciones() } });
+  if (recepcionesPorEnviar.value.length) a.push({ tipo: 'info', icono: RefreshCw, titulo: `${recepcionesPorEnviar.value.length} recepción(es) de mercadería por enviar`, texto: 'La mercadería ya cuenta en el inventario de la tienda. Se enviará sola cuando haya internet.' });
   if (pos.tienda && !pos.caja) a.push({ tipo: 'aviso', icono: Wallet, titulo: 'La caja está cerrada', texto: 'Para poder vender, primero abra la caja: cuente el efectivo con que empieza y escríbalo.', accion: { texto: 'ABRIR CAJA', fn: () => (panel.value = 'caja') } });
   if (cajaDeOtroDia.value) a.push({ tipo: 'aviso', icono: Wallet, titulo: 'La caja se abrió otro día', texto: 'Cuente el efectivo y cierre la caja; después ábrala de nuevo para empezar el día ordenado.', accion: { texto: 'CERRAR CAJA', fn: () => (panel.value = 'caja') } });
   if (enCaminoTienda.value) a.push({ tipo: 'info', icono: Truck, titulo: 'Viene mercadería en camino', texto: 'Cuando llegue, cuente lo que trae y compárelo con la orden. Si todo está bien, toque ACEPTAR. Si falta algo, anótelo.', accion: { texto: 'VER ENVÍO', fn: () => (pidiendo.value = true) } });
@@ -261,11 +340,11 @@ const avisos = computed(() => {
   return a;
 });
 const ESTILO_AVISO = {
-  error: 'border-red-300 bg-red-50 text-red-900',
-  aviso: 'border-amber-300 bg-amber-50 text-amber-900',
-  info: 'border-blue-300 bg-blue-50 text-blue-900',
+  error: 'border-red-800 bg-red-700 text-white',
+  aviso: 'border-amber-600 bg-amber-500 text-slate-900',
+  info: 'border-blue-800 bg-blue-700 text-white',
 };
-const ESTILO_BOTON_AVISO = { error: 'bg-red-600 hover:bg-red-700', aviso: 'bg-amber-600 hover:bg-amber-700', info: 'bg-blue-600 hover:bg-blue-700' };
+const ESTILO_BOTON_AVISO = { error: 'bg-white text-red-800 hover:bg-red-50', aviso: 'bg-slate-900 text-white hover:bg-black', info: 'bg-white text-blue-800 hover:bg-blue-50' };
 
 // ---- Salir
 function salir() {
@@ -396,7 +475,7 @@ watch(
           <div v-for="(a, i) in avisos.slice(0, 3)" :key="i" class="flex flex-wrap items-center gap-3 rounded-2xl border-2 px-4 py-3" :class="ESTILO_AVISO[a.tipo]">
             <component :is="a.icono" class="size-8 shrink-0" />
             <div class="min-w-0 flex-1"><p class="text-lg font-extrabold leading-tight">{{ a.titulo }}</p><p class="text-base leading-snug">{{ a.texto }}</p></div>
-            <button v-if="a.accion" type="button" class="rounded-xl px-5 py-3 text-base font-extrabold text-white shadow-sm" :class="ESTILO_BOTON_AVISO[a.tipo]" @click="a.accion.fn()">{{ a.accion.texto }}</button>
+            <button v-if="a.accion" type="button" class="rounded-xl px-5 py-3 text-base font-extrabold shadow-sm" :class="ESTILO_BOTON_AVISO[a.tipo]" @click="a.accion.fn()">{{ a.accion.texto }}</button>
           </div>
           <p v-if="avisos.length > 3" class="text-sm font-semibold text-slate-500">y {{ avisos.length - 3 }} aviso(s) más…</p>
         </div>
@@ -580,6 +659,23 @@ watch(
         </template>
 
         <template v-else-if="panel === 'turno'">
+          <details class="mb-4 rounded-2xl border-2 border-slate-200 p-4">
+            <summary class="cursor-pointer text-lg font-extrabold text-slate-900">Márgenes del tiquete</summary>
+            <p class="mt-1 text-sm text-slate-500">Si al imprimir se corta el nombre de arriba o las primeras letras de los lados, aumente el margen y pruebe de nuevo.</p>
+            <div class="mt-2 grid grid-cols-2 gap-3">
+              <label class="flex flex-col text-sm font-semibold text-slate-600">Margen de los lados<select v-model.number="margenLado" class="input mt-1"><option v-for="m in MARGENES_LADO" :key="m" :value="m">{{ m }} mm</option></select></label>
+              <label class="flex flex-col text-sm font-semibold text-slate-600">Margen de arriba<select v-model.number="margenSup" class="input mt-1"><option v-for="m in MARGENES_SUP" :key="m" :value="m">{{ m }} mm</option></select></label>
+            </div>
+            <button type="button" class="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-slate-300 py-3 text-lg font-bold hover:bg-slate-100" @click="imprimirPrueba"><Printer class="size-5" /> Imprimir tiquete de prueba</button>
+          </details>
+          <div class="mb-4 rounded-2xl border-2 border-slate-200 p-4">
+            <p class="text-lg font-extrabold text-slate-900">Informe de ventas (CSV)</p>
+            <p class="text-sm text-slate-500">Se arma con lo guardado en esta computadora: funciona sin internet y se abre en Excel.</p>
+            <div class="mt-2 flex flex-wrap gap-2">
+              <button v-for="p in PERIODOS" :key="p[0]" type="button" class="rounded-xl border-2 px-3 py-1.5 text-base font-bold" :class="informePeriodo === p[0] ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-300 hover:bg-slate-100'" @click="informePeriodo = p[0]">{{ p[1] }}</button>
+            </div>
+            <button type="button" class="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl bg-slate-800 py-3 text-lg font-extrabold text-white hover:bg-slate-900 disabled:bg-slate-300" :disabled="!ventasInforme.length" @click="exportarVentas"><Download class="size-5" /> Descargar informe de ventas ({{ ventasInforme.length }} tiquete(s))</button>
+          </div>
           <p v-if="!pos.caja" class="text-lg text-slate-500">La caja está cerrada: no hay un turno abierto.</p>
           <ul v-else class="divide-y divide-slate-100">
             <li v-for="v in ventasTurno" :key="v.id" class="flex items-center justify-between gap-2 py-3 text-lg">
@@ -602,7 +698,8 @@ watch(
             </li>
             <li v-if="!invFilas.length" class="py-4 text-lg text-slate-600">No hay productos con esas condiciones.</li>
           </ul>
-          <button type="button" class="mt-4 w-full rounded-2xl border-2 border-slate-300 py-3 text-lg font-bold hover:bg-slate-100" @click="descargarCatalogo">Actualizar existencias</button>
+          <button type="button" class="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-slate-800 py-3 text-lg font-extrabold text-white hover:bg-slate-900 disabled:bg-slate-300" :disabled="!invFilas.length" @click="exportarInventario"><Download class="size-5" /> Descargar inventario (CSV)</button>
+          <button type="button" class="mt-2 w-full rounded-2xl border-2 border-slate-300 py-3 text-lg font-bold hover:bg-slate-100" @click="descargarCatalogo">Actualizar existencias</button>
         </template>
 
         <template v-else-if="panel === 'alertas'">

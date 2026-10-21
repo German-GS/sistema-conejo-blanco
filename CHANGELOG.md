@@ -7,6 +7,12 @@ Versionado `MAYOR.MENOR.PARCHE`:
 
 La versión se cambia en `app/package.json` y `backend/package.json` (el pie de página y el panel del sistema la leen solos).
 
+## 1.6.0 — 22 oct 2026 — La tienda trabaja sin internet: recepción de mercadería e informes en CSV
+- **Recibir mercadería sin internet:** la tienda acepta el envío aunque no haya conexión; la existencia sube de inmediato y la aceptación se envía sola al volver el internet (el servidor mueve el inventario y genera el asiento; reenviar no duplica). Si el servidor no la acepta, un aviso explica por qué y permite reintentar.
+- **Informes en CSV:** en la caja (sin internet) el inventario y el informe de ventas por período; en el panel, el informe de ventas (Tienda → Ventas) y las existencias o el kardex (Bodega). Archivos con «;» y coma decimal para abrirse en columnas en Excel. Las ventas ya enviadas se conservan 45 días en la computadora.
+- **Tiquete:** márgenes más amplios (arriba y a los lados) para que no se corten las letras en impresoras de rollo, con ajuste en la caja (Ventas de hoy → Márgenes del tiquete) y botón de tiquete de prueba.
+- **Avisos de la caja** (sin internet, mercadería en camino, errores) con color sólido y letra legible también en el tema oscuro.
+
 ## 1.5.3 — 22 oct 2026 — Ventana de cobro sin texto tapado
 - Caja: el botón «Confirmar cobro» ya no tapa el contenido de la ventana de cobro (queda en un pie separado y el contenido se desplaza por encima).
 - Los cuadros de instrucciones (cobro con tarjeta, SINPE y transferencia, abrir y cerrar caja) ahora son azul sólido con letra blanca para que se lean también en el tema oscuro.

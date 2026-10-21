@@ -3,7 +3,7 @@ import { DataSource, EntityManager, In } from 'typeorm';
 import { ESTADO_ORDEN_TIENDA as E, OrdenTienda } from './orden-tienda.entity.js';
 import { OrdenTiendaLinea } from './orden-tienda-linea.entity.js';
 import { OrdenTiendaEvento } from './orden-tienda-evento.entity.js';
-import type { EstadoOrdenDto, PosOrdenDto, RecibirTiendaDto, RevisarOrdenDto } from './dto/pos.dto.js';
+import type { EstadoOrdenDto, PosOrdenDto, PosRecepcionDto, RecibirTiendaDto, RevisarOrdenDto } from './dto/pos.dto.js';
 import { VarianteProducto } from '../catalogo/variante-producto.entity.js';
 import { Ubicacion } from '../ubicaciones/ubicacion.entity.js';
 import { Usuario } from '../usuarios/usuario.entity.js';
@@ -334,6 +334,19 @@ export class OrdenesTiendaService {
       },
     );
     return { ok: true };
+  }
+
+  // La terminal aceptó la mercadería sin internet y ahora la envía. Si ya estaba recibida (reintento) no se repite.
+  async recibirDesdeTerminal(usuario: { id: string; rol: string }, ubicacionId: string, r: PosRecepcionDto): Promise<{ ordenId: string; estado: 'ok' | 'duplicada' | 'error'; mensaje?: string }> {
+    try {
+      const orden = await this.cargar(this.dataSource.manager, r.ordenId);
+      if (orden.ubicacionId !== ubicacionId) return { ordenId: r.ordenId, estado: 'error', mensaje: 'Ese pedido no es de esta tienda.' };
+      if (orden.estado === E.ENTREGADA) return { ordenId: r.ordenId, estado: 'duplicada' };
+      await this.recibirEnTienda(usuario, r.ordenId, r);
+      return { ordenId: r.ordenId, estado: 'ok' };
+    } catch (err) {
+      return { ordenId: r.ordenId, estado: 'error', mensaje: err instanceof Error ? err.message : 'No se pudo registrar la recepción.' };
+    }
   }
 
   private async contabilizarRecepcion(manager: EntityManager, orden: OrdenTienda, recibidas: Map<string, number>): Promise<void> {

@@ -37,6 +37,14 @@ Cada tienda lleva su **costo promedio por producto** (promedio de lo que ya ten�
 
 Un traspaso de un pedido de tienda **no se puede recibir desde Bodega**: lo recibe la tienda (así siempre queda el asiento). Rechazar o cancelar solo se puede antes de revisar.
 
+**Recibir la mercadería sin internet.** La tienda acepta el envío aunque no haya internet: la aceptación queda guardada en la computadora, la existencia de la tienda **sube de inmediato** y el pedido aparece como «Aceptada · se enviará con internet». Al volver la conexión se envía sola con las demás ventas; el servidor mueve el inventario y genera el asiento (con la fecha de cuando llegó la conexión) y, si se reenvía por error, no se duplica. Si el servidor no la acepta, un aviso rojo explica por qué y permite reintentar.
+
+## Informes en CSV
+
+- **En la caja** (funcionan sin internet, con lo guardado en la computadora): *Inventario → Descargar inventario* y *Ventas de hoy → Descargar informe de ventas* (hoy, 7 días, 30 días o todo lo guardado; las ventas ya enviadas se conservan 45 días). El informe de ventas trae una fila por producto vendido; el total del tiquete va solo en su primera línea para que no se sume dos veces.
+- **En el panel**: *Tienda → Ventas → Descargar CSV* (mismo informe, desde el servidor y con los filtros de la pantalla) y *Bodega → Descargar CSV* (existencias o kardex, con el filtro aplicado).
+- Los archivos usan «;» como separador y coma decimal para abrirse en columnas en Excel en español.
+
 ## Productos de prueba (demostraciones)
 
 Solo el **administrador del sistema** puede crear **productos de prueba** (casilla «Producto de prueba» al crear un producto en Inventario). Sirven para mostrar todo el proceso sin ensuciar la contabilidad:

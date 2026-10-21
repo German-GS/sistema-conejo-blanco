@@ -58,6 +58,13 @@ export class PosController {
     return this.pos.listar({ desde: q.desde, hasta: q.hasta, ubicacionId: q.ubicacionId, estado: q.estado, pruebas: q.pruebas === '1' });
   }
 
+  @Get('ventas/lineas')
+  @UseGuards(PermissionsGuard)
+  @RequirePermissions(Permiso.POS_VER)
+  lineasVentas(@Query() q: Record<string, string>) {
+    return this.pos.lineasParaInforme({ desde: q.desde, hasta: q.hasta, ubicacionId: q.ubicacionId, pruebas: q.pruebas === '1' });
+  }
+
   @Get('ventas/:id')
   @UseGuards(PermissionsGuard)
   @RequirePermissions(Permiso.POS_VER)

@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue';
-import { Package, Plus, TriangleAlert, Search, X } from '@lucide/vue';
+import { Download, Package, Plus, TriangleAlert, Search, X } from '@lucide/vue';
+import { descargarCsv, fechaArchivo } from '../../lib/csv.js';
 import { api, ApiError } from '../../lib/api.js';
 import { formatearFechaHora } from '../../lib/format.js';
 import { useAuthStore } from '../../stores/auth.js';
@@ -99,6 +100,30 @@ const ETIQUETAS_MOVIMIENTO = {
   ajuste_conteo: 'Ajuste de conteo',
   ajuste_merma: 'Merma',
 };
+// Exporta lo que se está viendo (con el filtro de ubicación y la búsqueda aplicados).
+function exportarCsv() {
+  if (vista.value === 'existencias') {
+    descargarCsv(`existencias-${fechaArchivo()}`, [
+      ['Ubicación', (s) => s.ubicacion.nombre],
+      ['Código', (s) => s.variante.producto.codigo],
+      ['Producto', (s) => s.variante.producto.nombre],
+      ['Color', (s) => s.variante.color],
+      ['Existencia', (s) => s.cantidad],
+      ['Mínimo', (s) => s.stockMinimo ?? ''],
+    ], stockFiltrado.value);
+  } else {
+    descargarCsv(`kardex-${fechaArchivo()}`, [
+      ['Fecha', (m) => new Date(m.creadoEn).toLocaleString('es-CR', { timeZone: 'America/Costa_Rica', hour12: false })],
+      ['Ubicación', (m) => m.ubicacion.nombre],
+      ['Código', (m) => m.variante.producto.codigo],
+      ['Producto', (m) => m.variante.producto.nombre],
+      ['Color', (m) => m.variante.color],
+      ['Movimiento', (m) => etiquetaMovimiento(m.tipo)],
+      ['Cantidad', (m) => m.cantidad],
+      ['Usuario', (m) => m.creadoPor?.nombre ?? 'Usuario eliminado'],
+    ], kardexFiltrado.value);
+  }
+}
 function etiquetaMovimiento(tipo) {
   return ETIQUETAS_MOVIMIENTO[tipo] ?? tipo;
 }
@@ -266,7 +291,12 @@ async function confirmarAjuste() {
         <Package class="size-5 text-teal-600" />
         <h1 class="text-xl font-bold text-slate-900">Bodega</h1>
       </div>
-      <div v-if="puedeGestionar && vista === 'existencias'" class="flex gap-2">
+      <div class="flex flex-wrap gap-2">
+        <button type="button" class="btn-secondary min-h-11 px-4 text-base" @click="exportarCsv">
+          <Download class="size-5" />
+          Descargar CSV
+        </button>
+        <template v-if="puedeGestionar && vista === 'existencias'">
         <button type="button" class="btn-secondary min-h-11 px-4 text-base" @click="alternarIngreso">
           <Plus class="size-5" />
           Ingreso
@@ -275,6 +305,7 @@ async function confirmarAjuste() {
           <Plus class="size-5" />
           Ajuste
         </button>
+        </template>
       </div>
     </div>
 

@@ -3,6 +3,7 @@ import { computed, onMounted, ref, watch } from 'vue';
 import { api, ApiError } from '../../../lib/api.js';
 import { useAuthStore } from '../../../stores/auth.js';
 import { fechaHoyISO, formatearColones } from '../../../lib/format.js';
+import { descargarCsv } from '../../../lib/csv.js';
 import BarrasHorizontales from '../../../components/BarrasHorizontales.vue';
 import BarrasPeriodo from '../../../components/BarrasPeriodo.vue';
 
@@ -53,6 +54,45 @@ async function ver(v) {
     error.value = err instanceof ApiError ? err.message : 'No se pudo abrir la venta.';
   }
 }
+const exportando = ref(false);
+// Informe de ventas en CSV: una fila por producto vendido, con el mismo rango y filtros de la pantalla.
+async function exportarCsv() {
+  exportando.value = true;
+  try {
+    const q = new URLSearchParams();
+    if (desde.value) q.set('desde', desde.value);
+    if (hasta.value) q.set('hasta', hasta.value);
+    if (tienda.value) q.set('ubicacionId', tienda.value);
+    if (pruebas.value) q.set('pruebas', '1');
+    const filas = await api.get(`/pos/ventas/lineas?${q}`);
+    const primera = new Set();
+    const columnas = [
+      ['Tienda', (f) => f.tienda],
+      ['Tiquete', (f) => f.tiquete],
+      ['Fecha', (f) => f.fecha],
+      ['Hora', (f) => f.hora],
+      ['Cajero', (f) => f.cajero],
+      ['Estado', (f) => (f.estado === 'anulada' ? 'Anulado' : 'Vigente')],
+      ['Prueba', (f) => !!f.prueba],
+      ['Código', (f) => f.codigo],
+      ['Producto', (f) => f.producto],
+      ['Color', (f) => f.color],
+      ['Cantidad', (f) => f.cantidad],
+      ['Precio unitario', (f) => f.precio],
+      ['Subtotal', (f) => f.subtotal],
+      ['Total del tiquete (solo en su primera línea)', (f) => (primera.has(f.tiquete) ? '' : (primera.add(f.tiquete), f.totalTiquete))],
+      ['Formas de pago', (f) => (f.medios ?? '').split(', ').map((m) => MEDIO[m] ?? m).join(' + ')],
+      ['Cobrado sin internet', (f) => !!f.sinConexion],
+    ];
+    descargarCsv(`ventas-tienda-${desde.value || 'inicio'}-a-${hasta.value || 'hoy'}`, columnas, filas);
+    error.value = '';
+  } catch (err) {
+    error.value = err instanceof ApiError ? err.message : 'No se pudo generar el informe.';
+  } finally {
+    exportando.value = false;
+  }
+}
+
 const convirtiendo = ref(false);
 async function convertirEnPrueba() {
   if (!window.confirm(`¿Convertir el tiquete ${detalle.value.numeroTexto} en venta de PRUEBA?\n\nSe BORRAN sus asientos contables (y las reversas) y deja de contar en reportes y caja. Solo para la etapa de pruebas.`)) return;
@@ -92,6 +132,7 @@ async function anular() {
         <select v-model="tienda" class="input mt-1"><option value="">Todas</option><option v-for="u in ubicaciones" :key="u.id" :value="u.id">{{ u.nombre }}</option></select>
       </label>
       <label v-if="auth.esSistema" class="flex items-center gap-2 pb-2 text-sm text-slate-700"><input v-model="pruebas" type="checkbox" class="size-4" /> Incluir ventas de prueba</label>
+      <button type="button" class="btn-secondary" :disabled="exportando" @click="exportarCsv">{{ exportando ? 'Preparando…' : 'Descargar CSV' }}</button>
       <div class="flex gap-1.5"><button type="button" class="btn-secondary" @click="desde = hoy; hasta = hoy">Hoy</button><button type="button" class="btn-secondary" @click="desde = hace(6); hasta = hoy">7 días</button><button type="button" class="btn-secondary" @click="desde = hace(29); hasta = hoy">30 días</button></div>
     </div>
     <p v-if="error" class="text-sm font-medium text-red-600">{{ error }}</p>

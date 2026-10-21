@@ -4,7 +4,7 @@ import { Minus, Package, Plus, Search, X } from '@lucide/vue';
 import { API_URL } from '../../lib/api.js';
 import { useAuthStore } from '../../stores/auth.js';
 import { formatearColones } from '../../lib/format.js';
-import { buscar, crearOrden, esVendible, minimoDe, numeroOrdenTexto, ordenesPendientes, pos, recibirOrdenTienda, stockDe, sugeridaPara, sugerenciasPedido } from '../../lib/pos.js';
+import { buscar, crearOrden, esVendible, recepcionPendiente, minimoDe, numeroOrdenTexto, ordenesPendientes, pos, recibirOrdenTienda, stockDe, sugeridaPara, sugerenciasPedido } from '../../lib/pos.js';
 
 // Pedido de mercadería a la bodega: ya trae sugeridos los productos agotados o en su mínimo.
 const emit = defineEmits(['cerrar']);
@@ -62,7 +62,7 @@ const COLOR = { enviada: 'bg-amber-100 text-amber-800', recibida: 'bg-amber-100 
 const TITULO_ESTADO = { enviada: 'Enviado', recibida: 'Recibido por la administración', revisada: 'Revisado', alistada: 'Alistado en bodega', en_camino: 'Enviado a la tienda', entregada: 'Recibido y aceptado', rechazada: 'Rechazado', cancelada: 'Cancelado' };
 // Lo guardado en esta terminal que el servidor aún no devolvió + el seguimiento que conoce el servidor.
 const locales = computed(() => pos.ordenes.filter((o) => !o.enviada).map((o) => ({ id: o.id, texto: numeroOrdenTexto(o), fecha: new Date(o.fecha).toLocaleString('es-CR', { hour12: false }), pares: o.lineas.reduce((a, l) => a + l.cantidad, 0), urgente: o.urgente, error: o.error })));
-const remotos = computed(() => pos.ordenesRecientes.map((o) => ({ ...o, texto: `OR-${pos.tienda?.codigo}-${String(o.numero).padStart(4, '0')}` })).filter((o) => !locales.value.some((l) => l.id === o.id)));
+const remotos = computed(() => pos.ordenesRecientes.map((o) => ({ ...o, aceptadaSinEnviar: !!recepcionPendiente(o.id), puedeRecibir: o.puedeRecibir && !recepcionPendiente(o.id), texto: `OR-${pos.tienda?.codigo}-${String(o.numero).padStart(4, '0')}` })).filter((o) => !locales.value.some((l) => l.id === o.id)));
 const abierto = ref(null);
 const cantidades = ref({});
 const notaRecepcion = ref('');
@@ -112,7 +112,8 @@ const enCamino = computed(() => remotos.value.filter((o) => o.puedeRecibir).leng
           <li v-for="o in remotos" :key="o.id" class="py-2 text-sm">
             <button type="button" class="flex w-full flex-wrap items-center justify-between gap-2 text-left" @click="abrirOrden(o)">
               <span><span class="font-semibold">{{ o.texto }}</span> · {{ o.fecha }} · {{ o.pares }} pares<span v-if="o.urgente" class="ml-1 rounded bg-red-100 px-1.5 text-xs font-semibold text-red-700">Urgente</span><span v-if="o.resolucion" class="ml-1 rounded bg-slate-200 px-1.5 text-xs font-semibold text-slate-700">{{ o.resolucion === 'aceptada' ? 'Aceptado' : 'Corregido' }}</span></span>
-              <span class="rounded px-2 py-0.5 text-xs font-semibold" :class="COLOR[o.estado]">{{ TITULO_ESTADO[o.estado] ?? o.estado }}</span>
+              <span v-if="o.aceptadaSinEnviar" class="rounded bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800">Aceptada · se enviará con internet</span>
+              <span v-else class="rounded px-2 py-0.5 text-xs font-semibold" :class="COLOR[o.estado]">{{ TITULO_ESTADO[o.estado] ?? o.estado }}</span>
             </button>
             <div v-if="abierto === o.id" class="mt-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
               <ol class="space-y-0.5 text-xs text-slate-600">
