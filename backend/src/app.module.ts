@@ -21,6 +21,8 @@ import { SistemaModule } from './sistema/sistema.module.js';
 import { ConfiguracionSistema } from './sistema/configuracion-sistema.entity.js';
 import { RegistroActividad } from './sistema/registro-actividad.entity.js';
 import { BitacoraModule } from './bitacora/bitacora.module.js';
+import { ActividadTiendaModule } from './actividad-tienda/actividad-tienda.module.js';
+import { PosActividad } from './actividad-tienda/pos-actividad.entity.js';
 import { Usuario } from './usuarios/usuario.entity.js';
 import { UsuarioPermiso } from './usuarios/usuario-permiso.entity.js';
 import { Cliente } from './clientes/cliente.entity.js';
@@ -60,6 +62,7 @@ import { PosVenta } from './pos/pos-venta.entity.js';
 import { PosVentaLinea } from './pos/pos-venta-linea.entity.js';
 import { PosPago } from './pos/pos-pago.entity.js';
 import { PosCaja } from './pos/pos-caja.entity.js';
+import { PosTiendaPerfil } from './pos/pos-tienda-perfil.entity.js';
 import { PosConfiguracion } from './pos/pos-configuracion.entity.js';
 import { OrdenTienda } from './pos/orden-tienda.entity.js';
 import { OrdenTiendaLinea } from './pos/orden-tienda-linea.entity.js';
@@ -145,6 +148,8 @@ import { PlanillaLinea } from './planilla/planilla-linea.entity.js';
           PosVentaLinea,
           PosPago,
           PosCaja,
+          PosTiendaPerfil,
+          PosActividad,
           PosConfiguracion,
           OrdenTienda,
           OrdenTiendaLinea,
@@ -157,6 +162,7 @@ import { PlanillaLinea } from './planilla/planilla-linea.entity.js';
       }),
     }),
     BitacoraModule,
+    ActividadTiendaModule,
     SistemaModule,
     AuthModule,
     UsuariosModule,

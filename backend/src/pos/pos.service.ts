@@ -20,6 +20,8 @@ import { CUENTA, ContabilidadService } from '../contabilidad/contabilidad.servic
 import { ConfiguracionService } from '../configuracion/configuracion.service.js';
 import { OrdenesTiendaService, type ResultadoOrdenSync } from './ordenes-tienda.service.js';
 import { AjustesTiendaService } from './ajustes-tienda.service.js';
+import { PerfilesTiendaService } from './perfiles-tienda.service.js';
+import { ActividadTiendaService } from '../actividad-tienda/actividad-tienda.service.js';
 import { redondear } from '../common/utils/dinero.util.js';
 import { hoyISO } from '../common/utils/fecha.util.js';
 
@@ -48,6 +50,8 @@ export class PosService {
     private readonly configuracion: ConfiguracionService,
     private readonly ordenes: OrdenesTiendaService,
     private readonly ajustes: AjustesTiendaService,
+    private readonly perfiles: PerfilesTiendaService,
+    private readonly actividad: ActividadTiendaService,
     @InjectRepository(PosVenta) private readonly ventaRepo: Repository<PosVenta>,
     @InjectRepository(PosCaja) private readonly cajaRepo: Repository<PosCaja>,
     @InjectRepository(PosConfiguracion) private readonly configRepo: Repository<PosConfiguracion>,
@@ -82,7 +86,7 @@ export class PosService {
     await this.exigirTiendaPropia(usuario, ubicacionId);
     const tienda = await this.tiendaOFallar(ubicacionId);
     const modoPrueba = (await this.obtenerConfig()).modoPrueba;
-    const [variantes, ultimo, encabezado, cfg, ultimaOrden, recientes] = await Promise.all([
+    const [variantes, ultimo, , cfg, ultimaOrden, recientes] = await Promise.all([
       this.dataSource.query(
         `SELECT v.id AS "varianteId", p.codigo, p.nombre, v.color, v.precio_tienda::float8 AS precio, v.codigo_barras AS "codigoBarras",
                 p.descripcion, (SELECT f.url FROM producto_fotos f WHERE f.producto_id = p.id ORDER BY f.creado_en LIMIT 1) AS foto,
@@ -94,7 +98,7 @@ export class PosService {
         [ubicacionId, modoPrueba],
       ),
       this.dataSource.query('SELECT COALESCE(MAX(numero), 0)::int AS n FROM pos_ventas WHERE ubicacion_id = $1', [ubicacionId]),
-      this.configuracion.obtenerFactura(),
+      Promise.resolve(null),
       this.obtenerConfig(),
       this.dataSource.query('SELECT COALESCE(MAX(numero), 0)::int AS n FROM pos_ordenes WHERE ubicacion_id = $1', [ubicacionId]),
       this.ordenes.recientes(ubicacionId),
@@ -103,7 +107,7 @@ export class PosService {
       generadoEn: new Date().toISOString(),
       tienda: { id: tienda.id, nombre: tienda.nombre, codigo: tienda.codigo },
       modoPrueba,
-      encabezado: { razonSocial: encabezado.razonSocial, cedulaJuridica: encabezado.cedulaJuridica, telefono: encabezado.telefono, direccion: encabezado.direccion, pie: cfg.pieTiquete },
+      encabezado: await this.perfiles.encabezado(tienda.id, cfg.pieTiquete),
       ultimoNumero: ultimo[0].n,
       ultimoNumeroOrden: ultimaOrden[0].n,
       ordenesRecientes: recientes,
@@ -158,6 +162,16 @@ export class PosService {
     // 2d. Conteos de inventario hechos en la tienda (solo suben la existencia).
     const resultadosAjustes = [];
     for (const a of dto.ajustes ?? []) resultadosAjustes.push(await this.ajustes.guardar(tienda, usuario.id, a));
+    // 2e. Registro de actividad de la caja (con la hora en que de verdad ocurrió cada cosa).
+    if (dto.actividad?.length) await this.actividad.guardarDeTerminal(tienda.id, usuario.id, dto.actividad).catch((err) => this.logger.error(`No se pudo guardar la actividad de la caja: ${err instanceof Error ? err.message : err}`));
+    // Lo que el servidor no pudo aceptar queda anotado para que la administración lo vea en el panel.
+    const rechazos = [
+      ...resultados.filter((r) => r.estado === 'error').map((r) => `venta ${r.id.slice(0, 8)}: ${r.mensaje}`),
+      ...resultadosOrdenes.filter((r) => r.estado === 'error').map((r) => `pedido ${r.id.slice(0, 8)}: ${r.mensaje}`),
+      ...resultadosRecepciones.filter((r) => r.estado === 'error').map((r) => `recepción ${r.ordenId.slice(0, 8)}: ${r.mensaje}`),
+      ...resultadosAjustes.filter((r) => r.estado === 'error').map((r) => `conteo ${r.id.slice(0, 8)}: ${r.mensaje}`),
+    ];
+    for (const texto of rechazos) await this.actividad.registrarPanel({ ubicacionId: tienda.id, usuarioId: usuario.id, tipo: 'sincronizacion_rechazada', detalle: `El servidor no aceptó: ${texto}` });
     // 3. Cierres de caja (ya con todas las ventas del turno).
     for (const c of dto.cajas) {
       if (resultadosCajas.some((r) => r.id === c.id)) continue;
@@ -379,6 +393,7 @@ export class PosService {
   // ------------------------------------------------------------------ Administración
 
   async anular(id: string, motivo: string, usuarioId: string) {
+    const previa = await this.ventaRepo.findOne({ where: { id }, relations: { ubicacion: true } });
     if (!motivo.trim()) throw new BadRequestException('Indique el motivo de la anulación.');
     await this.dataSource.transaction(async (manager) => {
       const venta = await manager.findOne(PosVenta, { where: { id }, relations: { lineas: true, ubicacion: true } });
@@ -399,6 +414,7 @@ export class PosService {
       if (!venta.esPrueba) await this.contabilidad.reversarPorOrigenEnTransaccion(manager, REFERENCIA, venta.id, motivo, `Anulación de venta POS ${numeroTexto(venta.ubicacion.codigo, venta.numero)} — ${motivo.trim()}`);
       await manager.update(PosVenta, venta.id, { estado: ESTADO_POS_VENTA.ANULADA, motivoAnulacion: motivo.trim().slice(0, 200), anuladaEn: new Date(), anuladaPorId: usuarioId });
     });
+    if (previa) await this.actividad.registrarPanel({ ubicacionId: previa.ubicacionId, usuarioId, tipo: 'venta_anulada', detalle: `Tiquete ${numeroTexto(previa.ubicacion.codigo, previa.numero)} por ${Number(previa.total).toFixed(2)} anulado: ${motivo.trim()}` });
     return { ok: true };
   }
 
@@ -507,17 +523,25 @@ export class PosService {
     return { ...cfg, cuentasBancarias: cuentas };
   }
 
-  async actualizarConfiguracion(dto: ActualizarPosConfigDto, esSistema = false) {
+  async actualizarConfiguracion(dto: ActualizarPosConfigDto, esSistema = false, usuarioId?: string) {
     const cfg = await this.obtenerConfig();
     for (const k of ['cuentaTarjetaId', 'cuentaSinpeId', 'cuentaTransferenciaId'] as const) {
       if (dto[k] !== undefined) cfg[k] = dto[k] || null;
     }
     if (dto.pieTiquete !== undefined) cfg.pieTiquete = dto.pieTiquete.trim();
+    const antesPrueba = cfg.modoPrueba;
     if (dto.modoPrueba !== undefined) {
       if (!esSistema) throw new ForbiddenException('Solo el administrador del sistema activa el modo de prueba.');
       cfg.modoPrueba = dto.modoPrueba;
     }
+    const antes = await this.configRepo.findOneBy({ id: 'general' });
+    const cambios: string[] = [];
+    for (const [k, etiqueta] of [['cuentaTarjetaId', 'cuenta de tarjeta'], ['cuentaSinpeId', 'cuenta de SINPE'], ['cuentaTransferenciaId', 'cuenta de transferencia'], ['pieTiquete', 'mensaje al pie']] as const) {
+      if (antes && antes[k] !== cfg[k]) cambios.push(`${etiqueta}: ${antes[k] ?? 'Caja y Bancos'} → ${cfg[k] ?? 'Caja y Bancos'}`);
+    }
+    if (antesPrueba !== cfg.modoPrueba) cambios.push(`modo de prueba: ${antesPrueba ? 'encendido' : 'apagado'} → ${cfg.modoPrueba ? 'encendido' : 'apagado'}`);
     await this.configRepo.save(cfg);
+    if (cambios.length) await this.actividad.registrarPanel({ usuarioId, tipo: 'config_pos', detalle: `Configuración del POS: ${cambios.join('; ')}` });
     return this.configuracionActual();
   }
 }

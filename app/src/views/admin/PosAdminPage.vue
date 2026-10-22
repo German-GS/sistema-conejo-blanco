@@ -7,7 +7,9 @@ import PosCajasTab from './pos/PosCajasTab.vue';
 import AlertasInventario from './pos/AlertasInventario.vue';
 import PosProductosTab from './pos/PosProductosTab.vue';
 import PosConfigTab from './pos/PosConfigTab.vue';
+import PosPerfilesTienda from './pos/PosPerfilesTienda.vue';
 import OrdenesTiendaTab from './pos/OrdenesTiendaTab.vue';
+import PosActividadTab from './pos/PosActividadTab.vue';
 
 // Panel de la tienda: ventas del POS, turnos de caja, alertas de inventario bajo, precios/códigos/mínimos y configuración.
 const auth = useAuthStore();
@@ -15,6 +17,7 @@ const PESTANAS = [
   ['ventas', 'Ventas'],
   ['ordenes', 'Pedidos de tienda'],
   ['cajas', 'Cajas'],
+  ['actividad', 'Actividad'],
   ['alertas', 'Alertas de inventario'],
   ...(auth.tienePermiso('catalogo.gestionar') ? [['productos', 'Productos de tienda']] : []),
   ['config', 'Configuración'],
@@ -47,6 +50,7 @@ onMounted(async () => {
     <PosVentasTab v-if="pestana === 'ventas'" :ubicaciones="tiendas" />
     <OrdenesTiendaTab v-else-if="pestana === 'ordenes'" :ubicaciones="tiendas" />
     <PosCajasTab v-else-if="pestana === 'cajas'" :ubicaciones="tiendas" />
+    <PosActividadTab v-else-if="pestana === 'actividad'" :ubicaciones="tiendas" />
     <div v-else-if="pestana === 'alertas'" class="card flex flex-col gap-3">
       <div class="flex flex-wrap items-center justify-between gap-2">
         <div><p class="text-base font-semibold text-slate-900">Inventario bajo</p><p class="text-sm text-slate-500">Existencias que llegaron al mínimo que usted definió (Productos de tienda → Mínimo), o que están en negativo.</p></div>
@@ -55,6 +59,9 @@ onMounted(async () => {
       <AlertasInventario :ubicacion-id="filtroAlertas" />
     </div>
     <PosProductosTab v-else-if="pestana === 'productos'" :ubicaciones="tiendas" />
-    <PosConfigTab v-else-if="pestana === 'config'" />
+    <template v-else-if="pestana === 'config'">
+      <PosPerfilesTienda />
+      <PosConfigTab />
+    </template>
   </div>
 </template>

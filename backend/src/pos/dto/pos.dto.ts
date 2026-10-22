@@ -171,6 +171,36 @@ export class PosOrdenDto {
   lineas: PosOrdenLineaDto[];
 }
 
+// Un hecho de la caja (aunque ocurriera sin internet) para el registro de actividad de la tienda.
+export class PosActividadDto {
+  @IsUUID()
+  id: string;
+
+  @IsString()
+  @MaxLength(40)
+  tipo: string;
+
+  @IsString()
+  @MaxLength(500)
+  detalle: string;
+
+  @IsDateString()
+  fecha: string;
+
+  @IsOptional()
+  @IsBoolean()
+  sinConexion?: boolean;
+
+  @IsOptional()
+  @IsUUID()
+  usuarioId?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(160)
+  usuarioNombre?: string;
+}
+
 export class SincronizarPosDto {
   @IsUUID()
   ubicacionId: string;
@@ -207,6 +237,13 @@ export class SincronizarPosDto {
   @ValidateNested({ each: true })
   @Type(() => PosAjusteDto)
   ajustes?: PosAjusteDto[];
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(500)
+  @ValidateNested({ each: true })
+  @Type(() => PosActividadDto)
+  actividad?: PosActividadDto[];
 }
 
 export class NotaOrdenDto {
@@ -329,6 +366,18 @@ export class AnularPosVentaDto {
   @IsString()
   @MaxLength(200)
   motivo: string;
+}
+
+// Datos de una tienda para su tiquete (cada campo es opcional: solo se cambia lo que viene).
+export class ActualizarPerfilTiendaDto {
+  @IsOptional() @IsString() @MaxLength(160) razonSocial?: string;
+  @IsOptional() @IsString() @MaxLength(160) nombreComercial?: string;
+  @IsOptional() @IsString() @MaxLength(30) cedulaJuridica?: string;
+  @IsOptional() @IsString() @MaxLength(40) telefono?: string;
+  @IsOptional() @IsString() @MaxLength(160) correo?: string;
+  @IsOptional() @IsString() @MaxLength(300) direccion?: string;
+  @IsOptional() @IsString() @MaxLength(300) pieTiquete?: string;
+  @IsOptional() @IsString() @MaxLength(300) leyenda?: string;
 }
 
 export class ActualizarPosConfigDto {

@@ -12,6 +12,7 @@ import type { CrearProductoDto } from './dto/crear-producto.dto.js';
 import type { ActualizarProductoDto } from './dto/actualizar-producto.dto.js';
 import type { CrearVarianteDto } from './dto/crear-variante.dto.js';
 import type { ActualizarVarianteDto } from './dto/actualizar-variante.dto.js';
+import { ActividadTiendaService } from '../actividad-tienda/actividad-tienda.service.js';
 
 @Injectable()
 export class CatalogoService {
@@ -25,6 +26,7 @@ export class CatalogoService {
     @InjectRepository(ProductoFoto)
     private readonly fotoRepo: Repository<ProductoFoto>,
     private readonly dataSource: DataSource,
+    private readonly actividad: ActividadTiendaService,
   ) {}
 
   listarProductos(): Promise<Producto[]> {
@@ -271,6 +273,7 @@ export class CatalogoService {
     const variante = await this.buscarVariantePorIdOFallar(id);
     const nombreActual = variante.color;
     const cambios: string[] = [];
+    const cambiosTienda: string[] = [];
 
     if (dto.color !== undefined && dto.color !== variante.color) {
       cambios.push(`Color "${variante.color}" renombrado a "${dto.color}"`);
@@ -287,11 +290,13 @@ export class CatalogoService {
     const nuevoPrecioTienda = dto.precioTienda === undefined ? undefined : dto.precioTienda === null ? null : dto.precioTienda.toFixed(2);
     if (nuevoPrecioTienda !== undefined && nuevoPrecioTienda !== variante.precioTienda) {
       cambios.push(`${nombreActual} — precio de tienda: ${variante.precioTienda ? formatearColones(variante.precioTienda) : '—'} → ${nuevoPrecioTienda ? formatearColones(nuevoPrecioTienda) : '—'}`);
+      cambiosTienda.push(`precio de tienda: ${variante.precioTienda ? formatearColones(variante.precioTienda) : '—'} → ${nuevoPrecioTienda ? formatearColones(nuevoPrecioTienda) : '—'}`);
     }
     const nuevoCodigo = dto.codigoBarras === undefined ? undefined : dto.codigoBarras ? dto.codigoBarras.trim() : null;
     if (nuevoCodigo !== undefined && nuevoCodigo !== variante.codigoBarras) {
       if (nuevoCodigo) await this.verificarCodigoBarrasLibre(nuevoCodigo, id);
       cambios.push(`${nombreActual} — código de barras: ${variante.codigoBarras ?? '—'} → ${nuevoCodigo ?? '—'}`);
+      cambiosTienda.push(`código de barras: ${variante.codigoBarras ?? '—'} → ${nuevoCodigo ?? '—'}`);
     }
 
     if (dto.color !== undefined) variante.color = dto.color;
@@ -304,6 +309,11 @@ export class CatalogoService {
 
     if (cambios.length > 0) {
       await this.registrarEdicion(variante.productoId, usuarioId, cambios);
+    }
+    if (cambiosTienda.length > 0) {
+      const [prod] = await this.dataSource.query('SELECT codigo FROM productos WHERE id = $1', [variante.productoId]);
+      const codigo = prod?.codigo ?? '';
+      await this.actividad.registrarPanel({ usuarioId, tipo: 'precio_tienda', detalle: `${codigo} ${nombreActual}: ${cambiosTienda.join('; ')}` });
     }
     return guardada;
   }

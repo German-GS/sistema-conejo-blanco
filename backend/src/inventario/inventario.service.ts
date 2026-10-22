@@ -4,6 +4,7 @@ import { DataSource, EntityManager, Repository } from 'typeorm';
 import { StockUbicacion } from './stock-ubicacion.entity.js';
 import { MovimientoInventario } from './movimiento-inventario.entity.js';
 import { TipoMovimientoInventario } from '../common/enums/tipo-movimiento-inventario.enum.js';
+import { ActividadTiendaService } from '../actividad-tienda/actividad-tienda.service.js';
 
 export interface RegistrarMovimientoParams {
   ubicacionId: string;
@@ -30,6 +31,7 @@ export class InventarioService {
     @InjectRepository(StockUbicacion)
     private readonly stockRepo: Repository<StockUbicacion>,
     private readonly dataSource: DataSource,
+    private readonly actividad: ActividadTiendaService,
   ) {}
 
   listarStock(filtros: { ubicacionId?: string; varianteId?: string } = {}): Promise<StockUbicacion[]> {
@@ -62,14 +64,17 @@ export class InventarioService {
   }
 
   // Crea la fila de stock si no existía (con 0 pares) para poder dejar el mínimo antes de que llegue mercadería.
-  async establecerMinimos(ubicacionId: string, minimos: Array<{ varianteId: string; minimo: number }>): Promise<{ actualizados: number }> {
+  async establecerMinimos(ubicacionId: string, minimos: Array<{ varianteId: string; minimo: number }>, usuarioId?: string): Promise<{ actualizados: number }> {
+    const cambios: string[] = [];
     await this.dataSource.transaction(async (manager) => {
       for (const m of minimos) {
-        const existente = await manager.findOne(StockUbicacion, { where: { ubicacionId, varianteId: m.varianteId } });
+        const existente = await manager.findOne(StockUbicacion, { where: { ubicacionId, varianteId: m.varianteId }, relations: { variante: { producto: true } } });
+        if ((existente?.stockMinimo ?? 0) !== m.minimo) cambios.push(`${existente?.variante?.producto?.codigo ?? ''} ${existente?.variante?.color ?? m.varianteId.slice(0, 8)}: ${existente?.stockMinimo ?? 0} → ${m.minimo}`.trim());
         if (existente) await manager.update(StockUbicacion, existente.id, { stockMinimo: m.minimo });
         else await manager.save(StockUbicacion, manager.create(StockUbicacion, { ubicacionId, varianteId: m.varianteId, cantidad: 0, stockMinimo: m.minimo }));
       }
     });
+    if (cambios.length) await this.actividad.registrarPanel({ ubicacionId, usuarioId, tipo: 'minimo_stock', detalle: `Stock mínimo: ${cambios.join('; ')}` });
     return { actualizados: minimos.length };
   }
 

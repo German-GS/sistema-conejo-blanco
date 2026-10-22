@@ -2,6 +2,7 @@ import { computed, reactive } from 'vue';
 import { api, ApiError, getToken } from './api.js';
 import { dbAll, dbDelete, dbGet, dbPut } from './posDb.js';
 import { descargarRespaldo, hacerCuantoDesdeRespaldo, restaurarRespaldo } from './respaldo.js';
+import { actividadPorEnviar, quitarActividad, registrarActividad } from './actividad.js';
 
 // Lógica del punto de venta. Todo lo que el cajero hace se guarda primero en esta computadora (IndexedDB) y se
 // envía al servidor cuando hay internet; reenviar nunca duplica porque cada venta lleva su propio id.
@@ -167,13 +168,18 @@ export async function iniciarPos() {
 
 // ---------------------------------------------------------------- Respaldo de seguridad
 
-export const respaldar = () => descargarRespaldo(pos.tienda);
+export const respaldar = async () => {
+  const r = await descargarRespaldo(pos.tienda);
+  void registrarActividad('respaldo_guardado', `Respaldo guardado: ${r.ventas} venta(s), ${r.cajas} caja(s), ${r.ordenes} pedido(s)`);
+  return r;
+};
 export const desdeUltimoRespaldo = hacerCuantoDesdeRespaldo;
 
 // Vuelve a meter lo guardado en un respaldo (por ejemplo, después de que se borraron los datos del navegador) y lo envía.
 export async function restaurar(texto) {
   const nuevos = await restaurarRespaldo(texto);
   const tiendaActual = pos.tienda;
+  void registrarActividad('respaldo_restaurado', `Respaldo restaurado: ${nuevos} registro(s) nuevo(s)`);
   await cargarLocal();
   if (!pos.tienda && tiendaActual) pos.tienda = tiendaActual;
   if (pos.tienda) {
@@ -212,6 +218,7 @@ export async function elegirTienda(tienda) {
   pos.ordenesRecientes = [];
   await dbPut('kv', JSON.parse(JSON.stringify(pos.tienda)), 'tienda');
   await dbDelete('kv', 'catalogo');
+  void registrarActividad('tienda_elegida', `Esta computadora quedó asignada a ${tienda.nombre}`);
   await descargarCatalogo();
 }
 
@@ -219,6 +226,7 @@ export async function cambiarTienda() {
   if (ajustesPorEnviar.value.length) throw new Error('Hay un conteo de inventario sin enviar. Conéctese a internet y espere a que se envíe antes de cambiar la tienda.');
   if (recepcionesPorEnviar.value.length) throw new Error('Hay mercadería aceptada sin enviar. Conéctese a internet y espere a que se envíe antes de cambiar la tienda.');
   if (pendientes.value.length) throw new Error('Hay ventas sin enviar. Conéctese a internet y espere a que se envíen antes de cambiar la tienda.');
+  await registrarActividad('tienda_cambiada', `Se quitó la asignación de ${pos.tienda?.nombre ?? 'la tienda'} en esta computadora`);
   pos.tienda = null;
   pos.catalogo = null;
   pos.stockServidor = {};
@@ -258,6 +266,7 @@ export async function abrirCaja(fondoInicial, cajero) {
   await dbPut('cajas', caja);
   pos.cajas.push(caja);
   pos.caja = caja;
+  void registrarActividad('caja_abierta', `Caja abierta con fondo inicial de ${caja.fondoInicial}`);
   void sincronizar();
 }
 
@@ -277,6 +286,7 @@ export async function cerrarCaja(efectivoContado, notas) {
   await dbPut('cajas', caja);
   pos.cajas = pos.cajas.map((c) => (c.id === caja.id ? caja : c));
   pos.caja = null;
+  void registrarActividad('caja_cerrada', `Caja cerrada: esperado ${caja.efectivoEsperado}, contado ${caja.efectivoContado}, diferencia ${caja.diferencia}${caja.notas ? ` — ${caja.notas}` : ''}`);
   void sincronizar();
   return caja;
 }
@@ -369,6 +379,7 @@ export async function crearOrden(lineas, { urgente, notas }, usuario) {
   pos.ultimoNumeroOrden = numero;
   await Promise.all([dbPut('ordenes', JSON.parse(JSON.stringify(orden))), dbPut('kv', numero, 'ultimoNumeroOrden')]);
   pos.ordenes.push(orden);
+  void registrarActividad('pedido_enviado', `Pedido de mercadería OR-${pos.tienda.codigo}-${String(numero).padStart(4, '0')}: ${orden.lineas.reduce((a, l) => a + l.cantidad, 0)} pares en ${orden.lineas.length} producto(s)${orden.urgente ? ' (urgente)' : ''}`);
   void sincronizar();
   return orden;
 }
@@ -384,6 +395,9 @@ export async function recibirOrdenTienda(ordenId, lineas, nota) {
   if (recepcionPendiente(ordenId)) throw new Error('Esa mercadería ya se aceptó y está por enviarse.');
   const r = { ordenId, ubicacionId: pos.tienda.id, fecha: new Date().toISOString(), lineas: lineas.map((l) => ({ varianteId: l.varianteId, cantidadRecibida: l.cantidadRecibida })), nota: nota?.trim() || undefined, rechazada: false, error: '' };
   pos.recepciones = [...pos.recepciones.filter((x) => x.ordenId !== ordenId), r];
+  const pedida = pos.ordenesRecientes.find((o) => o.id === ordenId);
+  const dif = pedida ? pedida.lineas.filter((l) => (l.aprobada ?? 0) > 0 && (r.lineas.find((x) => x.varianteId === l.varianteId)?.cantidadRecibida ?? 0) !== l.aprobada) : [];
+  void registrarActividad('recepcion_aceptada', `Mercadería aceptada${pedida ? ` del pedido OR-${pos.tienda.codigo}-${String(pedida.numero).padStart(4, '0')}` : ''}: ${r.lineas.reduce((a, l) => a + l.cantidadRecibida, 0)} pares${dif.length ? ` (con diferencias en ${dif.length} producto(s))` : ''}${r.nota ? ` — ${r.nota}` : ''}`);
   await dbPut('kv', JSON.parse(JSON.stringify(pos.recepciones)), 'recepciones');
   await sincronizar();
   // Con internet el servidor responde enseguida: si no la aceptó, se le dice a la persona por qué y no queda atascada.
@@ -407,6 +421,7 @@ export async function guardarConteo(lineas, nota) {
   if (String(nota ?? '').trim().length < 3) throw new Error('Anote el motivo del conteo (por ejemplo: «conteo del estante»).');
   const a = { id: crypto.randomUUID(), ubicacionId: pos.tienda.id, fecha: new Date().toISOString(), lineas: utiles.map((l) => ({ varianteId: l.varianteId, cantidad: Math.round(Number(l.cantidad)) })), nota: String(nota).trim(), rechazada: false, error: '' };
   pos.ajustes = [...pos.ajustes, a];
+  void registrarActividad('conteo_inventario', `Conteo de inventario: +${a.lineas.reduce((s, l) => s + l.cantidad, 0)} pares en ${a.lineas.length} producto(s) — ${a.nota}`);
   await dbPut('kv', JSON.parse(JSON.stringify(pos.ajustes)), 'ajustes');
   await sincronizar();
   const rechazado = pos.ajustes.find((x) => x.id === a.id && x.rechazada);
@@ -467,11 +482,12 @@ export async function sincronizar() {
   const ordenes = pos.ordenes.filter((o) => !o.enviada && !o.rechazada);
   const recepciones = pos.recepciones.filter((r) => !r.rechazada);
   const ajustes = pos.ajustes.filter((a) => !a.rechazada);
-  if (!ventas.length && !cajas.length && !ordenes.length && !recepciones.length && !ajustes.length) return;
+  const actividad = await actividadPorEnviar();
+  if (!ventas.length && !cajas.length && !ordenes.length && !recepciones.length && !ajustes.length && !actividad.length) return;
   pos.sincronizando = true;
   try {
     // Se envía por tienda: lo pendiente de otra tienda (si la terminal cambió de tienda) viaja a la suya.
-    const tiendas = new Set([...ventas, ...cajas, ...ordenes, ...recepciones, ...ajustes].map(tiendaDe));
+    const tiendas = new Set([...ventas, ...cajas, ...ordenes, ...recepciones, ...ajustes, ...actividad].map(tiendaDe));
     for (const ubicacionId of tiendas) {
       const r = await api.post('/pos/sincronizar', {
         ubicacionId,
@@ -480,7 +496,9 @@ export async function sincronizar() {
         ordenes: ordenes.filter((o) => tiendaDe(o) === ubicacionId).map(ordenParaServidor),
         recepciones: recepciones.filter((x) => tiendaDe(x) === ubicacionId).map((x) => ({ ordenId: x.ordenId, lineas: x.lineas, nota: x.nota })),
         ajustes: ajustes.filter((x) => tiendaDe(x) === ubicacionId).map((x) => ({ id: x.id, nota: x.nota, lineas: x.lineas })),
+        actividad: actividad.filter((x) => tiendaDe(x) === ubicacionId).map(({ ubicacionId: _u, ...e }) => e),
       });
+      await quitarActividad(actividad.filter((x) => tiendaDe(x) === ubicacionId).map((x) => x.id));
       await aplicarResultado(r, ubicacionId, cajas.filter((c) => tiendaDe(c) === ubicacionId));
     }
     pos.avisoSync = '';

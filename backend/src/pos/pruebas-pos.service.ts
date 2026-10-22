@@ -7,6 +7,7 @@ import { ContabilidadService } from '../contabilidad/contabilidad.service.js';
 import { BitacoraService } from '../bitacora/bitacora.service.js';
 import { numeroTexto } from './pos.service.js';
 import { numeroOrdenTexto } from './ordenes-tienda.service.js';
+import { ActividadTiendaService } from '../actividad-tienda/actividad-tienda.service.js';
 
 // Durante las pruebas: convierte una venta o un pedido de tienda ya contabilizado en uno "de prueba", borrando sus asientos
 // (y las reversas de esos asientos). Solo el administrador del sistema; queda anotado en la bitácora.
@@ -16,6 +17,7 @@ export class PruebasPosService {
     private readonly dataSource: DataSource,
     private readonly contabilidad: ContabilidadService,
     private readonly bitacora: BitacoraService,
+    private readonly actividad: ActividadTiendaService,
   ) {}
 
   private async borrarAsientos(manager: EntityManager, origenTipo: string, origenId: string): Promise<number> {
@@ -39,9 +41,10 @@ export class PruebasPosService {
       if (venta.esPrueba) throw new BadRequestException('Esa venta ya es de prueba.');
       const n = await this.borrarAsientos(manager, 'pos_venta', id);
       await manager.update(PosVenta, id, { esPrueba: true });
-      return { n, texto: numeroTexto(venta.ubicacion.codigo, venta.numero) };
+      return { n, texto: numeroTexto(venta.ubicacion.codigo, venta.numero), ubicacionId: venta.ubicacionId };
     });
     await this.bitacora.registrar({ accion: 'asiento_eliminado', usuarioId: actor.id, usuarioEmail: actor.email, objetivo: `venta POS ${borrados.texto}`, detalle: `Convertida en venta de prueba: ${borrados.n} asiento(s) eliminado(s)`, ip });
+    await this.actividad.registrarPanel({ ubicacionId: borrados.ubicacionId, usuarioId: actor.id, tipo: 'convertido_en_prueba', detalle: `Venta POS ${borrados.texto} convertido en prueba: ${borrados.n} asiento(s) eliminado(s)` });
     return { ok: true, asientosEliminados: borrados.n };
   }
 
@@ -52,9 +55,10 @@ export class PruebasPosService {
       if (orden.esPrueba) throw new BadRequestException('Ese pedido ya es de prueba.');
       const n = await this.borrarAsientos(manager, 'pos_orden', id);
       await manager.update(OrdenTienda, id, { esPrueba: true });
-      return { n, texto: numeroOrdenTexto(orden.ubicacion.codigo, orden.numero) };
+      return { n, texto: numeroOrdenTexto(orden.ubicacion.codigo, orden.numero), ubicacionId: orden.ubicacionId };
     });
     await this.bitacora.registrar({ accion: 'asiento_eliminado', usuarioId: actor.id, usuarioEmail: actor.email, objetivo: `pedido de tienda ${borrados.texto}`, detalle: `Convertido en pedido de prueba: ${borrados.n} asiento(s) eliminado(s)`, ip });
+    await this.actividad.registrarPanel({ ubicacionId: borrados.ubicacionId, usuarioId: actor.id, tipo: 'convertido_en_prueba', detalle: `Pedido de tienda ${borrados.texto} convertido en prueba: ${borrados.n} asiento(s) eliminado(s)` });
     return { ok: true, asientosEliminados: borrados.n };
   }
 }

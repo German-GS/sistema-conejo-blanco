@@ -15,10 +15,12 @@ const pares = computed(() => props.venta.lineas.reduce((a, l) => a + l.cantidad,
 <template>
   <div class="tiquete">
     <p v-if="venta.esPrueba" class="centro negrita">*** TIQUETE DE PRUEBA — NO VÁLIDO ***</p>
-    <p class="centro negrita">{{ enc.razonSocial || 'Conejo Blanco' }}</p>
+    <p class="centro negrita">{{ enc.nombreComercial || enc.razonSocial || 'Conejo Blanco' }}</p>
+    <p v-if="enc.nombreComercial && enc.razonSocial" class="centro">{{ enc.razonSocial }}</p>
     <p v-if="enc.cedulaJuridica" class="centro">Céd. jurídica {{ enc.cedulaJuridica }}</p>
     <p v-if="enc.direccion" class="centro">{{ enc.direccion }}</p>
     <p v-if="enc.telefono" class="centro">Tel. {{ enc.telefono }}</p>
+    <p v-if="enc.correo" class="centro">{{ enc.correo }}</p>
     <p class="centro">{{ pos.tienda?.nombre }}</p>
     <hr />
     <p class="negrita">Tiquete {{ numeroTexto(venta) }}</p>
@@ -35,7 +37,7 @@ const pares = computed(() => props.venta.lineas.reduce((a, l) => a + l.cantidad,
     <p v-if="vuelto > 0" class="fila"><span>Vuelto</span><span>{{ formatearColones(vuelto) }}</span></p>
     <hr />
     <p class="centro">{{ enc.pie }}</p>
-    <p class="centro chico">Documento emitido bajo el régimen simplificado. No es factura electrónica.</p>
+    <p class="centro chico">{{ enc.leyenda || 'Documento emitido bajo el régimen simplificado. No es factura electrónica.' }}</p>
   </div>
 </template>
 

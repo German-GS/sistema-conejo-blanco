@@ -62,7 +62,7 @@ const CAMPOS = [
     <p v-if="error" class="text-sm font-medium text-red-600">{{ error }}</p>
     <p v-if="aviso" class="text-sm text-green-600">{{ aviso }}</p>
     <button v-if="puedeEditar" type="button" class="btn-primary self-start" :disabled="guardando" @click="guardar">{{ guardando ? 'Guardando…' : 'Guardar' }}</button>
-    <p class="text-xs text-slate-500">El encabezado del tiquete (razón social, cédula, teléfono, dirección) sale de Configuración → Datos de factura.</p>
+    <p class="text-xs text-slate-500">El encabezado del tiquete sale de los datos de cada tienda (arriba); lo que una tienda deje vacío usa Configuración → Datos de factura.</p>
   </div>
   <p v-else-if="error" class="text-sm font-medium text-red-600">{{ error }}</p>
 </template>

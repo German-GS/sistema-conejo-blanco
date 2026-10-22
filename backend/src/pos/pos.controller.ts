@@ -12,9 +12,10 @@ import { Permiso } from '../common/enums/permiso.enum.js';
 import { PosService } from './pos.service.js';
 import { OrdenesTiendaService } from './ordenes-tienda.service.js';
 import { PruebasPosService } from './pruebas-pos.service.js';
+import { PerfilesTiendaService } from './perfiles-tienda.service.js';
 import { Req } from '@nestjs/common';
 import type { Request } from 'express';
-import { ActualizarPosConfigDto, AnularPosVentaDto, EstadoOrdenDto, NotaOrdenDto, RecibirTiendaDto, RevisarOrdenDto, SincronizarPosDto } from './dto/pos.dto.js';
+import { ActualizarPerfilTiendaDto, ActualizarPosConfigDto, AnularPosVentaDto, EstadoOrdenDto, NotaOrdenDto, RecibirTiendaDto, RevisarOrdenDto, SincronizarPosDto } from './dto/pos.dto.js';
 
 @Modulo('pos')
 @Controller('pos')
@@ -24,6 +25,7 @@ export class PosController {
     private readonly pos: PosService,
     private readonly ordenes: OrdenesTiendaService,
     private readonly pruebas: PruebasPosService,
+    private readonly perfiles: PerfilesTiendaService,
   ) {}
 
   // ---- Terminal de la tienda (cajero, gerencia y administrador del sistema)
@@ -100,11 +102,26 @@ export class PosController {
     return this.pos.configuracionActual();
   }
 
+  // Datos de cada tienda para su tiquete (cédula jurídica, razón social, teléfono…).
+  @Get('tiendas-perfil')
+  @UseGuards(PermissionsGuard)
+  @RequirePermissions(Permiso.POS_VER)
+  perfilesTienda() {
+    return this.perfiles.listar();
+  }
+
+  @Patch('tiendas-perfil/:ubicacionId')
+  @UseGuards(PermissionsGuard)
+  @RequirePermissions(Permiso.POS_GESTIONAR)
+  actualizarPerfilTienda(@Param('ubicacionId', ParseUUIDPipe) ubicacionId: string, @Body() dto: ActualizarPerfilTiendaDto, @CurrentUser() usuario: UsuarioAutenticado) {
+    return this.perfiles.actualizar(ubicacionId, dto, usuario.id);
+  }
+
   @Patch('configuracion')
   @UseGuards(PermissionsGuard)
   @RequirePermissions(Permiso.POS_GESTIONAR)
   actualizarConfiguracion(@Body() dto: ActualizarPosConfigDto, @CurrentUser() usuario: UsuarioAutenticado) {
-    return this.pos.actualizarConfiguracion(dto, usuario.rol === Rol.SISTEMA);
+    return this.pos.actualizarConfiguracion(dto, usuario.rol === Rol.SISTEMA, usuario.id);
   }
 
   // ---- Pedidos de reposición de las tiendas (llegan desde el POS)

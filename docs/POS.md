@@ -66,6 +66,24 @@ Qué se hizo para reducir ese riesgo:
 - **Respaldo de seguridad** (Ventas de hoy → Respaldo de seguridad): un archivo con todo lo guardado en la computadora; con **Restaurar respaldo** se recupera (es seguro repetirlo: el servidor ignora lo que ya recibió). Mientras no haya internet y haya registros sin enviar, la caja avisa «Guarde un respaldo» cada 2 horas.
 - Para recuperarse: conectar a internet, entrar, elegir la tienda y restaurar el último respaldo.
 
+## Datos de cada tienda en el tiquete
+
+Cada tienda tiene su **propia cédula jurídica** (por eso trabajan en régimen simplificado). En *Tienda → Configuración → Datos de cada tienda* se llena, por tienda: razón social, nombre comercial (opcional), cédula jurídica, teléfono, correo, dirección, mensaje al pie y leyenda legal. Hay una vista previa de cómo queda el encabezado. Lo que una tienda deje vacío usa los datos generales de la empresa (Configuración → Datos de factura), y el mensaje al pie y la leyenda tienen valores por defecto. La caja recibe los cambios al actualizar el catálogo (cada 10 minutos o al reconectarse) y los guarda para imprimir sin internet.
+
+## Registro de actividad de las tiendas
+
+*Tienda → Actividad* muestra, con filtros (fechas, tienda, qué pasó, origen, texto) y descarga en CSV, todo lo que pasa en las tiendas. **Es solo de consulta: no se edita ni se borra.** Cada registro lleva quién, dónde, la **hora real** en que ocurrió y, si se hizo sin internet, la marca «sin internet · llegó a las…» (la caja lo guarda y lo envía con lo demás al volver la conexión; reenviar no duplica).
+
+Qué se anota:
+
+| Origen | Qué |
+|---|---|
+| **Caja** | Abrir y cerrar caja (con fondo, esperado, contado y diferencia); **producto quitado del tiquete antes de cobrar**; **tiquete vaciado sin cobrar**; **reimpresión de tiquetes**; entrar sin internet, sesión vencida/confirmada y salida; mercadería aceptada (con diferencias); conteos de inventario; pedidos de mercadería; respaldos guardados o restaurados; asignar o quitar la tienda de una computadora. |
+| **Panel** | Anulación de ventas; convertir en prueba; cambios de precio de tienda y código de barras; stock mínimo (antes y después); datos del tiquete de cada tienda (antes y después); configuración del POS y modo de prueba. |
+| **Servidor** | Cada envío que el servidor **no aceptó** (venta, pedido, recepción o conteo rechazado) con el motivo. |
+
+Además siguen su propio historial: las ventas y cajas (con cajero y hora), el seguimiento de cada pedido (quién y cuándo en cada paso), el kardex de inventario y la bitácora del sistema (conteos y asientos borrados). Los cambios de producto (precios, costos, colores) también quedan en el historial de ediciones del producto.
+
 ## Contar el inventario de la tienda
 
 En la caja, **Inventario → Contar inventario**: la persona escribe cuántos pares hay en el estante de cada producto y un motivo (obligatorio). Reglas:

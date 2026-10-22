@@ -1,6 +1,7 @@
 <script setup>
 import CambiarVista from '../../layout/CambiarVista.vue';
 import { descargarCsv, fechaArchivo } from '../../lib/csv.js';
+import { registrarActividad } from '../../lib/actividad.js';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { Banknote, Barcode, Boxes, Cloud, Download, CloudOff, CircleCheck, FlaskConical, CreditCard, Info, KeyRound, Landmark, LogOut, Minus, PackagePlus, Plus, Printer, Receipt, RefreshCw, ScanBarcode, Smartphone, Trash2, Truck, TriangleAlert, Wallet, X } from '@lucide/vue';
@@ -237,11 +238,15 @@ function cambiarCantidad(l, d) {
   l.cantidad = Math.max(1, l.cantidad + d);
 }
 function quitar(l) {
+  void registrarActividad('linea_quitada', `Quitó ${l.cantidad} × ${l.codigo} ${l.color} (${formatearColones(l.precio * l.cantidad)}) del tiquete antes de cobrar`);
   carrito.value = carrito.value.filter((x) => x !== l);
   entrada.value?.focus();
 }
 function vaciar() {
-  if (!carrito.value.length || window.confirm('¿Vaciar el tiquete?')) carrito.value = [];
+  if (carrito.value.length && window.confirm('¿Vaciar el tiquete?')) {
+    void registrarActividad('tiquete_vaciado', `Vació el tiquete sin cobrar: ${carrito.value.reduce((a, l) => a + l.cantidad, 0)} par(es), ${formatearColones(total.value)}`);
+    carrito.value = [];
+  }
   entrada.value?.focus();
 }
 
@@ -354,7 +359,8 @@ function imprimirPrueba() {
 }
 const ultimaVenta = ref(null);
 const ventaImpresion = ref(null);
-async function imprimir(venta) {
+async function imprimir(venta, copia = false) {
+  if (copia) void registrarActividad('tiquete_reimpreso', `Reimprimió el tiquete ${numeroTexto(venta)} por ${formatearColones(venta.total)}`);
   ventaImpresion.value = venta;
   await nextTick();
   document.body.classList.add('imprimiendo-tiquete');
@@ -601,7 +607,7 @@ watch(
             <p class="text-sm text-green-800">{{ ultimaVenta.enviada ? 'Ya está guardada en el sistema.' : pos.enLinea ? 'Enviándola al sistema…' : 'Quedó guardada en esta computadora; se enviará cuando haya internet.' }}</p>
             <div class="mt-4 flex flex-wrap justify-center gap-3">
               <button type="button" class="rounded-2xl bg-green-600 px-8 py-4 text-xl font-extrabold text-white shadow-sm hover:bg-green-700" @click="siguienteVenta">SIGUIENTE VENTA</button>
-              <button type="button" class="flex items-center gap-2 rounded-2xl border-2 border-slate-300 bg-white px-5 py-4 text-base font-bold text-slate-800 hover:bg-slate-100" @click="imprimir(ultimaVenta)"><Printer class="size-5" /> Imprimir otra copia</button>
+              <button type="button" class="flex items-center gap-2 rounded-2xl border-2 border-slate-300 bg-white px-5 py-4 text-base font-bold text-slate-800 hover:bg-slate-100" @click="imprimir(ultimaVenta, true)"><Printer class="size-5" /> Imprimir otra copia</button>
             </div>
           </div>
 
@@ -789,7 +795,7 @@ watch(
           <ul v-else class="divide-y divide-slate-100">
             <li v-for="v in ventasTurno" :key="v.id" class="flex items-center justify-between gap-2 py-3 text-lg">
               <span><span class="font-bold">{{ numeroTexto(v) }}</span> · {{ new Date(v.fecha).toLocaleTimeString('es-CR', { hour: '2-digit', minute: '2-digit', hour12: false }) }}<span v-if="!v.enviada" class="ml-2 rounded-full bg-amber-100 px-2 text-sm font-semibold text-amber-800">{{ v.rechazada ? 'rechazada' : 'por enviar' }}</span></span>
-              <span class="flex items-center gap-3"><b>{{ formatearColones(v.total) }}</b><button type="button" class="rounded-lg border-2 border-slate-300 p-2 hover:bg-slate-100" aria-label="Reimprimir" @click="imprimir(v)"><Printer class="size-5" /></button></span>
+              <span class="flex items-center gap-3"><b>{{ formatearColones(v.total) }}</b><button type="button" class="rounded-lg border-2 border-slate-300 p-2 hover:bg-slate-100" aria-label="Reimprimir" @click="imprimir(v, true)"><Printer class="size-5" /></button></span>
             </li>
             <li v-if="!ventasTurno.length" class="py-4 text-lg text-slate-500">Todavía no hay ventas en este turno.</li>
           </ul>

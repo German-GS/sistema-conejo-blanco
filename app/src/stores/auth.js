@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import { api, ApiError, clearToken, getToken, setToken } from '../lib/api.js';
 import { borrarCredencial, guardarCredencial, verificarCredencial } from '../lib/loginLocal.js';
+import { registrarActividad } from '../lib/actividad.js';
 import { sesionVencidaPorInactividad } from '../lib/inactividad.js';
 
 const SESSION_KEY = 'conejo-blanco-sesion';
@@ -79,10 +80,12 @@ export const useAuthStore = defineStore('auth', {
       contrasenaEnMemoria = password;
       this.usuario = r.usuario;
       this.sesionLocal = true;
+      void registrarActividad('entrada_sin_internet', `${r.usuario.nombre} entró sin internet (verificado con la huella guardada en esta computadora)`);
       return null;
     },
     // El token venció con el equipo en funcionamiento: no se saca a la persona de la caja, se le pide confirmar la contraseña.
     pasarASesionLocal() {
+      void registrarActividad('sesion_vencida', 'La sesión venció con la caja abierta; se pidió confirmar la contraseña');
       clearToken();
       localStorage.setItem(LOCAL_KEY, '1');
       this.sesionLocal = true;
@@ -92,6 +95,7 @@ export const useAuthStore = defineStore('auth', {
       if (data.requiereDosPasos) throw new ApiError('Esta cuenta pide verificación en dos pasos: cierre sesión y entre de nuevo.', 400);
       this.iniciarSesion(data);
       void guardarCredencial(this.usuario.email, password, data.usuario);
+      void registrarActividad('sesion_confirmada', 'Contraseña confirmada con internet; se envió lo pendiente');
       return true;
     },
     async reautenticarSilencioso() {
@@ -154,6 +158,7 @@ export const useAuthStore = defineStore('auth', {
       this.guardarUsuario({ debeCambiarClave: false });
     },
     logout() {
+      if (this.usuario?.rol === 'encargado_tienda') void registrarActividad('salida', `${this.usuario.nombre} salió de la caja`);
       contrasenaEnMemoria = null;
       localStorage.removeItem(LOCAL_KEY);
       this.sesionLocal = false;

@@ -7,6 +7,10 @@ Versionado `MAYOR.MENOR.PARCHE`:
 
 La versión se cambia en `app/package.json` y `backend/package.json` (el pie de página y el panel del sistema la leen solos).
 
+## 1.9.0 — 22 oct 2026 — Datos de cada tienda y registro de actividad
+- **Datos de cada tienda en el tiquete** (Tienda → Configuración): razón social, nombre comercial, cédula jurídica, teléfono, correo, dirección, mensaje al pie y leyenda legal por tienda, con vista previa. Lo que se deja vacío usa los datos generales de la empresa.
+- **Registro de actividad de las tiendas** (Tienda → Actividad), solo de consulta y con descarga en CSV: lo que pasa en la caja, aunque sea sin internet, con su hora real (abrir y cerrar caja, productos quitados del tiquete, tiquetes vaciados o reimpresos, entradas sin internet, mercadería aceptada, conteos, pedidos, respaldos), los cambios hechos desde el panel (anulaciones, precios de tienda, stock mínimo, datos de la tienda, configuración del POS) y los envíos que el servidor no aceptó.
+
 ## 1.8.0 — 22 oct 2026 — Entrar sin internet y respaldo de seguridad
 - **Entrar sin internet** (encargado de tienda): al entrar con internet, la computadora guarda una huella cifrada de la contraseña; si después no hay conexión (se fue la luz, se reinició el equipo) puede entrar con su correo y contraseña de siempre y seguir cobrando, recibiendo mercadería y contando inventario. Vale 30 días, se borra si el servidor rechaza la contraseña y bloquea 5 minutos tras 5 intentos fallidos. Al volver el internet la caja confirma la contraseña sola o la pide con un aviso, y envía todo lo pendiente.
 - **La sesión ya no saca a la persona de la caja:** si el token vence con la caja abierta, solo se pide confirmar la contraseña (no se pierde el tiquete a medias).

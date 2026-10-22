@@ -35,8 +35,8 @@ export class InventarioController {
   @Put('minimos')
   @UseGuards(PermissionsGuard)
   @RequirePermissions(Permiso.INVENTARIO_GESTIONAR)
-  minimos(@Body() dto: MinimosInventarioDto) {
-    return this.inventarioService.establecerMinimos(dto.ubicacionId, dto.minimos);
+  minimos(@Body() dto: MinimosInventarioDto, @CurrentUser() usuario: UsuarioAutenticado) {
+    return this.inventarioService.establecerMinimos(dto.ubicacionId, dto.minimos, usuario.id);
   }
 
   @Get('kardex')
