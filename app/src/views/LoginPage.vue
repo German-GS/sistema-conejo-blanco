@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue';
+import { onBeforeUnmount, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '../stores/auth.js';
 import { ApiError } from '../lib/api.js';
@@ -8,6 +8,15 @@ import logo from '../logo/logo-login.png';
 const auth = useAuthStore();
 const route = useRoute();
 const router = useRouter();
+
+const sinInternet = ref(typeof navigator !== 'undefined' && !navigator.onLine);
+const marcarEstado = () => (sinInternet.value = !navigator.onLine);
+window.addEventListener('online', marcarEstado);
+window.addEventListener('offline', marcarEstado);
+onBeforeUnmount(() => {
+  window.removeEventListener('online', marcarEstado);
+  window.removeEventListener('offline', marcarEstado);
+});
 
 const email = ref('');
 const password = ref('');
@@ -63,6 +72,10 @@ async function enviar() {
 
       <p v-if="route.query.expirada" class="mb-4 rounded-xl bg-amber-50 p-3 text-sm font-medium text-amber-800">
         Tu sesión se cerró por inactividad. Volvé a ingresar para continuar.
+      </p>
+
+      <p v-if="sinInternet" class="mb-4 rounded-xl bg-amber-50 p-3 text-sm font-medium text-amber-800">
+        No hay internet. Si usted ya entró antes en esta computadora, puede entrar con su correo y contraseña de siempre y seguir trabajando; lo que haga se enviará cuando vuelva la conexión.
       </p>
 
       <template v-if="!ticket">

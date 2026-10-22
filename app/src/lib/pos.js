@@ -1,6 +1,7 @@
 import { computed, reactive } from 'vue';
-import { api, ApiError } from './api.js';
+import { api, ApiError, getToken } from './api.js';
 import { dbAll, dbDelete, dbGet, dbPut } from './posDb.js';
+import { descargarRespaldo, hacerCuantoDesdeRespaldo, restaurarRespaldo } from './respaldo.js';
 
 // Lógica del punto de venta. Todo lo que el cajero hace se guarda primero en esta computadora (IndexedDB) y se
 // envía al servidor cuando hay internet; reenviar nunca duplica porque cada venta lleva su propio id.
@@ -145,6 +146,13 @@ export async function iniciarPos() {
     pos.error = err instanceof Error ? err.message : 'No se pudo abrir el almacenamiento local.';
   }
   pos.listo = true;
+  pos.enLinea = typeof navigator === 'undefined' ? true : navigator.onLine;
+  // Pide al navegador que no borre por su cuenta los datos de la caja cuando falte espacio (no impide que alguien los borre a mano).
+  try {
+    void navigator.storage?.persist?.();
+  } catch {
+    /* no todos los navegadores lo permiten */
+  }
   window.addEventListener('online', alVolverInternet);
   window.addEventListener('offline', alPerderInternet);
   temporizadores = [
@@ -155,6 +163,26 @@ export async function iniciarPos() {
     void descargarCatalogo();
     void sincronizar();
   }
+}
+
+// ---------------------------------------------------------------- Respaldo de seguridad
+
+export const respaldar = () => descargarRespaldo(pos.tienda);
+export const desdeUltimoRespaldo = hacerCuantoDesdeRespaldo;
+
+// Vuelve a meter lo guardado en un respaldo (por ejemplo, después de que se borraron los datos del navegador) y lo envía.
+export async function restaurar(texto) {
+  const nuevos = await restaurarRespaldo(texto);
+  const tiendaActual = pos.tienda;
+  await cargarLocal();
+  if (!pos.tienda && tiendaActual) pos.tienda = tiendaActual;
+  if (pos.tienda) {
+    pos.ultimoNumero = Math.max(pos.ultimoNumero, 0, ...pos.ventas.filter((v) => tiendaDe(v) === pos.tienda.id).map((v) => v.numero));
+    pos.ultimoNumeroOrden = Math.max(pos.ultimoNumeroOrden, 0, ...pos.ordenes.filter((o) => tiendaDe(o) === pos.tienda.id).map((o) => o.numero));
+    pos.caja = cajaAbiertaDe(pos.tienda.id);
+  }
+  void sincronizar();
+  return nuevos;
 }
 
 export function detenerPos() {
@@ -199,7 +227,7 @@ export async function cambiarTienda() {
 }
 
 export async function descargarCatalogo() {
-  if (!pos.tienda || !navigator.onLine) return;
+  if (!pos.tienda || !navigator.onLine || !getToken()) return;
   try {
     const c = await api.get(`/pos/catalogo/${pos.tienda.id}`);
     pos.catalogo = c;
@@ -433,7 +461,7 @@ export async function reintentarRechazadas() {
 }
 
 export async function sincronizar() {
-  if (!pos.tienda || pos.sincronizando || !navigator.onLine) return;
+  if (!pos.tienda || pos.sincronizando || !navigator.onLine || !getToken()) return;
   const ventas = pos.ventas.filter((v) => !v.enviada && !v.rechazada);
   const cajas = pos.cajas.filter((c) => !c.aperturaEnviada || (c.cerradaEn && !c.cierreEnviado));
   const ordenes = pos.ordenes.filter((o) => !o.enviada && !o.rechazada);

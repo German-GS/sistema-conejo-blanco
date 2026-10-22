@@ -57,6 +57,8 @@ watch(
 
 function alSesionInvalida() {
   if (!auth.autenticado) return;
+  // El encargado de tienda sigue en su caja (con la venta que tenga a medias); solo se le pide confirmar la contraseña.
+  if (auth.esEncargadoTienda) return auth.pasarASesionLocal();
   auth.logout();
   router.push({ name: 'login', query: { expirada: '1' } });
 }

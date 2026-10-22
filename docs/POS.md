@@ -39,6 +39,33 @@ Un traspaso de un pedido de tienda **no se puede recibir desde Bodega**: lo reci
 
 **Recibir la mercadería sin internet.** La tienda acepta el envío aunque no haya internet: la aceptación queda guardada en la computadora, la existencia de la tienda **sube de inmediato** y el pedido aparece como «Aceptada · se enviará con internet». Al volver la conexión se envía sola con las demás ventas; el servidor mueve el inventario y genera el asiento (con la fecha de cuando llegó la conexión) y, si se reenvía por error, no se duplica. Si el servidor no la acepta, un aviso rojo explica por qué y permite reintentar.
 
+## Lo esencial sin internet
+
+| Función | Sin internet |
+|---|---|
+| **Cobrar** (tiquete de venta) | Sí: se guarda en la computadora, se imprime y se envía solo al volver la conexión. |
+| **Inventario** | Sí: aceptar la mercadería que llega, contar el inventario (solo sube) y pedir mercadería. |
+| **Entrar (login)** | Sí, solo el **encargado de tienda** y solo en una computadora donde ya entró antes con internet (ver abajo). |
+| Informes CSV, tiquete de prueba, respaldo | Sí. |
+
+Lo que **necesita internet**: la primera vez que se configura una terminal (elegir la tienda y bajar el catálogo), enviar lo pendiente al sistema, y todo lo de administración (precios, revisar pedidos, ajustes hacia abajo).
+
+### Entrar sin internet
+Al entrar con internet, el encargado de tienda deja guardada en esa computadora una **huella** de su contraseña (PBKDF2 con sal; nunca la contraseña). Si después no hay internet (por ejemplo, se fue la luz y el equipo se reinició), la pantalla de entrada acepta su correo y contraseña de siempre y lo deja trabajar en su caja.
+
+- Vale **30 días** desde la última vez que entró con internet y se borra si el servidor rechaza esa contraseña (cambió o se desactivó la cuenta). Cinco intentos fallidos bloquean 5 minutos.
+- Solo aplica al encargado de tienda (el perfil que entra directo a la caja, sin verificación en dos pasos). Las cuentas de administración, gerencia y sistema siempre necesitan internet.
+- Mientras la sesión es «sin internet» no hay permiso del servidor, así que nada se envía. Al volver la conexión la caja **confirma la contraseña sola** (si la persona la escribió en esta sesión) o muestra el aviso «Confirme su contraseña»; entonces se envía todo lo pendiente.
+- Si la sesión vence con internet y la caja abierta (token de 8 horas), la persona **no es sacada de la caja**: se le pide la contraseña en un aviso y no pierde el tiquete que tiene a medias.
+
+### Si se borran los datos del navegador
+Todo lo que **ya se envió** al sistema está a salvo. Lo que **no se había enviado** (ventas, conteos, mercadería aceptada o pedidos hechos sin internet) vive solo en la computadora y **se pierde** si alguien borra «cookies y datos de sitios» o «datos de navegación». Además, sin internet no se podría ni abrir la aplicación hasta conectarse una vez (se borra también la copia que permite abrirla sin conexión).
+
+Qué se hizo para reducir ese riesgo:
+- La caja pide al navegador **almacenamiento persistente** (evita que lo borre por falta de espacio; no impide que alguien lo borre a mano).
+- **Respaldo de seguridad** (Ventas de hoy → Respaldo de seguridad): un archivo con todo lo guardado en la computadora; con **Restaurar respaldo** se recupera (es seguro repetirlo: el servidor ignora lo que ya recibió). Mientras no haya internet y haya registros sin enviar, la caja avisa «Guarde un respaldo» cada 2 horas.
+- Para recuperarse: conectar a internet, entrar, elegir la tienda y restaurar el último respaldo.
+
 ## Contar el inventario de la tienda
 
 En la caja, **Inventario → Contar inventario**: la persona escribe cuántos pares hay en el estante de cada producto y un motivo (obligatorio). Reglas:

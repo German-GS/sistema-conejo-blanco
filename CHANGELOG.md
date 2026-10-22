@@ -7,6 +7,12 @@ Versionado `MAYOR.MENOR.PARCHE`:
 
 La versión se cambia en `app/package.json` y `backend/package.json` (el pie de página y el panel del sistema la leen solos).
 
+## 1.8.0 — 22 oct 2026 — Entrar sin internet y respaldo de seguridad
+- **Entrar sin internet** (encargado de tienda): al entrar con internet, la computadora guarda una huella cifrada de la contraseña; si después no hay conexión (se fue la luz, se reinició el equipo) puede entrar con su correo y contraseña de siempre y seguir cobrando, recibiendo mercadería y contando inventario. Vale 30 días, se borra si el servidor rechaza la contraseña y bloquea 5 minutos tras 5 intentos fallidos. Al volver el internet la caja confirma la contraseña sola o la pide con un aviso, y envía todo lo pendiente.
+- **La sesión ya no saca a la persona de la caja:** si el token vence con la caja abierta, solo se pide confirmar la contraseña (no se pierde el tiquete a medias).
+- **Respaldo de seguridad** (Ventas de hoy → Respaldo de seguridad): guarda en un archivo lo que aún no se envió al sistema y permite restaurarlo si se borran los datos del navegador. Sin internet y con registros pendientes, la caja avisa «Guarde un respaldo» cada 2 horas. La caja también pide almacenamiento persistente al navegador.
+- Corrección: la caja refrescaba mal el estado «con/sin internet» al volver a abrirse dentro de la misma sesión.
+
 ## 1.7.0 — 22 oct 2026 — Conteo de inventario en la tienda
 - **Contar inventario desde la caja** (Inventario → Contar inventario): la tienda escribe cuántos pares hay en el estante y un motivo. **Solo puede subir** la existencia (lo que baja, baja por ventas; las correcciones hacia abajo las hace la administración desde Bodega → Ajuste), también lo exige el servidor.
 - Funciona **sin internet**: la existencia sube de inmediato y el conteo se envía solo al volver la conexión, sin duplicarse.

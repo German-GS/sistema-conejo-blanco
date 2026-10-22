@@ -10,7 +10,7 @@ import { api, ApiError } from '../../lib/api.js';
 import { formatearColones, formatearFechaHora } from '../../lib/format.js';
 import {
   abrirCaja, alertasLocales, buscar, buscarExacto, cambiarTienda, esVendible, cerrarCaja, cobrar, descargarCatalogo, detenerPos, efectivoEsperado, elegirTienda,
-  guardarImprimirAuto, iniciarPos, minimoDe, ajustesPorEnviar, ajustesRechazados, guardarConteo, reintentarAjustes, recepcionPendiente, recepcionesPorEnviar, recepcionesRechazadas, reintentarRecepciones, numeroTexto, pendientes, pos, rechazadas, reintentarRechazadas, resumenTurno, sincronizar, stockDe, sugerenciasPedido, ordenesPendientes,
+  guardarImprimirAuto, iniciarPos, minimoDe, ajustesPorEnviar, ajustesRechazados, desdeUltimoRespaldo, guardarConteo, respaldar, restaurar, reintentarAjustes, recepcionPendiente, recepcionesPorEnviar, recepcionesRechazadas, reintentarRecepciones, numeroTexto, pendientes, pos, rechazadas, reintentarRechazadas, resumenTurno, sincronizar, stockDe, sugerenciasPedido, ordenesPendientes,
 } from '../../lib/pos.js';
 import TiquetePos from './TiquetePos.vue';
 import PedidoReposicion from './PedidoReposicion.vue';
@@ -137,6 +137,54 @@ async function guardarElConteo() {
     guardandoConteo.value = false;
   }
 }
+// ---- Entrar de nuevo con internet (la sesión se confirmó sin internet o venció con la caja abierta)
+const mostrarReauth = ref(false);
+const claveReauth = ref('');
+const errorReauth = ref('');
+const reautenticando = ref(false);
+const faltaConfirmar = computed(() => auth.sesionLocal && pos.enLinea);
+watch(faltaConfirmar, async (falta) => {
+  if (!falta) return;
+  if (await auth.reautenticarSilencioso()) {
+    await sincronizar();
+    await descargarCatalogo();
+  }
+}, { immediate: true });
+async function confirmarClave() {
+  errorReauth.value = '';
+  reautenticando.value = true;
+  try {
+    await auth.reautenticar(claveReauth.value);
+    claveReauth.value = '';
+    mostrarReauth.value = false;
+    await sincronizar();
+    await descargarCatalogo();
+  } catch (err) {
+    errorReauth.value = err instanceof Error ? err.message : 'No se pudo confirmar la contraseña.';
+  } finally {
+    reautenticando.value = false;
+  }
+}
+
+// ---- Respaldo de seguridad (por si se borran los datos del navegador)
+const restauradoMsg = ref('');
+const porEnviarTotal = computed(() => pendientes.value.length + ordenesPendientes.value.length + recepcionesPorEnviar.value.length + ajustesPorEnviar.value.length);
+async function guardarRespaldo() {
+  const r = await respaldar();
+  avisar(`Respaldo guardado en la carpeta de descargas (${r.ventas} venta(s), ${r.cajas} caja(s), ${r.ordenes} pedido(s)).`);
+}
+async function alElegirRespaldo(e) {
+  const archivo = e.target.files?.[0];
+  e.target.value = '';
+  if (!archivo) return;
+  try {
+    const nuevos = await restaurar(await archivo.text());
+    restauradoMsg.value = nuevos ? `Se recuperaron ${nuevos} registro(s) del respaldo. Se enviarán al sistema cuando haya internet.` : 'El respaldo no trae nada nuevo: todo eso ya estaba en esta computadora.';
+  } catch (err) {
+    restauradoMsg.value = err instanceof Error ? err.message : 'No se pudo restaurar el respaldo.';
+  }
+}
+
 // ---- Tienda de esta terminal
 const tiendas = ref([]);
 const errorTienda = ref('');
@@ -366,6 +414,8 @@ const avisos = computed(() => {
   if (!pos.enLinea) a.push({ tipo: 'error', icono: CloudOff, titulo: 'No hay internet', texto: 'Puede seguir trabajando con toda normalidad: vender, recibir mercadería y hacer pedidos. Todo se guarda en esta computadora y se envía solo cuando vuelva el internet. No apague la computadora ni borre los datos del navegador.' });
   if (rechazadas.value.length) a.push({ tipo: 'error', icono: TriangleAlert, titulo: `${rechazadas.value.length} venta(s) no se pudieron enviar`, texto: 'Avise a la administración. Las ventas siguen guardadas en esta computadora.', accion: { texto: 'VER CUÁLES', fn: () => (panel.value = 'rechazadas') } });
   if (recepcionesRechazadas.value.length) a.push({ tipo: 'error', icono: TriangleAlert, titulo: `${recepcionesRechazadas.value.length} recepción(es) de mercadería no se pudieron enviar`, texto: `${recepcionesRechazadas.value[0].error} Avise a la administración.`, accion: { texto: 'REINTENTAR', fn: () => void reintentarRecepciones() } });
+  if (faltaConfirmar.value) a.push({ tipo: 'aviso', icono: KeyRound, titulo: 'Confirme su contraseña', texto: 'Ya hay internet. Escriba su contraseña para enviar al sistema lo que se hizo sin conexión.', accion: { texto: 'ESCRIBIR CONTRASEÑA', fn: () => (mostrarReauth.value = true) } });
+  if (!pos.enLinea && porEnviarTotal.value > 0 && desdeUltimoRespaldo() > 2 * 3_600_000) a.push({ tipo: 'aviso', icono: Download, titulo: 'Guarde un respaldo', texto: `Hay ${porEnviarTotal.value} registro(s) sin enviar guardados solo en esta computadora. Si borran los datos del navegador se perderían.`, accion: { texto: 'GUARDAR RESPALDO', fn: () => void guardarRespaldo() } });
   if (ajustesRechazados.value.length) a.push({ tipo: 'error', icono: TriangleAlert, titulo: 'Un conteo de inventario no se pudo enviar', texto: `${ajustesRechazados.value[0].error} Avise a la administración.`, accion: { texto: 'REINTENTAR', fn: () => void reintentarAjustes() } });
   if (ajustesPorEnviar.value.length) a.push({ tipo: 'info', icono: RefreshCw, titulo: `${ajustesPorEnviar.value.length} conteo(s) de inventario por enviar`, texto: 'Ya cuentan en el inventario de la tienda. Se enviarán solos cuando haya internet.' });
   if (recepcionesPorEnviar.value.length) a.push({ tipo: 'info', icono: RefreshCw, titulo: `${recepcionesPorEnviar.value.length} recepción(es) de mercadería por enviar`, texto: 'La mercadería ya cuenta en el inventario de la tienda. Se enviará sola cuando haya internet.' });
@@ -656,6 +706,18 @@ watch(
       </div>
     </div>
 
+    <!-- Confirmar la contraseña con internet -->
+    <div v-if="mostrarReauth" class="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/60 p-3" @click.self="mostrarReauth = false">
+      <form class="w-full max-w-md rounded-3xl bg-white p-6 shadow-xl" @submit.prevent="confirmarClave">
+        <p class="text-2xl font-extrabold text-slate-900">Confirme su contraseña</p>
+        <p class="mt-1 text-base text-slate-600">Entró sin internet. Escriba su contraseña de siempre para enviar al sistema lo que se hizo.</p>
+        <input v-model="claveReauth" type="password" autocomplete="current-password" class="input mt-3 !min-h-14 text-xl" placeholder="Contraseña" required />
+        <p v-if="errorReauth" class="mt-2 rounded-xl bg-red-100 px-4 py-3 text-base font-bold text-red-700">{{ errorReauth }}</p>
+        <button type="submit" class="mt-3 w-full rounded-2xl bg-blue-600 py-4 text-xl font-extrabold text-white hover:bg-blue-700 disabled:bg-slate-300" :disabled="reautenticando">{{ reautenticando ? 'Confirmando…' : 'CONFIRMAR' }}</button>
+        <button type="button" class="mt-2 w-full py-2 text-base font-semibold text-slate-500 hover:text-slate-800" @click="mostrarReauth = false">Ahora no</button>
+      </form>
+    </div>
+
     <!-- Paneles -->
     <div v-if="panel" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-3" @click.self="panel = ''; cierreHecho = null">
       <div class="max-h-full w-full max-w-2xl overflow-y-auto rounded-3xl bg-white p-6 shadow-xl">
@@ -696,6 +758,16 @@ watch(
         </template>
 
         <template v-else-if="panel === 'turno'">
+          <details class="mb-4 rounded-2xl border-2 border-slate-200 p-4">
+            <summary class="cursor-pointer text-lg font-extrabold text-slate-900">Respaldo de seguridad</summary>
+            <p class="mt-1 text-sm text-slate-500">Lo que todavía no se envió al sistema vive solo en esta computadora. <b>No borre los datos del navegador</b>: si lo hace, eso se pierde. Guarde un respaldo (queda en Descargas); si algún día se borran los datos, entre de nuevo con internet, elija la tienda y restaure el respaldo.</p>
+            <p class="mt-1 text-sm font-semibold" :class="porEnviarTotal ? 'text-amber-600' : 'text-green-600'">{{ porEnviarTotal ? `Sin enviar al sistema: ${porEnviarTotal} registro(s).` : 'Todo lo hecho ya está en el sistema.' }}</p>
+            <div class="mt-2 grid gap-2 sm:grid-cols-2">
+              <button type="button" class="flex items-center justify-center gap-2 rounded-2xl border-2 border-slate-300 py-3 text-lg font-bold hover:bg-slate-100" @click="guardarRespaldo"><Download class="size-5" /> Guardar respaldo</button>
+              <label class="flex cursor-pointer items-center justify-center gap-2 rounded-2xl border-2 border-slate-300 py-3 text-lg font-bold hover:bg-slate-100">Restaurar respaldo<input type="file" accept="application/json,.json" class="hidden" @change="alElegirRespaldo" /></label>
+            </div>
+            <p v-if="restauradoMsg" class="mt-2 text-sm font-semibold text-slate-700">{{ restauradoMsg }}</p>
+          </details>
           <details class="mb-4 rounded-2xl border-2 border-slate-200 p-4">
             <summary class="cursor-pointer text-lg font-extrabold text-slate-900">Márgenes del tiquete</summary>
             <p class="mt-1 text-sm text-slate-500">Si al imprimir se corta el nombre de arriba o las primeras letras de los lados, aumente el margen y pruebe de nuevo.</p>
