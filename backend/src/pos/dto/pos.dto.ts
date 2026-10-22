@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { ArrayMaxSize, ArrayMinSize, IsArray, IsBoolean, IsDateString, IsIn, IsInt, IsNumber, IsOptional, IsString, IsUUID, Max, MaxLength, Min, ValidateNested } from 'class-validator';
+import { ArrayMaxSize, ArrayMinSize, IsArray, IsBoolean, IsDateString, IsIn, IsInt, IsNumber, IsOptional, IsString, IsUUID, Max, MaxLength, Min, MinLength, ValidateNested } from 'class-validator';
 import { MEDIOS_POS } from '../pos-pago.entity.js';
 
 export class PosLineaDto {
@@ -200,6 +200,13 @@ export class SincronizarPosDto {
   @ValidateNested({ each: true })
   @Type(() => PosRecepcionDto)
   recepciones?: PosRecepcionDto[];
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(50)
+  @ValidateNested({ each: true })
+  @Type(() => PosAjusteDto)
+  ajustes?: PosAjusteDto[];
 }
 
 export class NotaOrdenDto {
@@ -277,6 +284,35 @@ export class RecibirTiendaDto {
 export class PosRecepcionDto extends RecibirTiendaDto {
   @IsUUID()
   ordenId: string;
+}
+
+export class AjusteLineaDto {
+  @IsUUID()
+  varianteId: string;
+
+  // Solo aumentos: pares que se suman a la existencia de la tienda (nunca se puede bajar desde la tienda).
+  @IsInt()
+  @Min(1)
+  @Max(100000)
+  cantidad: number;
+}
+
+// Conteo de inventario hecho en la tienda (puede venir de cuando no había internet). Solo suma.
+export class PosAjusteDto {
+  @IsUUID()
+  id: string;
+
+  @IsString()
+  @MinLength(3)
+  @MaxLength(300)
+  nota: string;
+
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(300)
+  @ValidateNested({ each: true })
+  @Type(() => AjusteLineaDto)
+  lineas: AjusteLineaDto[];
 }
 
 export class EstadoOrdenDto {

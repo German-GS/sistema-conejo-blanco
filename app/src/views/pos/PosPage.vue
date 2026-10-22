@@ -10,7 +10,7 @@ import { api, ApiError } from '../../lib/api.js';
 import { formatearColones, formatearFechaHora } from '../../lib/format.js';
 import {
   abrirCaja, alertasLocales, buscar, buscarExacto, cambiarTienda, esVendible, cerrarCaja, cobrar, descargarCatalogo, detenerPos, efectivoEsperado, elegirTienda,
-  guardarImprimirAuto, iniciarPos, minimoDe, recepcionPendiente, recepcionesPorEnviar, recepcionesRechazadas, reintentarRecepciones, numeroTexto, pendientes, pos, rechazadas, reintentarRechazadas, resumenTurno, sincronizar, stockDe, sugerenciasPedido, ordenesPendientes,
+  guardarImprimirAuto, iniciarPos, minimoDe, ajustesPorEnviar, ajustesRechazados, guardarConteo, reintentarAjustes, recepcionPendiente, recepcionesPorEnviar, recepcionesRechazadas, reintentarRecepciones, numeroTexto, pendientes, pos, rechazadas, reintentarRechazadas, resumenTurno, sincronizar, stockDe, sugerenciasPedido, ordenesPendientes,
 } from '../../lib/pos.js';
 import TiquetePos from './TiquetePos.vue';
 import PedidoReposicion from './PedidoReposicion.vue';
@@ -105,6 +105,38 @@ function exportarInventario() {
   avisar(`Se descargó el inventario (${invFilas.value.length} producto(s)).`);
 }
 
+// ---- Conteo de inventario (solo sube la existencia; lo que baja, baja por ventas). Queda en el kardex y en la bitácora del sistema.
+const contando = ref(false);
+const conteo = ref({});
+const notaConteo = ref('');
+const errorConteo = ref('');
+const guardandoConteo = ref(false);
+const diferenciaConteo = (v) => Math.round(Number(conteo.value[v.varianteId])) - stockDe(v.varianteId);
+const lineasConteo = computed(() => Object.entries(conteo.value).filter(([, c]) => c !== '' && c !== undefined && c !== null && Number.isFinite(Number(c))).map(([varianteId]) => ({ varianteId, cantidad: diferenciaConteo({ varianteId }) })));
+const hayBajada = computed(() => lineasConteo.value.some((l) => l.cantidad < 0));
+const paresConteo = computed(() => lineasConteo.value.filter((l) => l.cantidad > 0).reduce((a, l) => a + l.cantidad, 0));
+const conteoValido = computed(() => paresConteo.value > 0 && !hayBajada.value && notaConteo.value.trim().length >= 3);
+function empezarConteo() {
+  conteo.value = {};
+  notaConteo.value = '';
+  errorConteo.value = '';
+  invTodo.value = true;
+  contando.value = true;
+}
+async function guardarElConteo() {
+  errorConteo.value = '';
+  guardandoConteo.value = true;
+  try {
+    await guardarConteo(lineasConteo.value.filter((l) => l.cantidad > 0), notaConteo.value);
+    avisar(`Conteo guardado: se sumaron ${paresConteo.value} pares al inventario.`);
+    contando.value = false;
+    conteo.value = {};
+  } catch (err) {
+    errorConteo.value = err instanceof Error ? err.message : 'No se pudo guardar el conteo.';
+  } finally {
+    guardandoConteo.value = false;
+  }
+}
 // ---- Tienda de esta terminal
 const tiendas = ref([]);
 const errorTienda = ref('');
@@ -289,6 +321,9 @@ async function imprimir(venta) {
 
 // ---- Caja
 const panel = ref(''); // '', 'caja', 'turno', 'alertas', 'rechazadas'
+watch(panel, (p) => {
+  if (p !== 'inventario') contando.value = false;
+});
 const pidiendo = ref(false);
 const enCaminoTienda = computed(() => pos.ordenesRecientes.filter((o) => o.puedeRecibir && !recepcionPendiente(o.id)).length);
 const fondo = ref('');
@@ -331,6 +366,8 @@ const avisos = computed(() => {
   if (!pos.enLinea) a.push({ tipo: 'error', icono: CloudOff, titulo: 'No hay internet', texto: 'Puede seguir trabajando con toda normalidad: vender, recibir mercadería y hacer pedidos. Todo se guarda en esta computadora y se envía solo cuando vuelva el internet. No apague la computadora ni borre los datos del navegador.' });
   if (rechazadas.value.length) a.push({ tipo: 'error', icono: TriangleAlert, titulo: `${rechazadas.value.length} venta(s) no se pudieron enviar`, texto: 'Avise a la administración. Las ventas siguen guardadas en esta computadora.', accion: { texto: 'VER CUÁLES', fn: () => (panel.value = 'rechazadas') } });
   if (recepcionesRechazadas.value.length) a.push({ tipo: 'error', icono: TriangleAlert, titulo: `${recepcionesRechazadas.value.length} recepción(es) de mercadería no se pudieron enviar`, texto: `${recepcionesRechazadas.value[0].error} Avise a la administración.`, accion: { texto: 'REINTENTAR', fn: () => void reintentarRecepciones() } });
+  if (ajustesRechazados.value.length) a.push({ tipo: 'error', icono: TriangleAlert, titulo: 'Un conteo de inventario no se pudo enviar', texto: `${ajustesRechazados.value[0].error} Avise a la administración.`, accion: { texto: 'REINTENTAR', fn: () => void reintentarAjustes() } });
+  if (ajustesPorEnviar.value.length) a.push({ tipo: 'info', icono: RefreshCw, titulo: `${ajustesPorEnviar.value.length} conteo(s) de inventario por enviar`, texto: 'Ya cuentan en el inventario de la tienda. Se enviarán solos cuando haya internet.' });
   if (recepcionesPorEnviar.value.length) a.push({ tipo: 'info', icono: RefreshCw, titulo: `${recepcionesPorEnviar.value.length} recepción(es) de mercadería por enviar`, texto: 'La mercadería ya cuenta en el inventario de la tienda. Se enviará sola cuando haya internet.' });
   if (pos.tienda && !pos.caja) a.push({ tipo: 'aviso', icono: Wallet, titulo: 'La caja está cerrada', texto: 'Para poder vender, primero abra la caja: cuente el efectivo con que empieza y escríbalo.', accion: { texto: 'ABRIR CAJA', fn: () => (panel.value = 'caja') } });
   if (cajaDeOtroDia.value) a.push({ tipo: 'aviso', icono: Wallet, titulo: 'La caja se abrió otro día', texto: 'Cuente el efectivo y cierre la caja; después ábrala de nuevo para empezar el día ordenado.', accion: { texto: 'CERRAR CAJA', fn: () => (panel.value = 'caja') } });
@@ -687,19 +724,34 @@ watch(
         </template>
 
         <template v-else-if="panel === 'inventario'">
-          <p class="mb-3 rounded-2xl bg-blue-600 p-4 text-lg text-white">Esto es lo que el sistema dice que hay en <b>esta tienda</b>. Si algo no cuadra con lo que ve en el estante, avise a la administración.</p>
+          <p v-if="!contando" class="mb-3 rounded-2xl bg-blue-600 p-4 text-lg text-white">Esto es lo que el sistema dice que hay en <b>esta tienda</b>. Si algo no cuadra con lo que ve en el estante, avise a la administración.</p>
+          <p v-else class="mb-3 rounded-2xl bg-blue-600 p-4 text-lg text-white"><b>Conteo:</b> cuente los pares que hay en el estante y escríbalos. Solo puede <b>subir</b> la existencia (lo que se vende baja solo). Si <b>falta</b> mercadería, avise a la administración. Deje en blanco lo que no cuente.</p>
           <input v-model="invTexto" type="search" placeholder="Busque por código, nombre o color" class="input" />
           <label class="mt-2 flex items-center gap-2 text-base font-semibold text-slate-700"><input v-model="invTodo" type="checkbox" class="size-5" /> Mostrar también lo que no tiene existencias</label>
           <p class="mt-2 text-sm text-slate-500">{{ invFilas.length }} producto(s) · {{ invPares }} pares en tienda</p>
           <ul class="mt-1 divide-y divide-slate-100">
             <li v-for="v in invFilas" :key="v.varianteId" class="flex items-center justify-between gap-3 py-2.5">
               <span class="min-w-0"><span class="flex items-center gap-2 truncate text-lg font-bold">{{ v.codigo }} · {{ v.color }}<span v-if="v.prueba" class="rounded-full bg-amber-500 px-2 text-xs font-extrabold text-white">PRUEBA</span></span><span class="block truncate text-sm text-slate-500">{{ v.nombre }} · <template v-if="esVendible(v)">{{ formatearColones(v.precio) }}</template><b v-else class="text-amber-600">sin precio de tienda</b></span></span>
-              <span class="text-right"><span class="block text-2xl font-extrabold" :class="stockDe(v.varianteId) <= 0 ? 'text-red-600' : stockDe(v.varianteId) <= minimoDe(v.varianteId) ? 'text-amber-600' : 'text-slate-900'">{{ stockDe(v.varianteId) }}</span><span class="block text-xs text-slate-500">{{ minimoDe(v.varianteId) ? `mínimo ${minimoDe(v.varianteId)}` : 'pares' }}</span></span>
+              <span v-if="!contando" class="text-right"><span class="block text-2xl font-extrabold" :class="stockDe(v.varianteId) <= 0 ? 'text-red-600' : stockDe(v.varianteId) <= minimoDe(v.varianteId) ? 'text-amber-600' : 'text-slate-900'">{{ stockDe(v.varianteId) }}</span><span class="block text-xs text-slate-500">{{ minimoDe(v.varianteId) ? `mínimo ${minimoDe(v.varianteId)}` : 'pares' }}</span></span>
+              <span v-else class="w-36 shrink-0 text-right">
+                <span class="block text-sm text-slate-500">El sistema dice <b>{{ stockDe(v.varianteId) }}</b></span>
+                <input v-model="conteo[v.varianteId]" type="number" min="0" step="1" inputmode="numeric" placeholder="¿Cuántos hay?" class="input mt-1 !min-h-11 text-right text-xl font-extrabold" :aria-label="`Pares de ${v.codigo} ${v.color}`" />
+                <span v-if="conteo[v.varianteId] !== undefined && conteo[v.varianteId] !== ''" class="block text-sm font-bold" :class="diferenciaConteo(v) < 0 ? 'text-red-600' : diferenciaConteo(v) > 0 ? 'text-green-600' : 'text-slate-500'">{{ diferenciaConteo(v) < 0 ? 'No se puede bajar: avise a la administración' : diferenciaConteo(v) > 0 ? `Se suman ${diferenciaConteo(v)}` : 'Igual al sistema' }}</span>
+              </span>
             </li>
             <li v-if="!invFilas.length" class="py-4 text-lg text-slate-600">No hay productos con esas condiciones.</li>
           </ul>
-          <button type="button" class="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-slate-800 py-3 text-lg font-extrabold text-white hover:bg-slate-900 disabled:bg-slate-300" :disabled="!invFilas.length" @click="exportarInventario"><Download class="size-5" /> Descargar inventario (CSV)</button>
-          <button type="button" class="mt-2 w-full rounded-2xl border-2 border-slate-300 py-3 text-lg font-bold hover:bg-slate-100" @click="descargarCatalogo">Actualizar existencias</button>
+          <template v-if="!contando">
+            <button type="button" class="mt-4 w-full rounded-2xl bg-blue-600 py-4 text-xl font-extrabold text-white hover:bg-blue-700" @click="empezarConteo">CONTAR INVENTARIO</button>
+            <button type="button" class="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-slate-800 py-3 text-lg font-extrabold text-white hover:bg-slate-900 disabled:bg-slate-300" :disabled="!invFilas.length" @click="exportarInventario"><Download class="size-5" /> Descargar inventario (CSV)</button>
+            <button type="button" class="mt-2 w-full rounded-2xl border-2 border-slate-300 py-3 text-lg font-bold hover:bg-slate-100" @click="descargarCatalogo">Actualizar existencias</button>
+          </template>
+          <template v-else>
+            <input v-model="notaConteo" type="text" maxlength="300" placeholder="Motivo del conteo (obligatorio)" class="input mt-4" />
+            <p v-if="errorConteo" class="mt-2 rounded-xl bg-red-100 px-4 py-3 text-base font-bold text-red-700">{{ errorConteo }}</p>
+            <button type="button" class="mt-3 w-full rounded-2xl bg-green-600 py-4 text-xl font-extrabold text-white hover:bg-green-700 disabled:bg-slate-300" :disabled="guardandoConteo || !conteoValido" @click="guardarElConteo">{{ guardandoConteo ? 'Guardando…' : `GUARDAR CONTEO (+${paresConteo} pares)` }}</button>
+            <button type="button" class="mt-2 w-full rounded-2xl border-2 border-slate-300 py-3 text-lg font-bold hover:bg-slate-100" @click="contando = false">Cancelar el conteo</button>
+          </template>
         </template>
 
         <template v-else-if="panel === 'alertas'">

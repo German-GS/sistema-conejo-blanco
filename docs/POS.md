@@ -39,6 +39,15 @@ Un traspaso de un pedido de tienda **no se puede recibir desde Bodega**: lo reci
 
 **Recibir la mercadería sin internet.** La tienda acepta el envío aunque no haya internet: la aceptación queda guardada en la computadora, la existencia de la tienda **sube de inmediato** y el pedido aparece como «Aceptada · se enviará con internet». Al volver la conexión se envía sola con las demás ventas; el servidor mueve el inventario y genera el asiento (con la fecha de cuando llegó la conexión) y, si se reenvía por error, no se duplica. Si el servidor no la acepta, un aviso rojo explica por qué y permite reintentar.
 
+## Contar el inventario de la tienda
+
+En la caja, **Inventario → Contar inventario**: la persona escribe cuántos pares hay en el estante de cada producto y un motivo (obligatorio). Reglas:
+
+- **Solo puede subir** la existencia. Si escribe menos de lo que dice el sistema, no deja guardar («No se puede bajar: avise a la administración»); lo que baja, baja por ventas, y las correcciones hacia abajo las hace la administración desde Bodega → Ajuste. El servidor también lo exige y el encargado de tienda no puede usar el ajuste de Bodega.
+- Funciona **sin internet**: la existencia sube de inmediato y el conteo se envía solo al volver la conexión (no se duplica si se reenvía). Se envía lo que **se suma** (no el total contado), para que las ventas hechas sin internet entre el conteo y el envío no se descuenten dos veces.
+- Cada conteo queda en el **kardex** («Ajuste de conteo», con la persona y la fecha) y en la **bitácora** (Accesos → Bitácora, acción «Conteo de inventario en tienda (aumento)», con el motivo y el antes y después de cada producto), visible para el administrador del sistema.
+- **No genera asiento contable**: la existencia sube pero el libro mayor no; por eso Salud financiera puede marcar la diferencia entre el inventario del mayor y las existencias, y la bitácora permite rastrearla.
+
 ## Informes en CSV
 
 - **En la caja** (funcionan sin internet, con lo guardado en la computadora): *Inventario → Descargar inventario* y *Ventas de hoy → Descargar informe de ventas* (hoy, 7 días, 30 días o todo lo guardado; las ventas ya enviadas se conservan 45 días). El informe de ventas trae una fila por producto vendido; el total del tiquete va solo en su primera línea para que no se sume dos veces.

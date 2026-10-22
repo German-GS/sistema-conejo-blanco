@@ -26,7 +26,8 @@ export type AccionBitacora =
   | 'ip_no_permitida'
   | 'analisis_enlace_generado'
   | 'analisis_enlace_revocado'
-  | 'asiento_eliminado';
+  | 'asiento_eliminado'
+  | 'inventario_tienda_aumentado';
 
 export interface EntradaBitacora {
   accion: AccionBitacora;

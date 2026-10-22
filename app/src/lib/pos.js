@@ -18,6 +18,7 @@ export const pos = reactive({
   ordenes: [], // pedidos de reposición hechos en esta terminal
   ordenesRecientes: [], // pedidos de la tienda según el servidor (con su estado)
   recepciones: [], // mercadería aceptada en la tienda que aún no se envió al servidor
+  ajustes: [], // conteos de inventario (solo aumentos) que aún no se enviaron
   ultimoNumeroOrden: 0,
   enLinea: typeof navigator === 'undefined' ? true : navigator.onLine,
   sincronizando: false,
@@ -58,6 +59,11 @@ const recibidoPendiente = computed(() => {
   for (const r of pos.recepciones) {
     if (r.rechazada) continue;
     for (const l of r.lineas) m[l.varianteId] = (m[l.varianteId] ?? 0) + l.cantidadRecibida;
+  }
+  // Los conteos hechos en la tienda (solo suben) también cuentan desde que se guardan.
+  for (const a of pos.ajustes) {
+    if (a.rechazada) continue;
+    for (const l of a.lineas) m[l.varianteId] = (m[l.varianteId] ?? 0) + l.cantidad;
   }
   return m;
 });
@@ -120,6 +126,7 @@ async function cargarLocal() {
   pos.ordenesRecientes = recientes ?? [];
   pos.ultimoNumeroOrden = ultimaOrden ?? 0;
   pos.recepciones = (await dbGet('kv', 'recepciones')) ?? [];
+  pos.ajustes = (await dbGet('kv', 'ajustes')) ?? [];
   pos.caja = cajaAbiertaDe(pos.tienda?.id);
 }
 
@@ -181,6 +188,7 @@ export async function elegirTienda(tienda) {
 }
 
 export async function cambiarTienda() {
+  if (ajustesPorEnviar.value.length) throw new Error('Hay un conteo de inventario sin enviar. Conéctese a internet y espere a que se envíe antes de cambiar la tienda.');
   if (recepcionesPorEnviar.value.length) throw new Error('Hay mercadería aceptada sin enviar. Conéctese a internet y espere a que se envíe antes de cambiar la tienda.');
   if (pendientes.value.length) throw new Error('Hay ventas sin enviar. Conéctese a internet y espere a que se envíen antes de cambiar la tienda.');
   pos.tienda = null;
@@ -359,6 +367,34 @@ export async function recibirOrdenTienda(ordenId, lineas, nota) {
   }
 }
 
+// Conteo de inventario: la tienda solo puede SUBIR la existencia (lo que baja, baja por ventas). lineas: [{ varianteId, cantidad }] con
+// cantidad = pares que se suman. Se guarda aquí, la existencia sube de una vez y se envía cuando hay internet.
+export const ajustesPorEnviar = computed(() => pos.ajustes.filter((a) => !a.rechazada));
+export const ajustesRechazados = computed(() => pos.ajustes.filter((a) => a.rechazada));
+
+export async function guardarConteo(lineas, nota) {
+  if (!pos.tienda) throw new Error('Esta terminal no tiene tienda asignada.');
+  const utiles = lineas.filter((l) => Number(l.cantidad) > 0);
+  if (!utiles.length) throw new Error('No hay nada que sumar: escriba más pares de los que dice el sistema.');
+  if (String(nota ?? '').trim().length < 3) throw new Error('Anote el motivo del conteo (por ejemplo: «conteo del estante»).');
+  const a = { id: crypto.randomUUID(), ubicacionId: pos.tienda.id, fecha: new Date().toISOString(), lineas: utiles.map((l) => ({ varianteId: l.varianteId, cantidad: Math.round(Number(l.cantidad)) })), nota: String(nota).trim(), rechazada: false, error: '' };
+  pos.ajustes = [...pos.ajustes, a];
+  await dbPut('kv', JSON.parse(JSON.stringify(pos.ajustes)), 'ajustes');
+  await sincronizar();
+  const rechazado = pos.ajustes.find((x) => x.id === a.id && x.rechazada);
+  if (rechazado) {
+    pos.ajustes = pos.ajustes.filter((x) => x !== rechazado);
+    await dbPut('kv', JSON.parse(JSON.stringify(pos.ajustes)), 'ajustes');
+    throw new Error(rechazado.error);
+  }
+}
+
+export async function reintentarAjustes() {
+  for (const a of pos.ajustes) a.rechazada = false;
+  await dbPut('kv', JSON.parse(JSON.stringify(pos.ajustes)), 'ajustes');
+  await sincronizar();
+}
+
 export async function reintentarRecepciones() {
   for (const r of pos.recepciones) r.rechazada = false;
   await dbPut('kv', JSON.parse(JSON.stringify(pos.recepciones)), 'recepciones');
@@ -402,11 +438,12 @@ export async function sincronizar() {
   const cajas = pos.cajas.filter((c) => !c.aperturaEnviada || (c.cerradaEn && !c.cierreEnviado));
   const ordenes = pos.ordenes.filter((o) => !o.enviada && !o.rechazada);
   const recepciones = pos.recepciones.filter((r) => !r.rechazada);
-  if (!ventas.length && !cajas.length && !ordenes.length && !recepciones.length) return;
+  const ajustes = pos.ajustes.filter((a) => !a.rechazada);
+  if (!ventas.length && !cajas.length && !ordenes.length && !recepciones.length && !ajustes.length) return;
   pos.sincronizando = true;
   try {
     // Se envía por tienda: lo pendiente de otra tienda (si la terminal cambió de tienda) viaja a la suya.
-    const tiendas = new Set([...ventas, ...cajas, ...ordenes, ...recepciones].map(tiendaDe));
+    const tiendas = new Set([...ventas, ...cajas, ...ordenes, ...recepciones, ...ajustes].map(tiendaDe));
     for (const ubicacionId of tiendas) {
       const r = await api.post('/pos/sincronizar', {
         ubicacionId,
@@ -414,6 +451,7 @@ export async function sincronizar() {
         cajas: cajas.filter((c) => tiendaDe(c) === ubicacionId).map(cajaParaServidor),
         ordenes: ordenes.filter((o) => tiendaDe(o) === ubicacionId).map(ordenParaServidor),
         recepciones: recepciones.filter((x) => tiendaDe(x) === ubicacionId).map((x) => ({ ordenId: x.ordenId, lineas: x.lineas, nota: x.nota })),
+        ajustes: ajustes.filter((x) => tiendaDe(x) === ubicacionId).map((x) => ({ id: x.id, nota: x.nota, lineas: x.lineas })),
       });
       await aplicarResultado(r, ubicacionId, cajas.filter((c) => tiendaDe(c) === ubicacionId));
     }
@@ -444,6 +482,17 @@ async function aplicarResultado(r, ubicacionId, cajasEnviadas) {
     }
   }
   if (r.recepciones?.length) await dbPut('kv', JSON.parse(JSON.stringify(pos.recepciones)), 'recepciones');
+  for (const res of r.ajustes ?? []) {
+    const x = pos.ajustes.find((q) => q.id === res.id);
+    if (!x) continue;
+    if (res.estado === 'error') {
+      x.rechazada = true;
+      x.error = res.mensaje ?? 'El servidor no aceptó el conteo.';
+    } else {
+      pos.ajustes = pos.ajustes.filter((q) => q !== x);
+    }
+  }
+  if (r.ajustes?.length) await dbPut('kv', JSON.parse(JSON.stringify(pos.ajustes)), 'ajustes');
   for (const res of r.ordenes ?? []) {
     const o = pos.ordenes.find((x) => x.id === res.id);
     if (!o) continue;

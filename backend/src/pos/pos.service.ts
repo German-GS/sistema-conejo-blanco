@@ -19,6 +19,7 @@ import { TipoMovimientoInventario } from '../common/enums/tipo-movimiento-invent
 import { CUENTA, ContabilidadService } from '../contabilidad/contabilidad.service.js';
 import { ConfiguracionService } from '../configuracion/configuracion.service.js';
 import { OrdenesTiendaService, type ResultadoOrdenSync } from './ordenes-tienda.service.js';
+import { AjustesTiendaService } from './ajustes-tienda.service.js';
 import { redondear } from '../common/utils/dinero.util.js';
 import { hoyISO } from '../common/utils/fecha.util.js';
 
@@ -46,6 +47,7 @@ export class PosService {
     private readonly contabilidad: ContabilidadService,
     private readonly configuracion: ConfiguracionService,
     private readonly ordenes: OrdenesTiendaService,
+    private readonly ajustes: AjustesTiendaService,
     @InjectRepository(PosVenta) private readonly ventaRepo: Repository<PosVenta>,
     @InjectRepository(PosCaja) private readonly cajaRepo: Repository<PosCaja>,
     @InjectRepository(PosConfiguracion) private readonly configRepo: Repository<PosConfiguracion>,
@@ -153,6 +155,9 @@ export class PosService {
     // 2c. Mercadería que la tienda aceptó sin internet.
     const resultadosRecepciones = [];
     for (const r of dto.recepciones ?? []) resultadosRecepciones.push(await this.ordenes.recibirDesdeTerminal(usuario, tienda.id, r));
+    // 2d. Conteos de inventario hechos en la tienda (solo suben la existencia).
+    const resultadosAjustes = [];
+    for (const a of dto.ajustes ?? []) resultadosAjustes.push(await this.ajustes.guardar(tienda, usuario.id, a));
     // 3. Cierres de caja (ya con todas las ventas del turno).
     for (const c of dto.cajas) {
       if (resultadosCajas.some((r) => r.id === c.id)) continue;
@@ -172,7 +177,7 @@ export class PosService {
       this.dataSource.query('SELECT COALESCE(MAX(numero), 0)::int AS n FROM pos_ordenes WHERE ubicacion_id = $1', [tienda.id]),
       this.ordenes.recientes(tienda.id),
     ]);
-    return { ventas: resultados, cajas: resultadosCajas, ordenes: resultadosOrdenes, recepciones: resultadosRecepciones, ordenesRecientes: recientes, ultimoNumeroOrden: ultimaOrden[0].n, stock, ultimoNumero: ultimo[0].n, sincronizadoEn: new Date().toISOString() };
+    return { ventas: resultados, cajas: resultadosCajas, ordenes: resultadosOrdenes, recepciones: resultadosRecepciones, ajustes: resultadosAjustes, ordenesRecientes: recientes, ultimoNumeroOrden: ultimaOrden[0].n, stock, ultimoNumero: ultimo[0].n, sincronizadoEn: new Date().toISOString() };
   }
 
   private async guardarApertura(tienda: Ubicacion, usuarioId: string, c: PosCajaDto): Promise<void> {

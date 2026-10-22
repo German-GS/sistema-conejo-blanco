@@ -7,6 +7,12 @@ Versionado `MAYOR.MENOR.PARCHE`:
 
 La versión se cambia en `app/package.json` y `backend/package.json` (el pie de página y el panel del sistema la leen solos).
 
+## 1.7.0 — 22 oct 2026 — Conteo de inventario en la tienda
+- **Contar inventario desde la caja** (Inventario → Contar inventario): la tienda escribe cuántos pares hay en el estante y un motivo. **Solo puede subir** la existencia (lo que baja, baja por ventas; las correcciones hacia abajo las hace la administración desde Bodega → Ajuste), también lo exige el servidor.
+- Funciona **sin internet**: la existencia sube de inmediato y el conteo se envía solo al volver la conexión, sin duplicarse.
+- Cada conteo queda en el **kardex** y en la **bitácora** (quién, tienda, motivo y antes/después de cada producto), visible para el administrador del sistema. No genera asiento contable.
+- La bitácora ahora muestra el nombre de las acciones «Asiento borrado» y «Conteo de inventario en tienda».
+
 ## 1.6.0 — 22 oct 2026 — La tienda trabaja sin internet: recepción de mercadería e informes en CSV
 - **Recibir mercadería sin internet:** la tienda acepta el envío aunque no haya conexión; la existencia sube de inmediato y la aceptación se envía sola al volver el internet (el servidor mueve el inventario y genera el asiento; reenviar no duplica). Si el servidor no la acepta, un aviso explica por qué y permite reintentar.
 - **Informes en CSV:** en la caja (sin internet) el inventario y el informe de ventas por período; en el panel, el informe de ventas (Tienda → Ventas) y las existencias o el kardex (Bodega). Archivos con «;» y coma decimal para abrirse en columnas en Excel. Las ventas ya enviadas se conservan 45 días en la computadora.

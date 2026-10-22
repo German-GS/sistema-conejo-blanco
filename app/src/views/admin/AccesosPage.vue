@@ -179,6 +179,8 @@ const ACCIONES = {
   ip_no_permitida: 'Ingreso desde IP no permitida',
   analisis_enlace_generado: 'Clave de datos (Power BI) generada',
   analisis_enlace_revocado: 'Clave de datos (Power BI) revocada',
+  asiento_eliminado: 'Asiento borrado (venta o pedido convertido en prueba)',
+  inventario_tienda_aumentado: 'Conteo de inventario en tienda (aumento)',
 };
 const eventos = ref([]);
 const filtro = reactive({ accion: '', texto: '' });
