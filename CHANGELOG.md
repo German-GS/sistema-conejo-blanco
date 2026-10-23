@@ -7,6 +7,12 @@ Versionado `MAYOR.MENOR.PARCHE`:
 
 La versión se cambia en `app/package.json` y `backend/package.json` (el pie de página y el panel del sistema la leen solos).
 
+## 1.12.1 — 23 oct 2026 — Actualizaciones sin tropiezos
+- Si hay una versión nueva publicada, el sistema lo avisa («Hay una versión nueva… Actualizar ahora») en lugar de dejar que pantallas ya cambiadas fallen en una pestaña vieja.
+- Si una pestaña vieja no encuentra una pantalla, se recarga sola (también cuando el aviso lo da el empaquetador).
+- El servicio que permite abrir la caja sin internet ya no guarda por error la página de inicio como si fuera un archivo, y limpia lo que hubiera quedado mal guardado.
+- Al publicar, se conservan los archivos de las versiones anteriores (script `scripts/publicar-frontend.sh`) para que una pestaña abierta durante la actualización siga funcionando.
+
 ## 1.12.0 — 23 oct 2026 — Estructura de uso: pendientes, búsqueda rápida y guía de diseño (auditoría UX, olas 3 y 4)
 - **«Para hacer hoy»** en el inicio: lo que necesita acción según el perfil (pedidos de tiendas por revisar o enviar, facturas vencidas o por vencer, planillas en borrador o sin pagar, inventario bajo, envíos de la caja rechazados, meses sin cerrar, pedidos sin facturar), con un clic a la pantalla correcta y contadores en el menú.
 - **Búsqueda rápida** con Ctrl/Cmd + K (o la lupa del encabezado), **migas de pan**, menú abierto por defecto en pantallas grandes y nombres de sección más claros.

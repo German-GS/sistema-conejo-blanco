@@ -3,6 +3,8 @@ import { createPinia } from 'pinia';
 import App from './App.vue';
 import { router } from './router/index.js';
 import './index.css';
+import { recargarPorArchivoNuevo } from './lib/recarga.js';
+import { vigilarVersion } from './lib/version.js';
 import { iniciarAccesibilidad } from './lib/accesibilidad.js';
 
 const app = createApp(App);
@@ -16,7 +18,14 @@ app.config.errorHandler = (err, instance, info) => {
 
 app.use(createPinia());
 app.use(router);
+// Vite avisa con este evento cuando falla la descarga de un archivo de una pantalla (por ejemplo, tras una actualización).
+window.addEventListener('vite:preloadError', (e) => {
+  e.preventDefault();
+  recargarPorArchivoNuevo();
+});
+
 app.mount('#app');
+vigilarVersion();
 iniciarAccesibilidad();
 
 // Punto de venta sin internet: el service worker guarda la aplicación en la computadora de la tienda.

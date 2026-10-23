@@ -2,7 +2,7 @@
 // - Navegación: primero la red (así siempre se ve la última versión); sin red, la copia guardada.
 // - Archivos de /assets: se guardan al verlos (llevan huella en el nombre, nunca cambian).
 // Los datos del negocio (API) NO pasan por aquí: el POS los guarda aparte en IndexedDB.
-const CACHE = 'cb-pos-v3';
+const CACHE = 'cb-pos-v4';
 const BASE = new URL(self.registration.scope).pathname; // p. ej. /cb/app/
 const INDEX = `${BASE}index.html`;
 
@@ -70,7 +70,8 @@ self.addEventListener('fetch', (e) => {
         const guardado = await cache.match(req, { ignoreVary: true });
         if (guardado) return guardado;
         const res = await fetch(req);
-        if (res.ok) await cache.put(req, res.clone());
+        // Si el archivo ya no existe (versión vieja), el servidor responde con la página de inicio: eso NO se guarda como si fuera el archivo.
+        if (res.ok && !(res.headers.get('content-type') ?? '').includes('text/html')) await cache.put(req, res.clone());
         return res;
       })(),
     );

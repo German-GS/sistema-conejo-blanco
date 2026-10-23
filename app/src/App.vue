@@ -6,6 +6,7 @@ import AppFooter from './components/AppFooter.vue';
 import { iniciarControlInactividad, fijarMinutosInactividad } from './lib/inactividad.js';
 import { temaDe } from './lib/tema.js';
 import { red } from './lib/red.js';
+import { version } from './lib/version.js';
 import AvisosGlobales from './components/AvisosGlobales.vue';
 import ConfirmarDialogo from './components/ConfirmarDialogo.vue';
 import AvisoInactividad from './components/AvisoInactividad.vue';
@@ -83,6 +84,10 @@ onBeforeUnmount(() => {
   <div class="flex min-h-screen flex-col">
     <router-view />
     <AppFooter />
+  </div>
+  <div v-if="version.nueva" class="fixed inset-x-0 top-0 z-[115] flex flex-wrap items-center justify-center gap-3 bg-blue-700 px-4 py-2 text-center text-sm font-semibold text-white" role="status">
+    <span>Hay una versión nueva del sistema. Actualice para evitar errores en pantallas que cambiaron.</span>
+    <button type="button" class="rounded-lg bg-white px-3 py-1 font-bold text-blue-700 hover:bg-blue-50" @click="recargar">Actualizar ahora</button>
   </div>
   <AvisosGlobales />
   <PaletaBusqueda />

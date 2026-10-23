@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import { useAuthStore } from '../stores/auth.js';
-import { avisarErrorDeRed, empezarEspera } from '../lib/red.js';
+import { empezarEspera } from '../lib/red.js';
+import { esErrorDeArchivoNuevo, recargarPorArchivoNuevo } from '../lib/recarga.js';
 import { registrarUso } from '../lib/uso.js';
 
 // Las pantallas se cargan cuando se necesitan (así el vendedor no descarga contabilidad ni planilla). Quedan incluidas desde el inicio
@@ -162,30 +163,12 @@ router.afterEach((to) => {
   terminarEspera = null;
   if (to.name && to.name !== 'login') registrarUso('pantalla', String(to.name));
 });
-// Después de una actualización, una pestaña vieja puede pedir un archivo que ya no existe: se recarga sola (una vez) para tomar la versión nueva.
+// Después de una actualización, una pestaña vieja puede pedir un archivo que ya no existe: se recarga sola para tomar la versión nueva.
 router.onError((err, to) => {
   terminarEspera?.();
   terminarEspera = null;
-  const mensaje = String(err?.message ?? err);
-  if (!/dynamically imported module|Importing a module script failed|Unable to preload|Failed to fetch/i.test(mensaje)) return;
-  const clave = 'cb-recarga-pantalla';
-  let ultima = 0;
-  try {
-    ultima = Number(sessionStorage.getItem(clave) ?? 0);
-  } catch {
-    /* sin almacenamiento no se puede evitar el ciclo: no se recarga */
-    ultima = Date.now();
-  }
-  if (Date.now() - ultima > 30_000) {
-    try {
-      sessionStorage.setItem(clave, String(Date.now()));
-    } catch {
-      /* nada */
-    }
-    window.location.assign(to?.fullPath ? router.resolve(to.fullPath).href : window.location.href);
-  } else {
-    avisarErrorDeRed('No se pudo abrir esa pantalla. Revise su conexión a internet y vuelva a intentarlo.');
-  }
+  if (!esErrorDeArchivoNuevo(err)) return;
+  recargarPorArchivoNuevo(to?.fullPath ? router.resolve(to.fullPath).href : undefined);
 });
 
 router.beforeEach((to) => {
