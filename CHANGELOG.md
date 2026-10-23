@@ -7,6 +7,9 @@ Versionado `MAYOR.MENOR.PARCHE`:
 
 La versión se cambia en `app/package.json` y `backend/package.json` (el pie de página y el panel del sistema la leen solos).
 
+## 1.10.0 — 23 oct 2026 — Tema oscuro o claro para el administrador del sistema
+- La cuenta del administrador del sistema tiene un **interruptor de tema** (oscuro o claro) junto al selector de vista, en el panel, la caja y la vista de vendedor. La elección se recuerda en el navegador; el tema oscuro sigue siendo el de partida. Las demás cuentas no cambian.
+
 ## 1.9.0 — 22 oct 2026 — Datos de cada tienda y registro de actividad
 - **Datos de cada tienda en el tiquete** (Tienda → Configuración): razón social, nombre comercial, cédula jurídica, teléfono, correo, dirección, mensaje al pie y leyenda legal por tienda, con vista previa. Lo que se deja vacío usa los datos generales de la empresa.
 - **Registro de actividad de las tiendas** (Tienda → Actividad), solo de consulta y con descarga en CSV: lo que pasa en la caja, aunque sea sin internet, con su hora real (abrir y cerrar caja, productos quitados del tiquete, tiquetes vaciados o reimpresos, entradas sin internet, mercadería aceptada, conteos, pedidos, respaldos), los cambios hechos desde el panel (anulaciones, precios de tienda, stock mínimo, datos de la tienda, configuración del POS) y los envíos que el servidor no aceptó.

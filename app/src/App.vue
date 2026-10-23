@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router';
 import { useAuthStore } from './stores/auth.js';
 import AppFooter from './components/AppFooter.vue';
 import { iniciarControlInactividad, fijarMinutosInactividad } from './lib/inactividad.js';
+import { tema } from './lib/tema.js';
 
 const auth = useAuthStore();
 const router = useRouter();
@@ -12,8 +13,8 @@ let detener = null;
 
 // La cuenta del administrador del sistema usa tema oscuro (negro en lugar de blanco); el resto, el claro de siempre.
 watch(
-  () => auth.esSistema,
-  (oscuro) => document.documentElement.classList.toggle('tema-oscuro', Boolean(oscuro)),
+  [() => auth.esSistema, tema],
+  ([esSistema, elegido]) => document.documentElement.classList.toggle('tema-oscuro', Boolean(esSistema) && elegido === 'oscuro'),
   { immediate: true },
 );
 const mantenimiento = ref('');

@@ -5,6 +5,7 @@ import { Menu, LogOut, KeyRound } from '@lucide/vue';
 import { useAuthStore } from '../stores/auth.js';
 import AdminSidebar from './AdminSidebar.vue';
 import CambiarVista from './CambiarVista.vue';
+import CambiarTema from './CambiarTema.vue';
 import { menuFijado } from '../lib/menuLateral.js';
 
 const auth = useAuthStore();
@@ -45,6 +46,7 @@ function salir() {
 
         <div class="ml-auto flex items-center gap-3">
           <CambiarVista />
+          <CambiarTema />
           <div class="text-right leading-tight">
             <p class="text-sm font-semibold text-slate-900">{{ auth.usuario?.nombre }}</p>
             <p class="text-xs text-slate-500">{{ ETIQUETAS_ROL[auth.usuario?.rol] ?? auth.usuario?.rol }}</p>
