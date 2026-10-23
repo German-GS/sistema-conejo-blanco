@@ -1,4 +1,5 @@
 <script setup>
+import CampoClave from '../components/CampoClave.vue';
 import { computed, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import QRCode from 'qrcode';
@@ -123,10 +124,10 @@ function salir() {
 
         <p class="mb-2 text-base font-semibold text-slate-900">Contraseña</p>
         <label class="label" for="actual">Contraseña actual</label>
-        <input id="actual" v-model="actual" type="password" required autocomplete="current-password" class="input mb-4" />
+        <CampoClave id="actual" v-model="actual" required autocomplete="current-password" class="mb-4" />
 
         <label class="label" for="nueva">Contraseña nueva</label>
-        <input id="nueva" v-model="nueva" type="password" required autocomplete="new-password" class="input mb-2" />
+        <CampoClave id="nueva" v-model="nueva" required autocomplete="new-password" class="mb-2" />
         <ul class="mb-4 space-y-0.5 text-sm">
           <li :class="cumple.largo ? 'text-green-700' : 'text-slate-500'">{{ cumple.largo ? '✓' : '•' }} Al menos {{ minimo }} caracteres</li>
           <li :class="cumple.mezcla ? 'text-green-700' : 'text-slate-500'">{{ cumple.mezcla ? '✓' : '•' }} Letras y números</li>
@@ -134,7 +135,7 @@ function salir() {
         </ul>
 
         <label class="label" for="repetir">Repetir contraseña nueva</label>
-        <input id="repetir" v-model="repetir" type="password" required autocomplete="new-password" class="input mb-1" />
+        <CampoClave id="repetir" v-model="repetir" required autocomplete="new-password" class="mb-1" />
         <p v-if="repetir && !cumple.coincide" class="mb-3 text-sm text-red-600">No coinciden.</p>
         <div v-else class="mb-3" />
 
@@ -153,7 +154,7 @@ function salir() {
           <details class="text-sm">
             <summary class="cursor-pointer font-semibold text-slate-700">Desactivarla</summary>
             <div class="mt-3 flex flex-col gap-2">
-              <input v-model="passwordDesactivar" type="password" class="input" placeholder="Tu contraseña" autocomplete="current-password" />
+              <CampoClave v-model="passwordDesactivar" placeholder="Tu contraseña" autocomplete="current-password" />
               <input v-model="codigo" inputmode="numeric" class="input" placeholder="Código actual de la app" maxlength="7" />
               <button type="button" class="btn-secondary" :disabled="trabajando || !passwordDesactivar || codigo.length < 6" @click="desactivarDosPasos">Desactivar verificación en dos pasos</button>
             </div>

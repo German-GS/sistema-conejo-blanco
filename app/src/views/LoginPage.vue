@@ -1,4 +1,5 @@
 <script setup>
+import CampoClave from '../components/CampoClave.vue';
 import { onBeforeUnmount, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '../stores/auth.js';
@@ -83,7 +84,7 @@ async function enviar() {
         <input id="email" v-model="email" type="email" required autocomplete="username" class="input mb-4" />
 
         <label class="label" for="password">Contraseña</label>
-        <input id="password" v-model="password" type="password" required autocomplete="current-password" class="input mb-4" />
+        <CampoClave id="password" v-model="password" required autocomplete="current-password" class="mb-4" />
       </template>
       <template v-else>
         <p class="mb-3 text-sm text-slate-600">Abrí tu app autenticadora (Google Authenticator, Microsoft Authenticator, Authy…) y escribí el código de 6 dígitos de Conejo Blanco.</p>

@@ -1,4 +1,5 @@
 <script setup>
+import CampoClave from '../../components/CampoClave.vue';
 import CambiarVista from '../../layout/CambiarVista.vue';
 import CambiarTema from '../../layout/CambiarTema.vue';
 import { descargarCsv, fechaArchivo } from '../../lib/csv.js';
@@ -719,7 +720,7 @@ watch(
       <form class="w-full max-w-md rounded-3xl bg-white p-6 shadow-xl" @submit.prevent="confirmarClave">
         <p class="text-2xl font-extrabold text-slate-900">Confirme su contraseña</p>
         <p class="mt-1 text-base text-slate-600">Entró sin internet. Escriba su contraseña de siempre para enviar al sistema lo que se hizo.</p>
-        <input v-model="claveReauth" type="password" autocomplete="current-password" class="input mt-3 !min-h-14 text-xl" placeholder="Contraseña" required />
+        <CampoClave v-model="claveReauth" autocomplete="current-password" class="mt-3" input-class="!min-h-14 text-xl" placeholder="Contraseña" required />
         <p v-if="errorReauth" class="mt-2 rounded-xl bg-red-100 px-4 py-3 text-base font-bold text-red-700">{{ errorReauth }}</p>
         <button type="submit" class="mt-3 w-full rounded-2xl bg-blue-600 py-4 text-xl font-extrabold text-white hover:bg-blue-700 disabled:bg-slate-300" :disabled="reautenticando">{{ reautenticando ? 'Confirmando…' : 'CONFIRMAR' }}</button>
         <button type="button" class="mt-2 w-full py-2 text-base font-semibold text-slate-500 hover:text-slate-800" @click="mostrarReauth = false">Ahora no</button>

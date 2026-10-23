@@ -7,6 +7,10 @@ Versionado `MAYOR.MENOR.PARCHE`:
 
 La versión se cambia en `app/package.json` y `backend/package.json` (el pie de página y el panel del sistema la leen solos).
 
+## 1.10.1 — 23 oct 2026 — Tema para gerencias y ojito en las contraseñas
+- El **interruptor de tema oscuro o claro** ahora también lo tienen el gerente general y la administración (gerencia). Cada persona guarda su elección en su navegador; el administrador del sistema sigue empezando en oscuro y los demás en claro.
+- **Ojito para ver la contraseña** mientras se escribe: en la entrada, en cambiar contraseña (los tres campos), al desactivar la verificación en dos pasos y en la confirmación de contraseña de la caja.
+
 ## 1.10.0 — 23 oct 2026 — Tema oscuro o claro para el administrador del sistema
 - La cuenta del administrador del sistema tiene un **interruptor de tema** (oscuro o claro) junto al selector de vista, en el panel, la caja y la vista de vendedor. La elección se recuerda en el navegador; el tema oscuro sigue siendo el de partida. Las demás cuentas no cambian.
 

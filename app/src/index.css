@@ -110,7 +110,7 @@ body {
   }
 }
 
-/* ==== Tema oscuro (solo la cuenta del administrador del sistema) ====
+/* ==== Tema oscuro (opcional para los perfiles de gerencia; por defecto, el administrador del sistema) ====
    Tailwind v4 arma sus colores con variables (--color-slate-200, --color-white…), así que
    basta redefinirlas para invertir todo el panel: el blanco pasa a negro y los grises se
    invierten. Los textos de énfasis (slate-800/900 y los acentos 600–900) se ajustan aparte
