@@ -365,7 +365,8 @@ const etiqueta = (lista, v) => lista.find((x) => x.valor === v)?.etiqueta ?? v;
           <span>
             <strong>Puesto de confianza (sin jornada fija).</strong> Gerentes, administradores y cargos que trabajan sin
             fiscalización inmediata (art. 143 del Código de Trabajo): reciben su salario fijo, no se les descuentan horas
-            faltantes ni se les pagan horas extra, y sus marcas son solo informativas.
+            faltantes ni se les pagan horas extra, y <strong>quedan fuera del control del reloj</strong>: no aparecen en
+            Asistencia ni como «sin marcas», no se les piden marcas y se les paga siempre la jornada completa.
           </span>
         </label>
         <div>
@@ -457,10 +458,11 @@ const etiqueta = (lista, v) => lista.find((x) => x.valor === v)?.etiqueta ?? v;
             vuelven a calcular con esta configuración.
           </p>
           <label class="mt-3 flex items-start gap-2 text-sm text-slate-700">
-            <input v-model="form.marcaReloj" type="checkbox" class="mt-0.5 size-4" />
+            <input v-model="form.marcaReloj" type="checkbox" class="mt-0.5 size-4" :disabled="form.esConfianza" />
             <span>
               <strong>Usa el reloj de huella.</strong> Si lo desmarca (por ejemplo, gerencia que no marca), no se le piden
               marcas: en la planilla se le paga la jornada completa y no aparece como «sin marcas».
+              <em v-if="form.esConfianza" class="block text-xs text-violet-700">Como es puesto de confianza, ya queda fuera del control del reloj.</em>
             </span>
           </label>
           <div v-if="!form.esConfianza" class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -535,8 +537,8 @@ const etiqueta = (lista, v) => lista.find((x) => x.valor === v)?.etiqueta ?? v;
               <span v-else-if="!e.activo" class="ml-2 rounded-full bg-slate-200 px-2 py-0.5 text-xs font-semibold text-slate-600">Inactivo</span>
               <span v-if="e.sector === 'comercio'" class="ml-2 rounded-full bg-orange-50 px-2 py-0.5 text-xs font-medium text-orange-700">Comercio</span>
               <span v-if="e.esDeTienda" class="ml-2 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">Tienda</span>
-              <span v-if="e.esConfianza" class="ml-2 rounded-full bg-violet-50 px-2 py-0.5 text-xs font-medium text-violet-700">De confianza</span>
-              <span v-if="e.activo && !e.marcaReloj" class="ml-2 rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">No usa el reloj</span>
+              <span v-if="e.esConfianza" class="ml-2 rounded-full bg-violet-50 px-2 py-0.5 text-xs font-medium text-violet-700" title="Sin jornada fija: fuera del control del reloj, se le paga siempre la jornada completa">De confianza</span>
+              <span v-if="e.activo && !e.marcaReloj && !e.esConfianza" class="ml-2 rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">No usa el reloj</span>
             </p>
             <p class="text-sm text-slate-500">
               {{ e.puesto || 'Sin puesto' }} · {{ etiqueta(TIPOS, e.tipoSalario) }}

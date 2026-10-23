@@ -7,6 +7,10 @@ Versionado `MAYOR.MENOR.PARCHE`:
 
 La versión se cambia en `app/package.json` y `backend/package.json` (el pie de página y el panel del sistema la leen solos).
 
+## 1.13.0 — 23 oct 2026 — Los puestos de confianza quedan fuera del control del reloj
+- Quien tenga **«Puesto de confianza»** (o no use el reloj) ya no aparece en Asistencia ni en sus resúmenes, se omite si sale en el archivo del reloj, no figura como «sin marcas» y sus días nunca bloquean la aprobación de una planilla. En la planilla se le paga siempre la jornada completa.
+- El formulario del empleado explica esta regla y desactiva la casilla del reloj cuando el puesto es de confianza.
+
 ## 1.12.1 — 23 oct 2026 — Actualizaciones sin tropiezos
 - Si hay una versión nueva publicada, el sistema lo avisa («Hay una versión nueva… Actualizar ahora») en lugar de dejar que pantallas ya cambiadas fallen en una pestaña vieja.
 - Si una pestaña vieja no encuentra una pantalla, se recarga sola (también cuando el aviso lo da el empaquetador).

@@ -1,3 +1,4 @@
+import { exentoDeReloj } from './exento-reloj.js';
 import { ESTADOS_VIGENTES } from './planilla.enums.js';
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -235,10 +236,13 @@ export class AsistenciaService {
     const desconocidos: Array<{ numero: string; nombre: string | null }> = [];
     // El personal de tienda no marca en este reloj: si aparece en el archivo se omite.
     const omitidosTienda: string[] = [];
+    // Quien está exento del reloj (cargos de confianza o que no marcan): si aparece en el archivo se omite, no genera días por revisar.
+    const omitidosSinReloj: string[] = [];
     for (const presente of lectura.presentes) {
       const numero = normalizarNumeroReloj(presente.numero);
       const empleado = porNumero.get(numero);
       if (empleado?.esDeTienda) omitidosTienda.push(empleado.nombre);
+      else if (empleado && exentoDeReloj(empleado)) omitidosSinReloj.push(empleado.nombre);
       else if (empleado) presentesConocidos.set(numero, empleado);
       else desconocidos.push({ numero, nombre: presente.nombre });
     }
@@ -285,7 +289,7 @@ export class AsistenciaService {
       }
 
       const sinArchivo = empleados
-        .filter((e) => e.activo && !e.esDeTienda && e.marcaReloj && !presentesConocidos.has(e.numeroReloj))
+        .filter((e) => e.activo && !e.esDeTienda && !exentoDeReloj(e) && !presentesConocidos.has(e.numeroReloj))
         .map((e) => ({ numero: e.numeroReloj, nombre: e.nombre }));
 
       importacion.resumen = {
@@ -296,6 +300,7 @@ export class AsistenciaService {
         desconocidos,
         activosSinArchivo: sinArchivo,
         omitidosTienda,
+        omitidosSinReloj,
       };
       return manager.save(ImportacionMarcas, importacion);
     });
@@ -311,6 +316,7 @@ export class AsistenciaService {
     const qb = this.diaRepo
       .createQueryBuilder('dia')
       .innerJoinAndSelect('dia.empleado', 'empleado')
+      .where('empleado.marca_reloj = true AND empleado.es_confianza = false')
       .orderBy('dia.fecha', 'ASC')
       .addOrderBy('empleado.nombre', 'ASC')
       .take(1500);
@@ -336,7 +342,9 @@ export class AsistenciaService {
     if (empleadoIds.length === 0) return 0;
     return this.diaRepo
       .createQueryBuilder('dia')
+      .innerJoin('dia.empleado', 'empleado')
       .where('dia.fecha BETWEEN :desde AND :hasta', { desde, hasta })
+      .andWhere('empleado.marca_reloj = true AND empleado.es_confianza = false')
       .andWhere('dia.empleado_id IN (:...ids)', { ids: empleadoIds })
       .andWhere('dia.estado IN (:...estados)', { estados: [EstadoDia.MARCA_FALTANTE, EstadoDia.MARCAS_AMBIGUAS] })
       .getCount();
@@ -508,6 +516,7 @@ export class AsistenciaService {
       .createQueryBuilder('dia')
       .innerJoinAndSelect('dia.empleado', 'empleado')
       .where('dia.fecha BETWEEN :desde AND :hasta', { desde, hasta })
+      .andWhere('empleado.marca_reloj = true AND empleado.es_confianza = false')
       .getMany();
     const porEmpleado = new Map<string, { empleadoId: string; nombre: string; horasSemanaOrdinarias: number; trabajadoMin: number; esperadoMin: number; diasTrabajados: number; diasSinMarcas: number; esConfianza: boolean }>();
     for (const d of dias) {
@@ -576,6 +585,7 @@ export class AsistenciaService {
 
   diasDeEmpleados(desde: string, hasta: string, empleadoIds: string[]): Promise<DiaAsistencia[]> {
     if (empleadoIds.length === 0) return Promise.resolve([]);
-    return this.diaRepo.find({ where: { empleadoId: In(empleadoIds), fecha: Between(desde, hasta) } });
+    // Quien está exento del reloj no tiene días registrados para el pago: se le paga la jornada completa.
+    return this.diaRepo.find({ where: { empleadoId: In(empleadoIds), fecha: Between(desde, hasta), empleado: { marcaReloj: true, esConfianza: false } } });
   }
 }

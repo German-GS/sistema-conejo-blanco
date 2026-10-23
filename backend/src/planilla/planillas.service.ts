@@ -1,3 +1,4 @@
+import { exentoDeReloj } from './exento-reloj.js';
 import { ESTADOS_VIGENTES } from './planilla.enums.js';
 import { CuentasBancariasService } from '../pagos/cuentas-bancarias.service.js';
 import { AsientoContable } from '../contabilidad/asiento-contable.entity.js';
@@ -196,7 +197,7 @@ export class PlanillasService {
         }
       }
       // Quien no usa el reloj (ej. gerencia) no tiene días «sin datos»: se le paga completo.
-      const fechasSinDatos = !empleado.marcaReloj
+      const fechasSinDatos = exentoDeReloj(empleado)
         ? []
         : laborables.filter(
             (f) =>
