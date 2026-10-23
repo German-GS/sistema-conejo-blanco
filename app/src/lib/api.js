@@ -1,3 +1,4 @@
+import { empezarEspera } from './red.js';
 export const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3101';
 const TOKEN_KEY = 'conejo-blanco-token';
 
@@ -44,7 +45,19 @@ async function manejarRespuesta(res) {
   return res.json();
 }
 
-async function request(path, { method = 'GET', body } = {}) {
+// Lo que corre en segundo plano (envío de lo pendiente de la caja, catálogo, perfil) no debe mostrar el indicador de carga.
+const SILENCIOSAS = ['/pos/sincronizar', '/pos/catalogo', '/auth/me', '/sistema/publico', '/sistema/metricas', '/sistema/salud', '/sistema/conexiones'];
+
+async function request(path, opciones = {}) {
+  const fin = SILENCIOSAS.some((p) => path.startsWith(p)) ? null : empezarEspera();
+  try {
+    return await solicitar(path, opciones);
+  } finally {
+    fin?.();
+  }
+}
+
+async function solicitar(path, { method = 'GET', body } = {}) {
   const token = getToken();
 
   let res;
@@ -61,7 +74,7 @@ async function request(path, { method = 'GET', body } = {}) {
     // fetch rechaza con un TypeError cuando no hay red o el servidor no
     // responde (no hay res.status en ese caso) — lo normalizamos a ApiError
     // para que las páginas solo tengan que manejar un tipo de error.
-    throw new ApiError('No se pudo conectar con el servidor. Revisá tu conexión e intentá de nuevo.', 0);
+    throw new ApiError('No se pudo conectar con el servidor. Revise su conexión e intente de nuevo.', 0);
   }
 
   return manejarRespuesta(res);
@@ -88,7 +101,7 @@ export async function subirArchivo(path, formData) {
       body: formData,
     });
   } catch {
-    throw new ApiError('No se pudo conectar con el servidor. Revisá tu conexión e intentá de nuevo.', 0);
+    throw new ApiError('No se pudo conectar con el servidor. Revise su conexión e intente de nuevo.', 0);
   }
   return manejarRespuesta(res);
 }
@@ -121,7 +134,7 @@ export async function descargarArchivo(path, nombrePorDefecto) {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
   } catch {
-    throw new ApiError('No se pudo conectar con el servidor. Revisá tu conexión e intentá de nuevo.', 0);
+    throw new ApiError('No se pudo conectar con el servidor. Revise su conexión e intente de nuevo.', 0);
   }
   if (!res.ok) {
     const data = await res.json().catch(() => null);
@@ -149,7 +162,7 @@ export async function obtenerArchivo(path, nombrePorDefecto) {
   try {
     res = await fetch(`${API_URL}${path}`, { headers: { Authorization: `Bearer ${getToken()}` } });
   } catch {
-    throw new ApiError('No se pudo conectar con el servidor. Revisá tu conexión e intentá de nuevo.', 0);
+    throw new ApiError('No se pudo conectar con el servidor. Revise su conexión e intente de nuevo.', 0);
   }
   if (!res.ok) {
     const data = await res.json().catch(() => null);

@@ -215,7 +215,7 @@ const medidores = computed(() => {
       <div v-if="conexiones" class="card overflow-x-auto">
         <div class="mb-2 flex flex-wrap items-baseline justify-between gap-2">
           <p class="text-sm font-semibold text-slate-900">Conexiones</p>
-          <p class="text-xs text-slate-500"><span class="font-semibold" :class="conexiones.enLinea > 0 ? 'text-green-600' : ''">{{ conexiones.enLinea }} en línea ahora</span> · {{ conexiones.total }} cuentas activas · "en línea" = actividad en los últimos 5 minutos</p>
+          <p class="text-xs text-slate-500"><span class="font-semibold" :class="conexiones.enLinea > 0 ? 'text-green-700' : ''">{{ conexiones.enLinea }} en línea ahora</span> · {{ conexiones.total }} cuentas activas · "en línea" = actividad en los últimos 5 minutos</p>
         </div>
         <table class="w-full min-w-[40rem] text-sm">
           <thead>

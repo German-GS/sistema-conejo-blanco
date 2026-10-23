@@ -53,7 +53,7 @@ export class PuestosService implements OnModuleInit {
 
   async crear(nombre: string, esConfianza: boolean, sector: 'industria' | 'comercio' = 'industria'): Promise<PuestoPlanilla> {
     const limpio = nombre.trim();
-    if (limpio.length < 2) throw new BadRequestException('Escribí el nombre del puesto.');
+    if (limpio.length < 2) throw new BadRequestException('Escriba el nombre del puesto.');
     if (await this.repo.createQueryBuilder('p').where('LOWER(p.nombre) = LOWER(:n)', { n: limpio }).getExists()) {
       throw new BadRequestException('Ya existe un puesto con ese nombre.');
     }

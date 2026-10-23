@@ -46,7 +46,7 @@ export class PedidosController {
   async buscarPorId(@Param('id') id: string, @CurrentUser() usuario: UsuarioAutenticado) {
     const pedido = await this.pedidosService.buscarPorIdOFallar(id);
     if (!usuario.permisos.has(Permiso.PEDIDOS_VER) && pedido.vendedorId !== usuario.id) {
-      throw new ForbiddenException('No tenés acceso a este pedido.');
+      throw new ForbiddenException('No tiene acceso a este pedido.');
     }
     return pedido;
   }

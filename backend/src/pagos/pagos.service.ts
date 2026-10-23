@@ -126,16 +126,16 @@ export class PagosService {
 
     let total: number;
     if (dto.tipo === 'factura') {
-      if (!cliente) throw new BadRequestException('Elegí el cliente que pagó.');
+      if (!cliente) throw new BadRequestException('Elija el cliente que pagó.');
       const aplicaciones = (dto.aplicaciones ?? []).filter((a) => a.monto > 0);
-      if (aplicaciones.length === 0) throw new BadRequestException('Indicá cuánto se paga a cada factura.');
+      if (aplicaciones.length === 0) throw new BadRequestException('Indique cuánto se paga a cada factura.');
       if (new Set(aplicaciones.map((a) => a.facturaId)).size !== aplicaciones.length) {
         throw new BadRequestException('Una factura aparece más de una vez.');
       }
       total = redondear(aplicaciones.reduce((a, x) => a + x.monto, 0));
     } else {
-      if (!dto.concepto?.trim()) throw new BadRequestException('Anotá de qué es el ingreso.');
-      if (!dto.monto) throw new BadRequestException('Indicá el monto.');
+      if (!dto.concepto?.trim()) throw new BadRequestException('Anote de qué es el ingreso.');
+      if (!dto.monto) throw new BadRequestException('Indique el monto.');
       total = redondear(dto.monto);
     }
 

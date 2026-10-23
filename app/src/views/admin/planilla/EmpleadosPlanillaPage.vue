@@ -1,4 +1,6 @@
 <script setup>
+import { confirmar } from '../../../lib/confirmar.js';
+import Cargando from '../../../components/Cargando.vue';
 import { computed, nextTick, onMounted, reactive, ref } from 'vue';
 import { api, ApiError } from '../../../lib/api.js';
 import { Search } from '@lucide/vue';
@@ -254,7 +256,7 @@ const explicacionPago = computed(() => {
   return { texto: texto + contrato, hora: hora > 0 ? hora : null };
 });
 async function reactivar(e) {
-  if (!window.confirm(`¿Reactivar a ${e.nombre}? Vuelve a aparecer en las planillas.`)) return;
+  if (!await confirmar(`¿Reactivar a ${e.nombre}? Vuelve a aparecer en las planillas.`)) return;
   try {
     await api.post(`/planilla/empleados/${e.id}/reactivar`, {});
     await cargar();
@@ -293,7 +295,7 @@ async function crearDeuda() {
   }
 }
 async function cerrarDeuda(d) {
-  if (!window.confirm('¿Cerrar esta deuda? Si ya se le descontó algo, lo que falta por cobrar se da de baja como gasto; si no se descontó nada, se reversa el préstamo.')) return;
+  if (!await confirmar('¿Cerrar esta deuda? Si ya se le descontó algo, lo que falta por cobrar se da de baja como gasto; si no se descontó nada, se reversa el préstamo.')) return;
   await api.patch(`/planilla/deudas/${d.id}/desactivar`, {});
   deudas.value = await api.get(`/planilla/empleados/${deudasDe.value.id}/deudas`);
 }
@@ -313,7 +315,7 @@ const etiqueta = (lista, v) => lista.find((x) => x.valor === v)?.etiqueta ?? v;
     </div>
 
     <div class="relative max-w-xl">
-      <Search class="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+      <Search class="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-500" />
       <input
         v-model="busqueda"
         type="search"
@@ -345,10 +347,10 @@ const etiqueta = (lista, v) => lista.find((x) => x.valor === v)?.etiqueta ?? v;
         <div>
           <label class="label">Puesto</label>
           <select v-model="form.puestoId" class="input" @change="elegirPuesto">
-            <option value="">{{ form.puesto ? `Otro: ${form.puesto}` : 'Elegí un puesto…' }}</option>
+            <option value="">{{ form.puesto ? `Otro: ${form.puesto}` : 'Elija un puesto…' }}</option>
             <option v-for="p in puestos.filter((x) => x.activo)" :key="p.id" :value="p.id">{{ p.nombre }}{{ p.esConfianza ? ' (de confianza)' : '' }}</option>
           </select>
-          <input v-if="!form.puestoId" v-model="form.puesto" type="text" class="input mt-1" placeholder="O escribí otro puesto" />
+          <input v-if="!form.puestoId" v-model="form.puesto" type="text" class="input mt-1" placeholder="O escriba otro puesto" />
         </div>
         <div>
           <label class="label">¿Dónde trabaja?</label>
@@ -424,7 +426,7 @@ const etiqueta = (lista, v) => lista.find((x) => x.valor === v)?.etiqueta ?? v;
             </button>
           </div>
           <p class="mb-2 mt-1 text-xs text-slate-500">
-            Parte del horario de la fábrica. Si esta persona tiene otro horario, cambiá lo que haga falta en la tabla: queda
+            Parte del horario de la fábrica. Si esta persona tiene otro horario, cambie lo que haga falta en la tabla: queda
             como horario propio. Si no se toca, sigue el de la fábrica y se actualiza cuando ese cambie. (Un contrato especial
             de horas por semana, más abajo, manda sobre el horario.)
           </p>
@@ -457,7 +459,7 @@ const etiqueta = (lista, v) => lista.find((x) => x.valor === v)?.etiqueta ?? v;
           <label class="mt-3 flex items-start gap-2 text-sm text-slate-700">
             <input v-model="form.marcaReloj" type="checkbox" class="mt-0.5 size-4" />
             <span>
-              <strong>Usa el reloj de huella.</strong> Si lo desmarcás (por ejemplo, gerencia que no marca), no se le piden
+              <strong>Usa el reloj de huella.</strong> Si lo desmarca (por ejemplo, gerencia que no marca), no se le piden
               marcas: en la planilla se le paga la jornada completa y no aparece como «sin marcas».
             </span>
           </label>
@@ -517,7 +519,7 @@ const etiqueta = (lista, v) => lista.find((x) => x.valor === v)?.etiqueta ?? v;
       </div>
     </div>
 
-    <p v-if="cargando" class="text-base text-slate-500">Cargando…</p>
+    <Cargando v-if="cargando" texto="Cargando…" />
     <p v-else-if="visibles.length === 0" class="text-base text-slate-500">
       {{ busqueda.trim() ? `Ningún empleado coincide con «${busqueda.trim()}».` : 'Todavía no hay empleados registrados.' }}
     </p>

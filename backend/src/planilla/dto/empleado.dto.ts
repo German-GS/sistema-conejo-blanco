@@ -280,7 +280,7 @@ export class CrearDeudaDto {
 
   // Obligatorio: no se le descuenta a nadie sin constancia de que lo autorizó.
   @IsString()
-  @MinLength(3, { message: 'Indicá dónde consta la autorización del empleado para el descuento.' })
+  @MinLength(3, { message: 'Indique dónde consta la autorización del empleado para el descuento.' })
   @MaxLength(255)
   autorizacionNota: string;
 
@@ -303,7 +303,7 @@ export class CesarEmpleadoDto {
   tipoCese: 'renuncia' | 'despido_con_responsabilidad' | 'despido_sin_responsabilidad' | 'mutuo_acuerdo' | 'fin_contrato';
 
   @IsString()
-  @MinLength(3, { message: 'Anotá el motivo del cese.' })
+  @MinLength(3, { message: 'Anote el motivo del cese.' })
   @MaxLength(255)
   motivo: string;
 }

@@ -1,4 +1,5 @@
 <script setup>
+import { exito } from '../../../lib/avisos.js';
 import { onMounted, reactive, ref } from 'vue';
 import { api, ApiError } from '../../../lib/api.js';
 import { useAuthStore } from '../../../stores/auth.js';
@@ -109,7 +110,7 @@ async function guardar(p) {
   aviso.value = '';
   try {
     await api.patch(`/planilla/parametros/${p.id}`, { valor: Number(valores[p.id]) });
-    aviso.value = `${p.nombre}: guardado.`;
+    exito(`${p.nombre}: guardado.`);
   } catch (err) {
     error.value = err instanceof ApiError ? err.message : 'No se pudo guardar.';
   }
@@ -135,7 +136,7 @@ async function quitarFeriado(f) {
     <h1 class="text-xl font-bold text-slate-900">Parámetros de planilla</h1>
     <p class="text-sm text-slate-500">
       Porcentajes y reglas que usa el cálculo. Cambiarlos afecta las planillas que se calculen de ahora en adelante;
-      las planillas ya aprobadas no se tocan. Confirmá los valores vigentes con el contador.
+      las planillas ya aprobadas no se tocan. Confirme los valores vigentes con el contador.
     </p>
     <p v-if="error" class="text-sm font-medium text-red-600">{{ error }}</p>
     <p v-if="aviso" class="text-sm font-medium text-teal-700">{{ aviso }}</p>

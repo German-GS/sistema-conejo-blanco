@@ -20,7 +20,7 @@ export const MEDIOS_PAGO_RECIBIDO = ['efectivo', 'transferencia', 'sinpe', 'tarj
 
 export class CrearCuentaBancariaDto {
   @IsString() @MinLength(2) @MaxLength(120) nombre: string;
-  @IsString() @MinLength(4, { message: 'Anotá el número de cuenta o IBAN.' }) @MaxLength(60) numeroCuenta: string;
+  @IsString() @MinLength(4, { message: 'Anote el número de cuenta o IBAN.' }) @MaxLength(60) numeroCuenta: string;
   @IsOptional() @IsString() @MaxLength(120) titular?: string;
   @IsOptional() @IsBoolean() mostrarEnFactura?: boolean;
 }
@@ -77,7 +77,7 @@ export class CrearPagoDto {
 
 export class AnularPagoDto {
   @IsString()
-  @MinLength(3, { message: 'Indicá el motivo de la anulación.' })
+  @MinLength(3, { message: 'Indique el motivo de la anulación.' })
   @MaxLength(255)
   motivo: string;
 }

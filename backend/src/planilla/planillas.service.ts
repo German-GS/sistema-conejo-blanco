@@ -327,7 +327,7 @@ export class PlanillasService {
     }
     if (conDiasSinDatos.length > 0 && !dto.aceptarDiasSinDatos) {
       throw new BadRequestException(
-        `Faltan marcas de algunos días para: ${conDiasSinDatos.map((c) => `${c.empleado} (${c.dias})`).join(', ')}. Importá el archivo del reloj o confirmá que se pague igual.`,
+        `Faltan marcas de algunos días para: ${conDiasSinDatos.map((c) => `${c.empleado} (${c.dias})`).join(', ')}. Importe el archivo del reloj o confirme que se pague igual.`,
       );
     }
 
@@ -447,7 +447,7 @@ export class PlanillasService {
   async anular(id: string, motivo: string): Promise<Planilla> {
     const planilla = await this.buscarOFallar(id);
     if (planilla.estado === EstadoPlanilla.PAGADA) {
-      throw new BadRequestException('La planilla ya está pagada: primero reversá el pago.');
+      throw new BadRequestException('La planilla ya está pagada: primero reverse el pago.');
     }
     if (planilla.estado !== EstadoPlanilla.APROBADA) {
       throw new BadRequestException('Solo se puede anular una planilla aprobada (un borrador se elimina).');

@@ -151,7 +151,7 @@ onMounted(async () => {
       <section v-for="c in mayor.cuentas" :key="c.codigo" class="card break-inside-avoid">
         <button type="button" class="flex w-full flex-wrap items-center justify-between gap-2 text-left" @click="alternar(c.codigo)">
           <span class="flex items-center gap-2 text-base font-semibold text-slate-900">
-            <component :is="abiertas.has(c.codigo) ? ChevronDown : ChevronRight" class="size-4 text-slate-400 print:hidden" />
+            <component :is="abiertas.has(c.codigo) ? ChevronDown : ChevronRight" class="size-4 text-slate-500 print:hidden" />
             {{ c.codigo }} — {{ c.nombre }}
             <span class="text-xs font-normal text-slate-500">({{ c.naturaleza }})</span>
           </span>

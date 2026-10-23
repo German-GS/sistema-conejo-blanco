@@ -1,4 +1,5 @@
 <script setup>
+import Cargando from '../../components/Cargando.vue';
 import { computed, onMounted, ref } from 'vue';
 import { Users, Package, UserCog, ClipboardList, LayoutGrid, TrendingUp, AlertTriangle, PackageSearch } from '@lucide/vue';
 import { api, ApiError } from '../../lib/api.js';
@@ -247,7 +248,7 @@ onMounted(() => {
           <h2 class="text-base font-bold text-slate-900">Ventas — últimos 6 meses</h2>
         </div>
 
-        <p v-if="cargandoVentas" class="text-sm text-slate-500">Cargando…</p>
+        <Cargando v-if="cargandoVentas" texto="Cargando…" compacto />
         <template v-else-if="barras.length > 0">
           <svg :viewBox="`0 0 ${CHART_W} ${CHART_H + 8}`" class="w-full" role="img" aria-label="Ventas facturadas por mes, contado y crédito">
             <line x1="0" :y1="CHART_H - CHART_PAD_BOTTOM" :x2="CHART_W" :y2="CHART_H - CHART_PAD_BOTTOM" stroke="#e2e8f0" stroke-width="1" />
@@ -291,7 +292,7 @@ onMounted(() => {
         </div>
         <p class="-mt-2 text-xs text-slate-500">Pendientes que vencen dentro de 15 días (o ya vencidas).</p>
 
-        <p v-if="cargandoFacturasUrgentes" class="text-sm text-slate-500">Cargando…</p>
+        <Cargando v-if="cargandoFacturasUrgentes" texto="Cargando…" compacto />
         <p v-else-if="facturasUrgentes.length === 0" class="text-sm text-slate-500">Ninguna factura pendiente vence pronto.</p>
         <ul v-else class="flex flex-col gap-2">
           <li v-for="f in facturasUrgentes" :key="f.id" class="flex items-center justify-between gap-3 rounded-xl border border-slate-200 p-3">
@@ -318,7 +319,7 @@ onMounted(() => {
         </div>
         <p class="-mt-2 text-xs text-slate-500">Pedidos activos que todavía no se facturaron.</p>
 
-        <p v-if="cargandoPedidos" class="text-sm text-slate-500">Cargando…</p>
+        <Cargando v-if="cargandoPedidos" texto="Cargando…" compacto />
         <p v-else-if="pedidosPorAlistar.length === 0" class="text-sm text-slate-500">No hay pedidos pendientes de alistar.</p>
         <ul v-else class="grid grid-cols-1 gap-2 sm:grid-cols-2">
           <li v-for="p in pedidosPorAlistar" :key="p.id">

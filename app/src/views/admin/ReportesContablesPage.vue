@@ -85,7 +85,7 @@ const imprimir = () => window.print();
       <div v-if="actual.cuenta" class="min-w-64 flex-1">
         <label class="label">Cuenta</label>
         <select v-model="cuentaId" class="input" @change="generar">
-          <option value="">Elegí una cuenta…</option>
+          <option value="">Elija una cuenta…</option>
           <option v-for="c in cuentas" :key="c.id" :value="c.id">{{ c.codigo }} — {{ c.nombre }}</option>
         </select>
       </div>
@@ -99,7 +99,7 @@ const imprimir = () => window.print();
 
     <p v-if="error" class="text-sm font-medium text-red-600">{{ error }}</p>
     <p v-if="cargando" class="text-sm text-slate-500">Generando…</p>
-    <p v-else-if="actual.cuenta && !cuentaId" class="text-sm text-slate-500">Elegí una cuenta para ver sus movimientos.</p>
+    <p v-else-if="actual.cuenta && !cuentaId" class="text-sm text-slate-500">Elija una cuenta para ver sus movimientos.</p>
 
     <div v-if="reporte" class="card flex flex-col gap-3">
       <div>

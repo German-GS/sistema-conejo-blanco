@@ -69,10 +69,10 @@ async function enviar() {
     <form class="card w-full max-w-sm" @submit.prevent="enviar">
       <img :src="logo" alt="Conejo Blanco" class="mx-auto mb-3 size-36 object-contain" />
       <h1 class="mb-1 text-center text-2xl font-bold text-slate-900">Conejo Blanco</h1>
-      <p class="mb-6 text-center text-base text-slate-500">Ingresá con tu cuenta</p>
+      <p class="mb-6 text-center text-base text-slate-500">Ingrese con su cuenta</p>
 
       <p v-if="route.query.expirada" class="mb-4 rounded-xl bg-amber-50 p-3 text-sm font-medium text-amber-800">
-        Tu sesión se cerró por inactividad. Volvé a ingresar para continuar.
+        Su sesión se cerró por inactividad. Vuelva a ingresar para continuar.
       </p>
 
       <p v-if="sinInternet" class="mb-4 rounded-xl bg-amber-50 p-3 text-sm font-medium text-amber-800">
@@ -87,7 +87,7 @@ async function enviar() {
         <CampoClave id="password" v-model="password" required autocomplete="current-password" class="mb-4" />
       </template>
       <template v-else>
-        <p class="mb-3 text-sm text-slate-600">Abrí tu app autenticadora (Google Authenticator, Microsoft Authenticator, Authy…) y escribí el código de 6 dígitos de Conejo Blanco.</p>
+        <p class="mb-3 text-sm text-slate-600">Abra su app autenticadora (Google Authenticator, Microsoft Authenticator, Authy…) y escriba el código de 6 dígitos de Conejo Blanco.</p>
         <label class="label" for="codigo">Código de verificación</label>
         <input id="codigo" v-model="codigo" inputmode="numeric" autocomplete="one-time-code" maxlength="7" required class="input mb-4 text-center text-xl tracking-widest" autofocus />
       </template>

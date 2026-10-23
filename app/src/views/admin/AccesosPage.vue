@@ -1,4 +1,7 @@
 <script setup>
+import { exito } from '../../lib/avisos.js';
+import { confirmar } from '../../lib/confirmar.js';
+import Cargando from '../../components/Cargando.vue';
 import { computed, onMounted, reactive, ref } from 'vue';
 import { KeyRound, Lock, LockOpen, LogOut, Plus, ShieldCheck, UserX, UserCheck } from '@lucide/vue';
 import { api, ApiError } from '../../lib/api.js';
@@ -79,27 +82,35 @@ async function accion(fn, mensajeError) {
     error.value = err instanceof ApiError ? err.message : mensajeError;
   }
 }
-const alternarActivo = (u) =>
+const alternarActivo = async (u) =>
   accion(async () => {
-    if (u.activo && !window.confirm(`¿Desactivar el acceso de ${u.nombre}? Se le cierran las sesiones abiertas.`)) return;
+    if (u.activo && !await confirmar(`¿Desactivar el acceso de ${u.nombre}? Se le cierran las sesiones abiertas.`)) return;
     await api.patch(`/usuarios/${u.id}`, { activo: !u.activo });
+    exito(u.activo ? `Acceso de ${u.nombre} desactivado.` : `Acceso de ${u.nombre} activado.`);
   }, 'No se pudo actualizar la cuenta.');
-const restablecer = (u) =>
+const restablecer = async (u) =>
   accion(async () => {
-    if (!window.confirm(`¿Restablecer la contraseña de ${u.nombre}? Se cierran sus sesiones y deberá cambiarla al entrar.`)) return;
+    if (!await confirmar(`¿Restablecer la contraseña de ${u.nombre}? Se cierran sus sesiones y deberá cambiarla al entrar.`)) return;
     const r = await api.post(`/usuarios/${u.id}/restablecer-clave`, {});
     credencial.value = { nombre: u.nombre, email: u.email, passwordTemporal: r.passwordTemporal, venceEn: r.venceEn };
+    exito(`Contraseña de ${u.nombre} restablecida.`);
   }, 'No se pudo restablecer la contraseña.');
-const reiniciarDosPasos = (u) =>
+const reiniciarDosPasos = async (u) =>
   accion(async () => {
-    if (!window.confirm(`¿Quitar la verificación en dos pasos de ${u.nombre}? Tendrá que activarla de nuevo con su teléfono.`)) return;
+    if (!await confirmar(`¿Quitar la verificación en dos pasos de ${u.nombre}? Tendrá que activarla de nuevo con su teléfono.`)) return;
     await api.post(`/usuarios/${u.id}/reiniciar-dos-pasos`, {});
+    exito(`Verificación en dos pasos de ${u.nombre} quitada.`);
   }, 'No se pudo reiniciar.');
-const desbloquear = (u) => accion(() => api.post(`/usuarios/${u.id}/desbloquear`, {}), 'No se pudo desbloquear.');
-const cerrarSesiones = (u) =>
+const desbloquear = (u) =>
   accion(async () => {
-    if (!window.confirm(`¿Cerrar todas las sesiones abiertas de ${u.nombre}?`)) return;
+    await api.post(`/usuarios/${u.id}/desbloquear`, {});
+    exito(`Cuenta de ${u.nombre} desbloqueada.`);
+  }, 'No se pudo desbloquear.');
+const cerrarSesiones = async (u) =>
+  accion(async () => {
+    if (!await confirmar(`¿Cerrar todas las sesiones abiertas de ${u.nombre}?`)) return;
     await api.post(`/usuarios/${u.id}/cerrar-sesiones`, {});
+    exito(`Sesiones de ${u.nombre} cerradas.`);
   }, 'No se pudieron cerrar las sesiones.');
 
 // ---- Perfil y datos ----
@@ -252,7 +263,7 @@ const esFallo = (a) => ['login_fallido', 'login_bloqueado', 'cuenta_bloqueada', 
         <div v-if="nuevo.origen === 'empleado'">
           <label class="label">Empleado *</label>
           <select v-model="nuevo.empleadoId" class="input">
-            <option value="">Elegí un empleado sin acceso…</option>
+            <option value="">Elija un empleado sin acceso…</option>
             <option v-for="e in empleados" :key="e.id" :value="e.id">{{ e.nombre }}{{ e.puesto ? ` — ${e.puesto}` : '' }}</option>
           </select>
           <p v-if="empleadoElegido" class="mt-1 text-xs text-slate-500">El nombre y el vínculo se toman del empleado{{ empleadoElegido.cedula ? ` (cédula ${empleadoElegido.cedula})` : '' }}. Si deja la empresa, su acceso se desactiva solo.</p>
@@ -267,17 +278,17 @@ const esFallo = (a) => ['login_fallido', 'login_bloqueado', 'cuenta_bloqueada', 
         </div>
         <div v-if="nuevo.rol === 'encargado_tienda'">
           <label class="label">Tienda donde trabaja *</label>
-          <select v-model="nuevo.ubicacionId" class="input"><option value="">Elegí la tienda…</option><option v-for="t in tiendas" :key="t.id" :value="t.id">{{ t.nombre }}</option></select>
+          <select v-model="nuevo.ubicacionId" class="input"><option value="">Elija la tienda…</option><option v-for="t in tiendas" :key="t.id" :value="t.id">{{ t.nombre }}</option></select>
           <p class="mt-1 text-xs text-slate-500">Al iniciar sesión entra directo a la caja de esa tienda y no puede ver nada más.</p>
         </div>
         <div>
-          <label class="label">Contraseña temporal <span class="font-normal text-slate-500">(opcional: si la dejás vacía el sistema genera una fácil de dictar, como Conejo-4821)</span></label>
+          <label class="label">Contraseña temporal <span class="font-normal text-slate-500">(opcional: si la deja vacía el sistema genera una fácil de dictar, como Conejo-4821)</span></label>
           <input v-model="nuevo.password" type="text" class="input" placeholder="Cualquiera de 6 o más caracteres; la persona la cambia al entrar" />
         </div>
         <button type="button" class="btn-primary" :disabled="!formValido || guardando" @click="crear">{{ guardando ? 'Creando…' : 'Crear acceso' }}</button>
       </div>
 
-      <p v-if="cargando" class="text-base text-slate-500">Cargando…</p>
+      <Cargando v-if="cargando" texto="Cargando…" />
       <ul v-else class="flex flex-col gap-3">
         <li v-for="u in usuarios" :key="u.id" class="card">
           <div class="flex flex-wrap items-start justify-between gap-2">
@@ -358,7 +369,7 @@ const esFallo = (a) => ['login_fallido', 'login_bloqueado', 'cuenta_bloqueada', 
         <button type="button" class="btn-secondary" @click="cargarBitacora">Buscar</button>
         <button type="button" class="btn-secondary" @click="bajarBitacora">Descargar Excel</button>
       </div>
-      <p v-if="cargandoBitacora" class="text-sm text-slate-500">Cargando…</p>
+      <Cargando v-if="cargandoBitacora" texto="Cargando…" compacto />
       <div class="card overflow-x-auto">
         <table class="w-full min-w-[44rem] text-sm">
           <thead>

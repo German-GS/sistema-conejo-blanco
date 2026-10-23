@@ -83,7 +83,7 @@ export class FacturaManualService {
   async crear(dto: CrearFacturaManualDto, usuarioId: string): Promise<Factura> {
     const cliente = await this.clientesService.buscarPorIdOFallar(dto.clienteId);
     if (dto.tipoPago === TipoPago.CREDITO && !dto.diasCredito) {
-      throw new BadRequestException('Indicá los días de crédito.');
+      throw new BadRequestException('Indique los días de crédito.');
     }
     const fecha = dto.fecha ?? hoyISO();
     if (Number.isNaN(Date.parse(fecha))) throw new BadRequestException('La fecha no es válida.');
@@ -97,7 +97,7 @@ export class FacturaManualService {
         : await this.ubicacionesService.buscarBodegaCentralOFallar()
       : null;
     if (ubicacion && !ubicacion.permiteVenta) {
-      throw new BadRequestException(`Desde "${ubicacion.nombre}" no se puede vender: elegí otra ubicación.`);
+      throw new BadRequestException(`Desde "${ubicacion.nombre}" no se puede vender: elija otra ubicación.`);
     }
 
     const lineas: Array<Partial<FacturaLinea> & { cantidadNum: number; costo: number | null }> = [];

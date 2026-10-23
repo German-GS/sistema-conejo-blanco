@@ -22,7 +22,7 @@ export class PermissionsGuard implements CanActivate {
     const faltantes = requeridos.filter((p) => !usuario?.permisos.has(p));
     if (faltantes.length > 0) {
       throw new ForbiddenException(
-        `No tenés permiso para esta acción (falta: ${faltantes.join(', ')}). Pedile a administración que te lo autorice.`,
+        `No tiene permiso para esta acción (falta: ${faltantes.join(', ')}). Pida a administración que se lo autorice.`,
       );
     }
     return true;

@@ -1,4 +1,7 @@
 <script setup>
+import { usarBorrador } from '../../lib/borrador.js';
+import BorradorAviso from '../../components/BorradorAviso.vue';
+import Cargando from '../../components/Cargando.vue';
 import { computed, onMounted, reactive, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { ArrowLeft, Eye, Plus, Search, Trash2, X } from '@lucide/vue';
@@ -175,14 +178,14 @@ const fechaVencimiento = computed(() => {
 
 const lineasValidas = computed(() => lineas.value.filter((l) => l.descripcion.trim() && Number(l.cantidad) > 0));
 const problema = computed(() => {
-  if (!cliente.value) return 'Elegí el cliente.';
-  if (lineasValidas.value.length === 0) return 'Agregá al menos una línea con descripción y cantidad.';
+  if (!cliente.value) return 'Elija el cliente.';
+  if (lineasValidas.value.length === 0) return 'Agregue al menos una línea con descripción y cantidad.';
   if (lineasValidas.value.length !== lineas.value.length) return 'Hay líneas incompletas: completalas o quitalas.';
-  if (hayCatalogo.value && !form.ubicacionId) return 'Elegí de qué ubicación sale el producto.';
+  if (hayCatalogo.value && !form.ubicacionId) return 'Elija de qué ubicación sale el producto.';
   if (hayCatalogo.value && lineas.value.some((l) => l.varianteId && !Number.isInteger(Number(l.cantidad)))) {
     return 'Los productos del catálogo van en pares enteros.';
   }
-  if (form.tipoPago === 'credito' && !(Number(form.diasCredito) > 0)) return 'Indicá los días de crédito.';
+  if (form.tipoPago === 'credito' && !(Number(form.diasCredito) > 0)) return 'Indique los días de crédito.';
   if (totales.value.total <= 0) return 'El total debe ser mayor a cero.';
   return '';
 });
@@ -249,6 +252,7 @@ async function emitir() {
         impuestoPorcentaje: Number(l.impuesto),
       })),
     });
+    borrador.limpiar();
     router.push({ name: 'admin-factura-detalle', params: { id: factura.id } });
   } catch (err) {
     error.value = err instanceof ApiError ? err.message : 'No se pudo emitir la factura.';
@@ -256,10 +260,24 @@ async function emitir() {
     emitiendo.value = false;
   }
 }
+
+// Borrador automático: si la sesión se cierra o se pierde la ventana, al volver se puede recuperar lo escrito.
+const borrador = usarBorrador({
+  clave: 'factura-nueva',
+  obtener: () => JSON.parse(JSON.stringify({ form: { ...form }, cliente: cliente.value, clienteTexto: clienteTexto.value, lineas: lineas.value })),
+  aplicar: (d) => {
+    Object.assign(form, d.form);
+    cliente.value = d.cliente ?? null;
+    clienteTexto.value = d.clienteTexto ?? '';
+    if (d.lineas?.length) lineas.value = d.lineas;
+  },
+  tieneDatos: (d) => Boolean(d.cliente) || d.lineas.some((l) => l.descripcion?.trim()),
+});
 </script>
 
 <template>
   <div class="flex flex-col gap-5">
+    <BorradorAviso :borrador="borrador" />
     <div class="flex items-center justify-between">
       <router-link :to="{ name: 'admin-facturas' }" class="flex items-center gap-1 text-sm font-semibold text-blue-700">
         <ArrowLeft class="size-4" /> Volver a facturas
@@ -268,7 +286,7 @@ async function emitir() {
       <span class="w-32" />
     </div>
 
-    <p v-if="!config" class="text-sm text-slate-500">Cargando…</p>
+    <Cargando v-if="!config" texto="Cargando…" compacto />
 
     <template v-else>
       <div v-if="!config.razonSocial" class="rounded-lg bg-amber-50 p-3 text-sm text-amber-800">
@@ -287,7 +305,7 @@ async function emitir() {
           </div>
           <div class="ml-auto text-sm text-slate-600">
             <p class="font-semibold text-slate-900">Factura electrónica</p>
-            <p>No. <span class="text-slate-400">se asigna al emitir</span></p>
+            <p>No. <span class="text-slate-500">se asigna al emitir</span></p>
           </div>
         </div>
       </section>
@@ -309,7 +327,7 @@ async function emitir() {
           <div class="relative sm:col-span-2">
             <label class="label">Cliente *</label>
             <div class="relative">
-              <Search class="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+              <Search class="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-500" />
               <input v-model="clienteTexto" class="input pl-9" placeholder="Buscar por nombre o cédula…" @input="buscarCliente" />
             </div>
             <ul v-if="clientesEncontrados.length" class="absolute z-10 mt-1 max-h-56 w-full overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-lg">
@@ -349,7 +367,7 @@ async function emitir() {
         <div class="relative max-w-md">
           <label class="label">Agregar producto del catálogo (descuenta inventario)</label>
           <div class="relative">
-            <Search class="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+            <Search class="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-500" />
             <input v-model="productoTexto" class="input pl-9" placeholder="Código o nombre del producto…" @input="buscarProducto" />
           </div>
           <div v-if="productos.length" class="absolute z-10 mt-1 max-h-72 w-full overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-lg">
@@ -401,7 +419,7 @@ async function emitir() {
                 </td>
                 <td class="px-1 py-3 text-right tabular-nums">{{ formatearColones(calcular(l).subtotal) }}</td>
                 <td class="px-1 py-2">
-                  <button type="button" class="text-slate-400 hover:text-red-600" aria-label="Quitar línea" @click="quitarLinea(i)"><Trash2 class="size-4" /></button>
+                  <button type="button" class="text-slate-500 hover:text-red-600" aria-label="Quitar línea" @click="quitarLinea(i)"><Trash2 class="size-4" /></button>
                 </td>
               </tr>
             </tbody>
@@ -443,7 +461,7 @@ async function emitir() {
           {{ emitiendo ? 'Emitiendo…' : 'Emitir' }}
         </button>
       </div>
-      <p v-if="problema" class="text-right text-xs text-slate-500">{{ problema }}</p>
+      <p v-if="problema" class="text-right text-sm font-semibold text-amber-700">{{ problema }}</p>
     </template>
 
     <div v-if="verPrevia" class="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 p-4 sm:p-8" @click.self="verPrevia = false">

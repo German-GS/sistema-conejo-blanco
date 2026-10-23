@@ -1,44 +1,47 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import { useAuthStore } from '../stores/auth.js';
+import { avisarErrorDeRed, empezarEspera } from '../lib/red.js';
 
+// Las pantallas se cargan cuando se necesitan (así el vendedor no descarga contabilidad ni planilla). Quedan incluidas desde el inicio
+// la entrada, el cambio de clave y la caja POS, porque deben abrir sin internet.
 import LoginPage from '../views/LoginPage.vue';
 import CambiarClavePage from '../views/CambiarClavePage.vue';
 import VendedorLayout from '../layout/VendedorLayout.vue';
-import VendedorHomePage from '../views/vendedor/VendedorHomePage.vue';
-import NuevoPedidoPage from '../views/vendedor/NuevoPedidoPage.vue';
-import PedidoDetallePage from '../views/vendedor/PedidoDetallePage.vue';
-import AdminLayout from '../layout/AdminLayout.vue';
-import AdminHomePage from '../views/admin/AdminHomePage.vue';
-import ClientesPage from '../views/admin/ClientesPage.vue';
-import InventarioPage from '../views/admin/InventarioPage.vue';
-import BodegaPage from '../views/admin/BodegaPage.vue';
-import SistemaPage from '../views/admin/SistemaPage.vue';
+const VendedorHomePage = () => import('../views/vendedor/VendedorHomePage.vue');
+const NuevoPedidoPage = () => import('../views/vendedor/NuevoPedidoPage.vue');
+const PedidoDetallePage = () => import('../views/vendedor/PedidoDetallePage.vue');
+const AdminLayout = () => import('../layout/AdminLayout.vue');
+const AdminHomePage = () => import('../views/admin/AdminHomePage.vue');
+const ClientesPage = () => import('../views/admin/ClientesPage.vue');
+const InventarioPage = () => import('../views/admin/InventarioPage.vue');
+const BodegaPage = () => import('../views/admin/BodegaPage.vue');
+const SistemaPage = () => import('../views/admin/SistemaPage.vue');
 import PosPage from '../views/pos/PosPage.vue';
-import PosAdminPage from '../views/admin/PosAdminPage.vue';
-import AnalisisPage from '../views/admin/AnalisisPage.vue';
-import AccesosPage from '../views/admin/AccesosPage.vue';
-import PedidosPage from '../views/admin/PedidosPage.vue';
-import ConfiguracionPage from '../views/admin/ConfiguracionPage.vue';
-import FacturasPage from '../views/admin/FacturasPage.vue';
-import FacturaNuevaPage from '../views/admin/FacturaNuevaPage.vue';
-import FacturaDetallePage from '../views/admin/FacturaDetallePage.vue';
-import PagosPage from '../views/admin/PagosPage.vue';
-import PagoNuevoPage from '../views/admin/PagoNuevoPage.vue';
-import PagoDetallePage from '../views/admin/PagoDetallePage.vue';
-import CatalogoCuentasPage from '../views/admin/CatalogoCuentasPage.vue';
-import DiarioPage from '../views/admin/DiarioPage.vue';
-import ReportesContablesPage from '../views/admin/ReportesContablesPage.vue';
-import CierreFiscalPage from '../views/admin/CierreFiscalPage.vue';
-import CierreMensualPage from '../views/admin/CierreMensualPage.vue';
-import LibroMayorPage from '../views/admin/LibroMayorPage.vue';
-import IntegridadPage from '../views/admin/IntegridadPage.vue';
-import NotasCreditoPage from '../views/admin/NotasCreditoPage.vue';
-import EmpleadosPlanillaPage from '../views/admin/planilla/EmpleadosPlanillaPage.vue';
-import AsistenciaPage from '../views/admin/planilla/AsistenciaPage.vue';
-import PlanillasPage from '../views/admin/planilla/PlanillasPage.vue';
-import InformesPlanillaPage from '../views/admin/planilla/InformesPlanillaPage.vue';
-import ParametrosPlanillaPage from '../views/admin/planilla/ParametrosPlanillaPage.vue';
-import HojaAlistamientoPage from '../views/pedidos/HojaAlistamientoPage.vue';
+const PosAdminPage = () => import('../views/admin/PosAdminPage.vue');
+const AnalisisPage = () => import('../views/admin/AnalisisPage.vue');
+const AccesosPage = () => import('../views/admin/AccesosPage.vue');
+const PedidosPage = () => import('../views/admin/PedidosPage.vue');
+const ConfiguracionPage = () => import('../views/admin/ConfiguracionPage.vue');
+const FacturasPage = () => import('../views/admin/FacturasPage.vue');
+const FacturaNuevaPage = () => import('../views/admin/FacturaNuevaPage.vue');
+const FacturaDetallePage = () => import('../views/admin/FacturaDetallePage.vue');
+const PagosPage = () => import('../views/admin/PagosPage.vue');
+const PagoNuevoPage = () => import('../views/admin/PagoNuevoPage.vue');
+const PagoDetallePage = () => import('../views/admin/PagoDetallePage.vue');
+const CatalogoCuentasPage = () => import('../views/admin/CatalogoCuentasPage.vue');
+const DiarioPage = () => import('../views/admin/DiarioPage.vue');
+const ReportesContablesPage = () => import('../views/admin/ReportesContablesPage.vue');
+const CierreFiscalPage = () => import('../views/admin/CierreFiscalPage.vue');
+const CierreMensualPage = () => import('../views/admin/CierreMensualPage.vue');
+const LibroMayorPage = () => import('../views/admin/LibroMayorPage.vue');
+const IntegridadPage = () => import('../views/admin/IntegridadPage.vue');
+const NotasCreditoPage = () => import('../views/admin/NotasCreditoPage.vue');
+const EmpleadosPlanillaPage = () => import('../views/admin/planilla/EmpleadosPlanillaPage.vue');
+const AsistenciaPage = () => import('../views/admin/planilla/AsistenciaPage.vue');
+const PlanillasPage = () => import('../views/admin/planilla/PlanillasPage.vue');
+const InformesPlanillaPage = () => import('../views/admin/planilla/InformesPlanillaPage.vue');
+const ParametrosPlanillaPage = () => import('../views/admin/planilla/ParametrosPlanillaPage.vue');
+const HojaAlistamientoPage = () => import('../views/pedidos/HojaAlistamientoPage.vue');
 
 const routes = [
   { path: '/login', name: 'login', component: LoginPage, meta: { publica: true } },
@@ -143,6 +146,42 @@ export const router = createRouter({
   // la raíz del dominio y no contra la subcarpeta real.
   history: createWebHistory(import.meta.env.BASE_URL),
   routes,
+});
+
+// Mientras se abre una pantalla (se descarga si es la primera vez) se muestra el indicador de carga.
+let terminarEspera = null;
+router.beforeEach(() => {
+  terminarEspera?.();
+  terminarEspera = empezarEspera();
+});
+router.afterEach(() => {
+  terminarEspera?.();
+  terminarEspera = null;
+});
+// Después de una actualización, una pestaña vieja puede pedir un archivo que ya no existe: se recarga sola (una vez) para tomar la versión nueva.
+router.onError((err, to) => {
+  terminarEspera?.();
+  terminarEspera = null;
+  const mensaje = String(err?.message ?? err);
+  if (!/dynamically imported module|Importing a module script failed|Unable to preload|Failed to fetch/i.test(mensaje)) return;
+  const clave = 'cb-recarga-pantalla';
+  let ultima = 0;
+  try {
+    ultima = Number(sessionStorage.getItem(clave) ?? 0);
+  } catch {
+    /* sin almacenamiento no se puede evitar el ciclo: no se recarga */
+    ultima = Date.now();
+  }
+  if (Date.now() - ultima > 30_000) {
+    try {
+      sessionStorage.setItem(clave, String(Date.now()));
+    } catch {
+      /* nada */
+    }
+    window.location.assign(to?.fullPath ? router.resolve(to.fullPath).href : window.location.href);
+  } else {
+    avisarErrorDeRed('No se pudo abrir esa pantalla. Revise su conexión a internet y vuelva a intentarlo.');
+  }
 });
 
 router.beforeEach((to) => {

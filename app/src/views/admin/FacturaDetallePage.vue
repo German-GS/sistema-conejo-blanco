@@ -1,4 +1,5 @@
 <script setup>
+import Cargando from '../../components/Cargando.vue';
 import { onMounted, ref } from 'vue';
 import { ArrowLeft, Printer } from '@lucide/vue';
 import { api, ApiError } from '../../lib/api.js';
@@ -29,7 +30,7 @@ onMounted(async () => {
       </button>
     </div>
     <p v-if="error" class="text-sm font-medium text-red-600">{{ error }}</p>
-    <p v-else-if="!doc" class="text-sm text-slate-500">Cargando…</p>
+    <Cargando v-else-if="!doc" texto="Cargando…" compacto />
     <FacturaDocumento v-else :doc="doc" />
   </div>
 </template>

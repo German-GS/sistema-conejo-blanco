@@ -162,7 +162,7 @@ export class AsistenciaService {
   private async aplicarVinculos(vinculos: Record<string, string>) {
     const pares = Object.entries(vinculos).map(([numero, empleadoId]) => [normalizarNumeroReloj(numero), empleadoId] as const);
     if (new Set(pares.map(([, id]) => id)).size !== pares.length) {
-      throw new BadRequestException('Elegiste al mismo empleado para dos números distintos del reloj.');
+      throw new BadRequestException('Eligió al mismo empleado para dos números distintos del reloj.');
     }
     // Primero se liberan los números de los empleados a vincular (el número
     // es único), por si dos empleados intercambian números entre sí.
@@ -189,7 +189,7 @@ export class AsistenciaService {
         (m.diseno === 'registro' && (m.fechaHora || (m.fecha && m.hora))));
     if (!ok) {
       throw new BadRequestException(
-        'El mapeo de columnas está incompleto: indicá la columna del número, la fecha y las columnas de horas (o de fecha y hora).',
+        'El mapeo de columnas está incompleto: indique la columna del número, la fecha y las columnas de horas (o de fecha y hora).',
       );
     }
   }
@@ -210,7 +210,7 @@ export class AsistenciaService {
       lectura = await leerMarcas(buffer, mapeo);
     }
     if (lectura.fechas.length === 0) {
-      throw new BadRequestException('No se pudo leer ninguna fecha del archivo. Revisá que sea el archivo correcto del reloj.');
+      throw new BadRequestException('No se pudo leer ninguna fecha del archivo. Revise que sea el archivo correcto del reloj.');
     }
     const p = await this.parametros.mapa();
     const feriados = await this.parametros.mapaFeriados();

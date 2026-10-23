@@ -1,4 +1,7 @@
 <script setup>
+import { usarBorrador } from '../../lib/borrador.js';
+import BorradorAviso from '../../components/BorradorAviso.vue';
+import Cargando from '../../components/Cargando.vue';
 import { redondear } from '../../lib/dinero.js';
 import { computed, onMounted, reactive, ref } from 'vue';
 import { NotebookText, Plus, Trash2 } from '@lucide/vue';
@@ -81,6 +84,7 @@ async function guardar() {
       lineas: nuevo.lineas.map((l) => ({ cuentaId: l.cuentaId, ...(Number(l.debe) > 0 ? { debe: Number(l.debe) } : { haber: Number(l.haber) }) })),
     });
     mostrandoForm.value = false;
+    borrador.limpiar();
     await cargar();
   } catch (err) {
     errorForm.value = err instanceof ApiError ? err.message : 'No se pudo guardar el asiento.';
@@ -103,10 +107,22 @@ async function reversar(a) {
     error.value = err instanceof ApiError ? err.message : 'No se pudo reversar.';
   }
 }
+
+// Borrador automático del asiento manual en curso.
+const borrador = usarBorrador({
+  clave: 'asiento-manual',
+  obtener: () => JSON.parse(JSON.stringify({ abierto: mostrandoForm.value, nuevo })),
+  aplicar: (d) => {
+    Object.assign(nuevo, d.nuevo);
+    mostrandoForm.value = true;
+  },
+  tieneDatos: (d) => d.abierto && (Boolean(d.nuevo.descripcion?.trim()) || d.nuevo.lineas.some((l) => l.cuentaId || Number(l.debe) > 0 || Number(l.haber) > 0)),
+});
 </script>
 
 <template>
   <div class="flex flex-col gap-5">
+    <BorradorAviso :borrador="borrador" />
     <div class="flex flex-wrap items-center justify-between gap-2">
       <div class="flex items-center gap-2"><NotebookText class="size-5 text-blue-600" /><h1 class="text-xl font-bold text-slate-900">Libro diario</h1></div>
       <button v-if="puedeGestionar" type="button" class="btn-primary" @click="abrirForm"><Plus class="size-4" /> Nuevo asiento manual</button>
@@ -131,13 +147,13 @@ async function reversar(a) {
             <tr v-for="(l, i) in nuevo.lineas" :key="i">
               <td class="px-1 py-1">
                 <select v-model="l.cuentaId" class="input">
-                  <option value="">Elegí una cuenta…</option>
+                  <option value="">Elija una cuenta…</option>
                   <option v-for="c in cuentas" :key="c.id" :value="c.id">{{ c.codigo }} — {{ c.nombre }}</option>
                 </select>
               </td>
               <td class="px-1 py-1"><input v-model="l.debe" type="number" min="0" step="0.01" class="input" @input="l.haber = ''" /></td>
               <td class="px-1 py-1"><input v-model="l.haber" type="number" min="0" step="0.01" class="input" @input="l.debe = ''" /></td>
-              <td class="px-1"><button v-if="nuevo.lineas.length > 2" type="button" class="text-slate-400 hover:text-red-600" @click="nuevo.lineas.splice(i, 1)"><Trash2 class="size-4" /></button></td>
+              <td class="px-1"><button v-if="nuevo.lineas.length > 2" type="button" class="text-slate-500 hover:text-red-600" @click="nuevo.lineas.splice(i, 1)"><Trash2 class="size-4" /></button></td>
             </tr>
           </tbody>
           <tfoot>
@@ -152,7 +168,7 @@ async function reversar(a) {
       </div>
       <button type="button" class="flex w-fit items-center gap-1 text-sm font-semibold text-blue-700" @click="nuevo.lineas.push({ cuentaId: '', debe: '', haber: '' })"><Plus class="size-4" /> Agregar línea</button>
       <p class="text-sm" :class="cuadra ? 'text-teal-700' : 'text-amber-700'">
-        {{ cuadra ? 'El asiento cuadra.' : sumaDebe || sumaHaber ? `No cuadra: diferencia de ${formatearColones(Math.abs(sumaDebe - sumaHaber))}.` : 'Ingresá los montos: los débitos y los créditos deben ser iguales.' }}
+        {{ cuadra ? 'El asiento cuadra.' : sumaDebe || sumaHaber ? `No cuadra: diferencia de ${formatearColones(Math.abs(sumaDebe - sumaHaber))}.` : 'Ingrese los montos: los débitos y los créditos deben ser iguales.' }}
       </p>
       <p v-if="errorForm" class="text-sm font-medium text-red-600">{{ errorForm }}</p>
       <div class="flex gap-2">
@@ -167,7 +183,7 @@ async function reversar(a) {
     </div>
 
     <p v-if="error" class="text-sm font-medium text-red-600">{{ error }}</p>
-    <p v-if="cargando" class="text-sm text-slate-500">Cargando…</p>
+    <Cargando v-if="cargando" texto="Cargando…" compacto />
     <p v-else-if="asientos.length === 0" class="text-sm text-slate-500">No hay asientos en ese rango.</p>
 
     <ul v-else class="flex flex-col gap-2">
@@ -175,7 +191,7 @@ async function reversar(a) {
         <button type="button" class="flex w-full flex-wrap items-center justify-between gap-2 p-3 text-left" @click="alternar(a.id)">
           <span class="text-sm">
             <span class="mr-2 text-slate-500">{{ formatearFecha(a.fecha) }}</span>
-            <span v-if="a.numero" class="mr-2 text-xs font-semibold text-slate-400">#{{ a.numero }}</span><span class="font-semibold text-slate-900">{{ a.descripcion }}</span>
+            <span v-if="a.numero" class="mr-2 text-xs font-semibold text-slate-500">#{{ a.numero }}</span><span class="font-semibold text-slate-900">{{ a.descripcion }}</span>
             <span class="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">{{ ORIGENES[a.origenTipo] ?? a.origenTipo ?? '—' }}</span>
             <span v-if="a.reversado" class="ml-1 rounded-full bg-red-50 px-2 py-0.5 text-xs text-red-700">Reversado</span>
           </span>

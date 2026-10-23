@@ -25,7 +25,7 @@ const actual = computed(() => (route.path.startsWith('/admin') ? 'admin' : route
       :key="v.clave"
       :to="{ name: v.ruta }"
       class="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-semibold transition"
-      :class="actual === v.clave ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'"
+      :class="actual === v.clave ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'"
       :aria-current="actual === v.clave ? 'page' : undefined"
     >
       <component :is="v.icono" class="size-4" />

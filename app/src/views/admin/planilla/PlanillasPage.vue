@@ -1,4 +1,5 @@
 <script setup>
+import { confirmar } from '../../../lib/confirmar.js';
 import { onMounted, reactive, ref } from 'vue';
 import { api, ApiError, descargarArchivo, obtenerArchivo } from '../../../lib/api.js';
 import CesePanel from '../../../components/CesePanel.vue';
@@ -37,7 +38,7 @@ onMounted(async () => {
 
 // Borrar un borrador desde la lista (las aprobadas y pagadas no se pueden borrar).
 async function eliminarDeLista(pl) {
-  if (!window.confirm(`¿Eliminar el borrador del ${formatearFecha(pl.fechaDesde)} al ${formatearFecha(pl.fechaHasta)}? Se puede volver a calcular después.`)) return;
+  if (!await confirmar(`¿Eliminar el borrador del ${formatearFecha(pl.fechaDesde)} al ${formatearFecha(pl.fechaHasta)}? Se puede volver a calcular después.`)) return;
   await ejecutar(async () => {
     await api.delete(`/planilla/planillas/${pl.id}`);
     await cargar();
@@ -156,7 +157,7 @@ const compartirColilla = (l) =>
     enlace.click();
     enlace.remove();
     URL.revokeObjectURL(url);
-    avisoCompartir.value = `Se descargó ${archivo.name}. Adjuntalo en WhatsApp desde tus descargas.`;
+    avisoCompartir.value = `Se descargó ${archivo.name}. Adjúntelo en WhatsApp desde sus descargas.`;
   }, 'No se pudo compartir la colilla.');
 
 // ---- Empleados sin marcas: ¿siguen trabajando o ya no laboran? ----
@@ -267,7 +268,7 @@ const fechaCorta = (f) => formatearFecha(f).slice(0, 5);
 
         <div v-if="detalle.planilla.estado === 'borrador'" class="flex flex-col gap-2">
           <p v-if="detalle.pendientes" class="rounded-lg bg-amber-50 p-3 text-sm text-amber-800">
-            Hay {{ detalle.pendientes }} día(s) con marcas faltantes o ambiguas. Resolvelos en Asistencia y recalculá; mientras tanto no se puede aprobar.
+            Hay {{ detalle.pendientes }} día(s) con marcas faltantes o ambiguas. Resuélvalos en Asistencia y recalcule; mientras tanto no se puede aprobar.
           </p>
           <div v-if="detalle.conDiasSinDatos.some((c) => c.deTienda)" class="rounded-lg border border-emerald-300 bg-emerald-50 p-3 text-sm text-emerald-900">
             <p class="font-semibold">Faltan las horas de tienda:</p>
@@ -277,7 +278,7 @@ const fechaCorta = (f) => formatearFecha(f).slice(0, 5);
                 <router-link :to="{ name: 'planilla-asistencia', query: { tienda: c.empleadoId, desde: detalle.planilla.fechaDesde } }" class="ml-1 font-semibold underline">Meter sus horas</router-link>
               </li>
             </ul>
-            <p class="text-xs">No marcan en el reloj de la fábrica, así que sus horas se meten a mano en Asistencia. Después volvé acá y tocá «Recalcular».</p>
+            <p class="text-xs">No marcan en el reloj de la fábrica, así que sus horas se meten a mano en Asistencia. Después vuelva acá y toque «Recalcular».</p>
           </div>
           <div v-if="detalle.conDiasSinDatos.some((c) => !c.deTienda)" class="rounded-lg bg-amber-50 p-3 text-sm text-amber-800">
             <p class="font-semibold">
@@ -308,10 +309,10 @@ const fechaCorta = (f) => formatearFecha(f).slice(0, 5);
               </li>
             </ul>
             <p class="text-xs">
-              No aparecen en el archivo del reloj que importaste, así que el sistema no sabe si trabajaron. Elegí qué pasa
+              No aparecen en el archivo del reloj que importó, así que el sistema no sabe si trabajaron. Elija qué pasa
               con cada uno: si no usa el reloj (por ejemplo gerencia) se le paga siempre la jornada completa y no vuelve a
               aparecer acá; si ya no trabaja, se da de baja y se estima su liquidación. Si sí debería tener marcas,
-              <router-link :to="{ name: 'planilla-asistencia' }" class="font-semibold underline">importá su archivo en Asistencia</router-link> y volvé a calcular.
+              <router-link :to="{ name: 'planilla-asistencia' }" class="font-semibold underline">importe su archivo en Asistencia</router-link> y vuelva a calcular.
             </p>
             <label class="mt-2 flex items-center gap-2"><input v-model="aceptarSinDatos" type="checkbox" class="size-4" /> Pagar igual la jornada completa a estos empleados</label>
           </div>
@@ -346,7 +347,7 @@ const fechaCorta = (f) => formatearFecha(f).slice(0, 5);
         </div>
         <div v-if="accionAbierta === 'anular' || accionAbierta === 'reversar-pago'" class="rounded-xl border border-amber-200 bg-amber-50 p-3">
           <p class="mb-2 text-sm text-amber-900">
-            <template v-if="accionAbierta === 'anular'">Se reversa el asiento de la planilla, se devuelven a las deudas de los empleados lo que se les descontó, y podés generar otra planilla del mismo período. Nada se borra.</template>
+            <template v-if="accionAbierta === 'anular'">Se reversa el asiento de la planilla, se devuelven a las deudas de los empleados lo que se les descontó, y puede generar otra planilla del mismo período. Nada se borra.</template>
             <template v-else>Se reversa el asiento del pago y la planilla vuelve a "aprobada" para registrar el pago de nuevo.</template>
           </p>
           <input v-model="motivoAccion" class="input" placeholder="Motivo (obligatorio)" />

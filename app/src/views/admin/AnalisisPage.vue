@@ -1,4 +1,6 @@
 <script setup>
+import { confirmar } from '../../lib/confirmar.js';
+import Cargando from '../../components/Cargando.vue';
 import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { api, API_URL, ApiError, descargarArchivo } from '../../lib/api.js';
 import { fechaHoyISO, formatearFechaHora } from '../../lib/format.js';
@@ -177,7 +179,7 @@ async function verVista(d) {
 }
 
 async function generarEnlace() {
-  if (enlace.value?.activo && !window.confirm('Ya hay una clave activa. Si generás otra, la anterior deja de funcionar. ¿Continuar?')) return;
+  if (enlace.value?.activo && !await confirmar('Ya hay una clave activa. Si genera otra, la anterior deja de funcionar. ¿Continuar?')) return;
   try {
     const r = await api.post('/sistema/analisis/enlace');
     tokenNuevo.value = r.token;
@@ -187,7 +189,7 @@ async function generarEnlace() {
   }
 }
 async function revocarEnlace() {
-  if (!window.confirm('Power BI y cualquier otra herramienta que use esta clave dejarán de recibir datos. ¿Revocar?')) return;
+  if (!await confirmar('Power BI y cualquier otra herramienta que use esta clave dejarán de recibir datos. ¿Revocar?')) return;
   try {
     await api.delete('/sistema/analisis/enlace');
     tokenNuevo.value = '';
@@ -202,7 +204,7 @@ async function copiar(texto, clave) {
     copiado.value = clave;
     setTimeout(() => (copiado.value = ''), 2000);
   } catch {
-    avisoDatos.value = 'No se pudo copiar automáticamente; seleccioná el texto y copialo.';
+    avisoDatos.value = 'No se pudo copiar automáticamente; seleccione el texto y cópielo.';
   }
 }
 
@@ -489,7 +491,7 @@ onMounted(() => {
               </div>
             </div>
             <div v-if="vista.id === d.id" class="mt-2 max-h-72 overflow-auto rounded border border-slate-200">
-              <p v-if="vista.cargando" class="p-2 text-sm text-slate-500">Cargando…</p>
+              <Cargando v-if="vista.cargando" texto="Cargando…" compacto />
               <table v-else class="w-full text-xs">
                 <thead class="sticky top-0 bg-slate-100"><tr><th v-for="c in vista.columnas" :key="c" class="whitespace-nowrap px-2 py-1 text-left font-semibold text-slate-600">{{ c }}</th></tr></thead>
                 <tbody>
@@ -523,7 +525,7 @@ onMounted(() => {
         </div>
         <details class="text-sm text-slate-700">
           <summary class="cursor-pointer font-semibold">Power BI Desktop (Power Query)</summary>
-          <p class="mt-1 text-xs text-slate-500">Obtener datos → Consulta en blanco → Editor avanzado, y pegá esto (cambiá <span class="font-mono">ventas</span> por el conjunto que quieras; la lista de direcciones está abajo).</p>
+          <p class="mt-1 text-xs text-slate-500">Obtener datos → Consulta en blanco → Editor avanzado, y pegue esto (cambie <span class="font-mono">ventas</span> por el conjunto que quieras; la lista de direcciones está abajo).</p>
           <pre class="mt-1 overflow-x-auto rounded bg-slate-100 p-2 text-xs">{{ ejemploPowerQuery }}</pre>
           <button type="button" class="btn-secondary mt-1" @click="copiar(ejemploPowerQuery, 'pq')">{{ copiado === 'pq' ? 'Copiado' : 'Copiar' }}</button>
         </details>
@@ -537,7 +539,7 @@ onMounted(() => {
           <ul class="mt-1 flex flex-col gap-0.5 text-xs">
             <li v-for="d in catalogo.filter((x) => !x.personal)" :key="d.id" class="break-all font-mono">{{ urlFeed(d.id) }}<template v-if="d.conFecha">?desde=2026-01-01&amp;hasta=2026-12-31</template></li>
           </ul>
-          <p class="mt-1 text-xs text-slate-500">Agregá <span class="font-mono">?formato=json</span> si preferís JSON. Si la herramienta no permite encabezados, usá <span class="font-mono">?token=TU_CLAVE</span> (la clave nunca queda en el registro de actividad).</p>
+          <p class="mt-1 text-xs text-slate-500">Agregue <span class="font-mono">?formato=json</span> si prefiere JSON. Si la herramienta no permite encabezados, use <span class="font-mono">?token=TU_CLAVE</span> (la clave nunca queda en el registro de actividad).</p>
         </details>
       </div>
     </template>

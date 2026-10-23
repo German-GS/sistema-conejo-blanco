@@ -1,4 +1,7 @@
 <script setup>
+import { exito } from '../../lib/avisos.js';
+import { confirmar } from '../../lib/confirmar.js';
+import Cargando from '../../components/Cargando.vue';
 import { computed, onMounted, reactive, ref } from 'vue';
 import { Server } from '@lucide/vue';
 import { api, ApiError, descargarArchivo } from '../../lib/api.js';
@@ -102,7 +105,7 @@ function alternarPerfil(r) {
   guardar('seguridad.dos_pasos_roles', nuevo, 'Guardado: quienes tengan esos perfiles deberán activar la verificación al próximo ingreso.');
 }
 async function mantenimiento(activo) {
-  if (activo && !window.confirm('Con el mantenimiento activo nadie más puede entrar ni usar el sistema (tampoco quienes están conectados). ¿Activarlo?')) return;
+  if (activo && !await confirmar('Con el mantenimiento activo nadie más puede entrar ni usar el sistema (tampoco quienes están conectados). ¿Activarlo?')) return;
   await guardar('mantenimiento.activo', activo, activo ? 'Mantenimiento activado.' : 'Mantenimiento desactivado.');
 }
 
@@ -112,7 +115,7 @@ async function exportarTodo() {
   aviso.value = 'Generando la exportación…';
   try {
     await descargarArchivo('/sistema/exportar', 'datos-conejo-blanco.xlsx');
-    aviso.value = 'Exportación descargada.';
+    exito('Exportación descargada.');
   } catch (err) {
     aviso.value = '';
     error.value = err instanceof ApiError ? err.message : 'No se pudo exportar.';
@@ -185,7 +188,7 @@ onMounted(() => {
         </p>
       </div>
 
-      <p v-if="cargandoActividad" class="text-sm text-slate-500">Cargando…</p>
+      <Cargando v-if="cargandoActividad" texto="Cargando…" compacto />
       <div class="card overflow-x-auto">
         <p class="mb-2 text-sm text-slate-600">{{ m(actividad.total) }} registro(s) · página {{ actividad.pagina }} de {{ paginas }}</p>
         <table class="w-full min-w-[56rem] text-sm">
@@ -198,7 +201,7 @@ onMounted(() => {
             <template v-for="a in actividad.filas" :key="a.id">
               <tr class="cursor-pointer border-b border-slate-100 align-top hover:bg-slate-50" @click="abierta = abierta === a.id ? null : a.id">
                 <td class="py-1 pr-2 whitespace-nowrap">{{ formatearFechaHora(a.creadoEn) }}</td>
-                <td class="py-1 pr-2">{{ a.usuarioEmail || '—' }}<span v-if="a.rol" class="text-xs text-slate-400"> · {{ a.rol }}</span></td>
+                <td class="py-1 pr-2">{{ a.usuarioEmail || '—' }}<span v-if="a.rol" class="text-xs text-slate-500"> · {{ a.rol }}</span></td>
                 <td class="py-1 pr-2">{{ AREAS[a.area] ?? a.area }}</td>
                 <td class="py-1 pr-2 font-mono text-xs">{{ a.metodo }}</td>
                 <td class="max-w-xs truncate py-1 pr-2 font-mono text-xs" :title="a.ruta">{{ a.ruta }}</td>
@@ -247,7 +250,7 @@ onMounted(() => {
       <div class="card flex flex-col gap-2">
         <div>
           <p class="text-base font-semibold text-slate-900">Direcciones IP de la cuenta del sistema</p>
-          <p class="text-sm text-slate-500">Si escribís direcciones (separadas por comas), la cuenta del administrador del sistema solo podrá iniciar sesión desde ellas. Vacío = desde cualquier lugar. Ojo: si cambia tu IP y no la agregás, solo se recupera con la variable de emergencia del servidor.</p>
+          <p class="text-sm text-slate-500">Si escribe direcciones (separadas por comas), la cuenta del administrador del sistema solo podrá iniciar sesión desde ellas. Vacío = desde cualquier lugar. Ojo: si cambia su IP y no la agregás, solo se recupera con la variable de emergencia del servidor.</p>
         </div>
         <div class="flex flex-wrap gap-2">
           <input v-model="editado['seguridad.sistema_ips']" class="input min-w-64 flex-1" placeholder="190.10.20.30, 190.10.20.31" />
@@ -275,7 +278,7 @@ onMounted(() => {
       <div class="card flex flex-col gap-3" :class="cfg.ajustes['mantenimiento.activo'] ? 'border-amber-300 bg-amber-50' : ''">
         <div>
           <p class="text-base font-semibold text-slate-900">Modo mantenimiento</p>
-          <p class="text-sm text-slate-500">Bloquea el sistema para todos menos para vos (por ejemplo, mientras se actualiza). Quienes estén conectados ven el mensaje de abajo.</p>
+          <p class="text-sm text-slate-500">Bloquea el sistema para todos menos para usted (por ejemplo, mientras se actualiza). Quienes estén conectados ven el mensaje de abajo.</p>
         </div>
         <input v-model="editado['mantenimiento.mensaje']" class="input" maxlength="300" />
         <div class="flex flex-wrap gap-2">

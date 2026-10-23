@@ -1,4 +1,5 @@
 <script setup>
+import Cargando from '../../components/Cargando.vue';
 import { onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { PlusCircle, ClipboardList, ChevronRight, TriangleAlert } from '@lucide/vue';
@@ -14,7 +15,7 @@ onMounted(async () => {
   try {
     pedidos.value = await api.get('/pedidos');
   } catch (err) {
-    error.value = err instanceof ApiError ? err.message : 'No se pudieron cargar tus pedidos.';
+    error.value = err instanceof ApiError ? err.message : 'No se pudieron cargar sus pedidos.';
   } finally {
     cargando.value = false;
   }
@@ -35,8 +36,8 @@ onMounted(async () => {
       </h2>
 
       <p v-if="error" class="text-lg font-medium text-red-600">{{ error }}</p>
-      <p v-if="cargando" class="text-lg text-slate-500">Cargando…</p>
-      <p v-else-if="pedidos.length === 0" class="text-lg text-slate-500">Todavía no has hecho ningún pedido.</p>
+      <Cargando v-if="cargando" texto="Cargando…" />
+      <p v-else-if="pedidos.length === 0" class="text-lg text-slate-500">Todavía no ha hecho ningún pedido.</p>
 
       <ul v-else class="flex flex-col gap-3">
         <li v-for="pedido in pedidos" :key="pedido.id">
@@ -58,7 +59,7 @@ onMounted(async () => {
             </div>
             <div class="flex items-center gap-2">
               <p class="text-lg font-bold text-slate-900">{{ formatearColones(pedido.total) }}</p>
-              <ChevronRight class="size-5 text-slate-400" />
+              <ChevronRight class="size-5 text-slate-500" />
             </div>
           </button>
         </li>

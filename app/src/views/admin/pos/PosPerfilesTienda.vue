@@ -1,4 +1,5 @@
 <script setup>
+import { exito } from '../../../lib/avisos.js';
 import { computed, onMounted, ref, watch } from 'vue';
 import { api, ApiError } from '../../../lib/api.js';
 import { useAuthStore } from '../../../stores/auth.js';
@@ -62,7 +63,7 @@ async function guardar() {
     const t = await api.patch(`/pos/tiendas-perfil/${tiendaId.value}`, form.value);
     const i = datos.value.tiendas.findIndex((x) => x.ubicacionId === t.ubicacionId);
     if (i >= 0) datos.value.tiendas[i] = t;
-    aviso.value = 'Datos guardados. La caja de la tienda los recibe al actualizar el catálogo (cada 10 minutos o al reconectarse).';
+    exito('Datos de la tienda guardados. La caja los recibe al actualizar el catálogo (cada 10 minutos o al reconectarse).');
   } catch (err) {
     error.value = err instanceof ApiError ? err.message : 'No se pudo guardar.';
   } finally {
@@ -86,11 +87,11 @@ async function guardar() {
         <div class="grid gap-3 sm:grid-cols-2">
           <label v-for="c in CAMPOS" :key="c[0]" class="flex flex-col text-sm font-medium text-slate-700" :class="['direccion', 'pieTiquete', 'leyenda'].includes(c[0]) ? 'sm:col-span-2' : ''">{{ c[1] }}
             <input v-model="form[c[0]]" type="text" class="input mt-1" :placeholder="(c[3] && emp[c[3]]) ? `Empresa: ${emp[c[3]]}` : c[2]" :disabled="!puedeEditar" :maxlength="c[0] === 'cedulaJuridica' ? 30 : 300" />
-            <span class="mt-0.5 text-xs font-normal text-slate-400">{{ c[2] }}</span>
+            <span class="mt-0.5 text-xs font-normal text-slate-500">{{ c[2] }}</span>
           </label>
         </div>
         <div class="rounded-xl border border-dashed border-slate-300 bg-white p-3 font-mono text-xs leading-snug text-slate-900">
-          <p class="mb-1 font-sans text-[11px] font-semibold uppercase tracking-wide text-slate-400">Así sale el encabezado</p>
+          <p class="mb-1 font-sans text-[11px] font-semibold uppercase tracking-wide text-slate-500">Así sale el encabezado</p>
           <p class="text-center font-bold">{{ previa.titulo }}</p>
           <p v-if="previa.razon" class="text-center">{{ previa.razon }}</p>
           <p v-if="previa.cedula" class="text-center">Céd. jurídica {{ previa.cedula }}</p>

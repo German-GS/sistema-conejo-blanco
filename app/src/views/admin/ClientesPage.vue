@@ -1,4 +1,6 @@
 <script setup>
+import { confirmar } from '../../lib/confirmar.js';
+import Cargando from '../../components/Cargando.vue';
 import { computed, onMounted, reactive, ref } from 'vue';
 import { Plus, Search, Trash2, X } from '@lucide/vue';
 import { api, ApiError } from '../../lib/api.js';
@@ -155,7 +157,7 @@ async function guardar() {
 // Solo gerencia y el administrador del sistema; solo si el cliente nunca tuvo movimientos.
 async function eliminar(cliente, event) {
   event.stopPropagation();
-  if (!window.confirm(`¿Eliminar a "${cliente.nombre}"? No se puede deshacer. Solo se elimina si nunca tuvo pedidos, facturas ni pagos.`)) return;
+  if (!await confirmar(`¿Eliminar a "${cliente.nombre}"? No se puede deshacer. Solo se elimina si nunca tuvo pedidos, facturas ni pagos.`, { palabra: 'ELIMINAR' })) return;
   error.value = '';
   try {
     await api.delete(`/clientes/${cliente.id}`);
@@ -243,7 +245,7 @@ async function alternarActivo(cliente, event) {
     </div>
 
     <div class="relative">
-      <Search class="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-slate-400" />
+      <Search class="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-slate-500" />
       <input
         v-model="textoBusqueda"
         type="text"
@@ -254,7 +256,7 @@ async function alternarActivo(cliente, event) {
         v-if="textoBusqueda"
         type="button"
         aria-label="Limpiar búsqueda"
-        class="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+        class="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-600"
         @click="textoBusqueda = ''"
       >
         <X class="size-4" />
@@ -265,7 +267,7 @@ async function alternarActivo(cliente, event) {
     </p>
 
     <p v-if="error && !formularioAbierto" class="text-sm font-medium text-red-600">{{ error }}</p>
-    <p v-if="cargando" class="text-base text-slate-500">Cargando…</p>
+    <Cargando v-if="cargando" texto="Cargando…" />
     <p v-else-if="clientesFiltrados.length === 0 && textoBusqueda" class="text-base text-slate-500">
       Ningún cliente coincide con "{{ textoBusqueda }}".
     </p>

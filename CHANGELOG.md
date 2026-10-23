@@ -7,6 +7,17 @@ Versionado `MAYOR.MENOR.PARCHE`:
 
 La versión se cambia en `app/package.json` y `backend/package.json` (el pie de página y el panel del sistema la leen solos).
 
+## 1.11.0 — 23 oct 2026 — Mejoras de usabilidad (auditoría UX, olas 1 y 2)
+Resultado de la auditoría de usabilidad (ver `docs/AUDITORIA_UX.md`).
+- **Indicador de carga con red de seguridad:** barra fina arriba y anillo giratorio en las listas; si algo tarda más de 8 segundos avisa «Está tardando más de lo normal…» con botón para reintentar o recargar. Una pestaña que quedó vieja tras una actualización se recarga sola.
+- **Arranque más rápido:** las pantallas se cargan cuando se necesitan; el paquete de entrada bajó de 227 KB a 98 KB comprimido. La entrada, el cambio de clave y la caja siguen abriendo sin internet.
+- **Lenguaje unificado a «usted»** en todas las pantallas y en los mensajes del servidor.
+- **Lectura y accesibilidad:** texto secundario más oscuro en el tema claro, texto pequeño de 12 a 13 px, anillo de foco para teclado, botones de al menos 40 px en pantallas táctiles, buscadores del vendedor con textos cortos y filtros de Pedidos que ya no se desbordan.
+- **Aviso antes de cerrar la sesión por inactividad** (60 segundos, con cuenta regresiva y «Seguir trabajando»).
+- **Borradores automáticos** en factura nueva, pedido nuevo, asiento manual y pago nuevo: al volver se puede recuperar lo escrito.
+- **Confirmaciones propias** en lugar de las ventanas del navegador; lo irreversible (eliminar productos y clientes, convertir en prueba, reabrir el año fiscal) pide escribir una palabra.
+- **Avisos globales** al guardar y en las acciones de Accesos; los botones deshabilitados dicen qué falta («Falta: el cliente, la vía de entrega…»).
+
 ## 1.10.1 — 23 oct 2026 — Tema para gerencias y ojito en las contraseñas
 - El **interruptor de tema oscuro o claro** ahora también lo tienen el gerente general y la administración (gerencia). Cada persona guarda su elección en su navegador; el administrador del sistema sigue empezando en oscuro y los demás en claro.
 - **Ojito para ver la contraseña** mientras se escribe: en la entrada, en cambiar contraseña (los tres campos), al desactivar la verificación en dos pasos y en la confirmación de contraseña de la caja.

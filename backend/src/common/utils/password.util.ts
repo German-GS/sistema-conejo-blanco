@@ -39,11 +39,11 @@ export function validarPoliticaPassword(
   }
   const local = contexto.email?.split('@')[0]?.toLowerCase();
   if (local && local.length >= 4 && baja.includes(local)) {
-    errores.push('no contener tu correo');
+    errores.push('no contener su correo');
   }
   const primerNombre = contexto.nombre?.split(/\s+/)[0]?.toLowerCase();
   if (primerNombre && primerNombre.length >= 4 && baja.includes(primerNombre)) {
-    errores.push('no contener tu nombre');
+    errores.push('no contener su nombre');
   }
   if (errores.length > 0) {
     throw new BadRequestException(`La contraseña debe tener: ${errores.join(', ')}.`);

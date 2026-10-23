@@ -160,7 +160,7 @@ const enCamino = computed(() => remotos.value.filter((o) => o.puedeRecibir).leng
             <tbody>
               <tr v-for="l in lineas" :key="l.varianteId" class="border-b border-slate-100" :class="l.incluir ? '' : 'opacity-50'">
                 <td class="py-1.5"><input v-model="l.incluir" type="checkbox" class="size-5" :aria-label="`Incluir ${l.codigo} ${l.color}`" /></td>
-                <td class="py-1.5 pr-2"><span class="font-semibold">{{ l.codigo }} · {{ l.color }}</span><span v-if="l.prueba" class="ml-1 rounded-full bg-amber-500 px-2 text-xs font-extrabold text-white">PRUEBA</span><span v-if="l.stock <= 0" class="ml-1 rounded bg-red-100 px-1.5 text-xs font-semibold text-red-700">Agotado</span><span v-else-if="l.minimo > 0 && l.stock <= l.minimo" class="ml-1 rounded bg-amber-100 px-1.5 text-xs font-semibold text-amber-800">Bajo</span><span v-if="l.manual" class="ml-1 text-xs text-slate-400">agregado</span></td>
+                <td class="py-1.5 pr-2"><span class="font-semibold">{{ l.codigo }} · {{ l.color }}</span><span v-if="l.prueba" class="ml-1 rounded-full bg-amber-500 px-2 text-xs font-extrabold text-white">PRUEBA</span><span v-if="l.stock <= 0" class="ml-1 rounded bg-red-100 px-1.5 text-xs font-semibold text-red-700">Agotado</span><span v-else-if="l.minimo > 0 && l.stock <= l.minimo" class="ml-1 rounded bg-amber-100 px-1.5 text-xs font-semibold text-amber-800">Bajo</span><span v-if="l.manual" class="ml-1 text-xs text-slate-500">agregado</span></td>
                 <td class="py-1.5 pr-2 text-right font-semibold" :class="l.stock <= 0 ? 'text-red-600' : ''">{{ l.stock }}</td>
                 <td class="py-1.5 pr-2 text-right text-slate-500">{{ l.minimo || '—' }}</td>
                 <td class="py-1.5 pr-2 text-right" :class="l.bodega <= 0 ? 'text-red-600' : 'text-slate-600'">{{ l.bodega <= 0 ? 'sin existencias' : l.bodega }}</td>
@@ -172,7 +172,7 @@ const enCamino = computed(() => remotos.value.filter((o) => o.puedeRecibir).leng
           <div class="mt-4 rounded-2xl border-2 border-slate-200 p-3">
             <p class="text-base font-extrabold text-slate-900">¿Necesita otro producto?</p>
             <div class="relative mt-2">
-              <Search class="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-slate-400" />
+              <Search class="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-slate-500" />
               <input v-model="texto" type="search" placeholder="Busque por código, nombre o color" class="input !pl-12" />
             </div>
             <p class="mt-1 text-xs text-slate-500">Productos disponibles para pedir: <b>{{ totalCatalogo }}</b>. Los que tienen existencias en bodega salen primero.</p>
@@ -184,13 +184,13 @@ const enCamino = computed(() => remotos.value.filter((o) => o.puedeRecibir).leng
               <li v-for="v in tarjetas" :key="v.varianteId" class="flex gap-3 rounded-2xl border border-slate-200 bg-white p-2.5 shadow-sm">
                 <div class="flex size-20 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-slate-100">
                   <img v-if="urlFoto(v)" :src="urlFoto(v)" alt="" class="size-full object-cover" @error="fotosRotas[v.varianteId] = true" />
-                  <Package v-else class="size-8 text-slate-400" />
+                  <Package v-else class="size-8 text-slate-500" />
                 </div>
                 <div class="flex min-w-0 flex-1 flex-col">
                   <p class="truncate text-base font-bold text-slate-900">{{ v.codigo }} · {{ v.color }}<span v-if="v.prueba" class="ml-1 rounded-full bg-amber-500 px-2 text-xs font-extrabold text-white">PRUEBA</span></p>
                   <p class="truncate text-sm text-slate-600">{{ v.nombre }}</p>
                   <p class="mt-0.5 text-xs text-slate-600">En tienda <b :class="stockDe(v.varianteId) <= 0 ? 'text-red-600' : ''">{{ stockDe(v.varianteId) }}</b> · En bodega <b :class="v.bodega <= 0 ? 'text-red-600' : ''">{{ v.bodega <= 0 ? 'no hay' : v.bodega }}</b><span v-if="esVendible(v)"> · {{ formatearColones(v.precio) }}</span><span v-else class="ml-1 rounded bg-slate-200 px-1.5 text-slate-700">aún sin precio de tienda</span></p>
-                  <button type="button" class="mt-auto self-end rounded-xl px-3 py-1.5 text-sm font-extrabold" :class="yaEnPedido(v) ? 'bg-slate-100 text-slate-400' : 'bg-blue-600 text-white hover:bg-blue-700'" :disabled="yaEnPedido(v)" @click="agregarOtro(v)">{{ yaEnPedido(v) ? 'Ya está en el pedido' : 'Agregar al pedido' }}</button>
+                  <button type="button" class="mt-auto self-end rounded-xl px-3 py-1.5 text-sm font-extrabold" :class="yaEnPedido(v) ? 'bg-slate-100 text-slate-500' : 'bg-blue-600 text-white hover:bg-blue-700'" :disabled="yaEnPedido(v)" @click="agregarOtro(v)">{{ yaEnPedido(v) ? 'Ya está en el pedido' : 'Agregar al pedido' }}</button>
                 </div>
               </li>
             </ul>

@@ -1,4 +1,5 @@
 <script setup>
+import Cargando from '../../components/Cargando.vue';
 import { onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { TriangleAlert, ClipboardList, Receipt } from '@lucide/vue';
@@ -114,7 +115,7 @@ function irAHojaDeBodega(pedido, event) {
     <OrdenesTiendaTab v-if="pestana === 'tiendas'" :ubicaciones="tiendas" @cambio="cargarPendientesTiendas" />
 
     <template v-else>
-    <div class="card grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
+    <div class="card grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4">
       <div>
         <label class="label">Cliente</label>
         <select v-model="filtroClienteId" class="input">
@@ -138,15 +139,15 @@ function irAHojaDeBodega(pedido, event) {
       <div>
         <label class="label">Fecha</label>
         <div class="flex items-center gap-1">
-          <input v-model="filtroDesde" type="date" class="input" />
-          <span class="text-sm text-slate-400">a</span>
-          <input v-model="filtroHasta" type="date" class="input" />
+          <input v-model="filtroDesde" type="date" class="input min-w-0 flex-1" />
+          <span class="text-sm text-slate-500">a</span>
+          <input v-model="filtroHasta" type="date" class="input min-w-0 flex-1" />
         </div>
       </div>
     </div>
 
     <p v-if="error" class="text-sm font-medium text-red-600">{{ error }}</p>
-    <p v-if="cargando" class="text-base text-slate-500">Cargando…</p>
+    <Cargando v-if="cargando" texto="Cargando…" />
     <p v-else-if="pedidos.length === 0" class="text-base text-slate-500">Ningún pedido coincide con estos filtros.</p>
 
     <ul v-else class="flex flex-col gap-3">

@@ -1,4 +1,5 @@
 <script setup>
+import Cargando from '../../components/Cargando.vue';
 import { onMounted, reactive, ref } from 'vue';
 import { HandCoins, Plus } from '@lucide/vue';
 import { api, ApiError } from '../../lib/api.js';
@@ -52,7 +53,7 @@ onMounted(cargar);
       </div>
 
       <p v-if="error" class="text-sm font-medium text-red-600">{{ error }}</p>
-      <p v-if="cargando" class="text-sm text-slate-500">Cargando…</p>
+      <Cargando v-if="cargando" texto="Cargando…" compacto />
       <p v-else-if="pagos.length === 0" class="text-sm text-slate-500">No hay pagos registrados con ese filtro.</p>
 
       <ul v-else class="flex flex-col gap-2">
@@ -69,7 +70,7 @@ onMounted(cargar);
             </p>
           </div>
           <div class="text-right">
-            <p class="text-base font-bold" :class="p.estado === 'anulado' ? 'text-slate-400 line-through' : 'text-slate-900'">{{ formatearColones(p.total) }}</p>
+            <p class="text-base font-bold" :class="p.estado === 'anulado' ? 'text-slate-500 line-through' : 'text-slate-900'">{{ formatearColones(p.total) }}</p>
             <router-link :to="{ name: 'admin-pago-detalle', params: { id: p.id } }" class="text-sm font-semibold text-blue-700 underline">Ver / imprimir</router-link>
           </div>
         </li>

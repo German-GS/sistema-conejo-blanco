@@ -1,4 +1,5 @@
 <script setup>
+import Cargando from '../../components/Cargando.vue';
 import { computed, onMounted, reactive, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { ArrowLeft, Printer, ClipboardList, TriangleAlert, Search, Receipt, Pencil, Plus, Trash2, History } from '@lucide/vue';
@@ -247,7 +248,7 @@ function alEscribirProductoEdicion() {
 
 function agregarLineaEdicion(producto, variante) {
   if (lineasEdicion.value.some((l) => l.varianteId === variante.id)) {
-    errorEdicion.value = 'Ese color ya está en el pedido — ajustá la cantidad en la línea existente.';
+    errorEdicion.value = 'Ese color ya está en el pedido — ajuste la cantidad en la línea existente.';
     return;
   }
   errorEdicion.value = '';
@@ -269,7 +270,7 @@ async function guardarEdicion() {
     return;
   }
   if (metodoEntregaEdicion.value === 'encomienda' && !empresaEncomiendaEdicion.value.trim()) {
-    errorEdicion.value = 'Indicá el nombre de la empresa de encomienda.';
+    errorEdicion.value = 'Indique el nombre de la empresa de encomienda.';
     return;
   }
   errorEdicion.value = '';
@@ -342,7 +343,7 @@ function imprimir() {
       </div>
     </div>
 
-    <p v-if="cargando" class="text-lg text-slate-500">Cargando…</p>
+    <Cargando v-if="cargando" texto="Cargando…" />
     <p v-if="error" class="text-lg font-medium text-red-600">{{ error }}</p>
 
     <div v-else-if="pedido" class="card">
@@ -432,7 +433,7 @@ function imprimir() {
 
         <template v-if="!modoBusquedaExistente">
           <p class="mb-3 text-sm text-amber-700">
-            Nombre, cédula y teléfono ya los capturó el vendedor. Completá el resto — son los datos que se piden
+            Nombre, cédula y teléfono ya los capturó el vendedor. Complete el resto — son los datos que se piden
             para factura electrónica.
           </p>
           <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -474,11 +475,11 @@ function imprimir() {
 
         <template v-else>
           <div class="relative mb-2">
-            <Search class="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-slate-400" />
+            <Search class="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-slate-500" />
             <input
               v-model="busquedaExistente"
               type="text"
-              placeholder="Buscar por nombre, cédula, teléfono, correo…"
+              placeholder="Nombre, cédula o teléfono"
               class="input pl-12"
               @input="alEscribirBusquedaExistente"
             />
@@ -540,11 +541,11 @@ function imprimir() {
         </ul>
 
         <div class="relative mb-2">
-          <Search class="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-slate-400" />
+          <Search class="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-slate-500" />
           <input
             v-model="productoTextoEdicion"
             type="text"
-            placeholder="Agregar producto por código o nombre…"
+            placeholder="Código o nombre del producto"
             class="input pl-12"
             @input="alEscribirProductoEdicion"
           />

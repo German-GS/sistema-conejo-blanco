@@ -5,6 +5,10 @@ import { useAuthStore } from './stores/auth.js';
 import AppFooter from './components/AppFooter.vue';
 import { iniciarControlInactividad, fijarMinutosInactividad } from './lib/inactividad.js';
 import { temaDe } from './lib/tema.js';
+import { red } from './lib/red.js';
+import AvisosGlobales from './components/AvisosGlobales.vue';
+import ConfirmarDialogo from './components/ConfirmarDialogo.vue';
+import AvisoInactividad from './components/AvisoInactividad.vue';
 
 const auth = useAuthStore();
 const router = useRouter();
@@ -18,6 +22,7 @@ watch(
   { immediate: true },
 );
 const mantenimiento = ref('');
+const recargar = () => window.location.reload();
 
 function alMantenimiento(e) {
   if (auth.esSistema) return;
@@ -77,6 +82,20 @@ onBeforeUnmount(() => {
   <div class="flex min-h-screen flex-col">
     <router-view />
     <AppFooter />
+  </div>
+  <AvisosGlobales />
+  <ConfirmarDialogo />
+  <AvisoInactividad />
+  <!-- Indicador de carga: barra fina arriba mientras algo espera respuesta y, si tarda, un aviso con salida. -->
+  <div v-if="red.activas > 0" class="barra-carga" role="progressbar" aria-label="Cargando" />
+  <div v-if="red.lentas > 0" class="fixed inset-x-3 bottom-4 z-[90] mx-auto flex max-w-md items-center justify-center gap-3 rounded-2xl border border-amber-600 bg-amber-500 px-4 py-3 text-sm font-semibold text-slate-900 shadow-lg" role="status">
+    <span class="cargando-anillo size-5 shrink-0" aria-hidden="true" />
+    <span>Está tardando más de lo normal. Revise su conexión a internet.</span>
+    <button type="button" class="shrink-0 rounded-lg bg-slate-900 px-3 py-1.5 font-semibold text-white hover:bg-black" @click="recargar">Recargar</button>
+  </div>
+  <div v-else-if="red.error" class="fixed inset-x-3 bottom-4 z-[90] mx-auto flex max-w-md items-center justify-between gap-3 rounded-2xl border border-red-800 bg-red-700 px-4 py-3 text-sm font-semibold text-white shadow-lg" role="alert">
+    <span>{{ red.error }}</span>
+    <button type="button" class="rounded-lg px-2 py-1 font-semibold underline" @click="red.error = ''">Cerrar</button>
   </div>
   <div v-if="mantenimiento" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/80 px-4">
     <div class="card w-full max-w-sm text-center">

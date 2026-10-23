@@ -1,4 +1,5 @@
 <script setup>
+import { exito } from '../../../lib/avisos.js';
 import { onMounted, ref } from 'vue';
 import { api, ApiError } from '../../../lib/api.js';
 import { useAuthStore } from '../../../stores/auth.js';
@@ -31,7 +32,7 @@ async function guardar() {
       pieTiquete: cfg.value.pieTiquete,
       ...(auth.esSistema ? { modoPrueba: Boolean(cfg.value.modoPrueba) } : {}),
     });
-    aviso.value = 'Configuración guardada.';
+    exito('Configuración guardada.');
   } catch (err) {
     error.value = err instanceof ApiError ? err.message : 'No se pudo guardar.';
   } finally {

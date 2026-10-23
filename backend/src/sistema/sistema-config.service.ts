@@ -29,7 +29,7 @@ const DEFECTOS: Record<string, unknown> = {
   // Lista (separada por comas) de IP desde las que puede entrar la cuenta del sistema; vacío = cualquiera.
   'seguridad.sistema_ips': '',
   'mantenimiento.activo': false,
-  'mantenimiento.mensaje': 'El sistema está en mantenimiento. Volvé a intentar en unos minutos.',
+  'mantenimiento.mensaje': 'El sistema está en mantenimiento. Vuelva a intentar en unos minutos.',
   ...Object.fromEntries(MODULOS.map((m) => [`modulo.${m}`, true])),
   // Resultado de la última verificación automática de cálculos.
   'integridad.ultima': null,
@@ -86,7 +86,7 @@ export class SistemaConfigService {
       throw new BadRequestException('El mensaje debe ser texto de hasta 300 caracteres.');
     }
     if (clave === 'seguridad.sistema_ips') {
-      if (typeof valor !== 'string' || valor.length > 300 || !/^[0-9a-fA-F:., ]*$/.test(valor)) throw new BadRequestException('Indicá direcciones IP separadas por comas.');
+      if (typeof valor !== 'string' || valor.length > 300 || !/^[0-9a-fA-F:., ]*$/.test(valor)) throw new BadRequestException('Indique direcciones IP separadas por comas.');
     }
     if (clave === 'seguridad.dos_pasos_roles') {
       const validos = ['sistema', 'gerente_general', 'administracion', 'contador', 'asistente', 'vendedor', 'encargado_tienda'];

@@ -39,7 +39,7 @@ export class LibroMayorService {
   // en el período. Los movimientos van ordenados por fecha y, dentro del mismo
   // día, por número de asiento — el mismo orden del libro diario.
   async generar(desde: string, hasta: string, cuentaId?: string): Promise<LibroMayor> {
-    if (!FECHA.test(desde) || !FECHA.test(hasta)) throw new BadRequestException('Indicá las fechas desde y hasta (YYYY-MM-DD).');
+    if (!FECHA.test(desde) || !FECHA.test(hasta)) throw new BadRequestException('Indique las fechas desde y hasta (YYYY-MM-DD).');
     if (desde > hasta) throw new BadRequestException('La fecha inicial no puede ser posterior a la final.');
 
     const cuentas: Array<{ id: string; codigo: string; nombre: string; tipo: string; naturaleza: 'deudora' | 'acreedora' }> =

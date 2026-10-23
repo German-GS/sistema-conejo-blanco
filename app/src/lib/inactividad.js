@@ -6,7 +6,15 @@
 // una mantiene viva a todas), y si la computadora se duerme los timers del
 // navegador se pausan — al despertar se compara contra la hora real y se
 // cierra la sesión igual, en vez de esperar otros 10 minutos.
+import { reactive } from 'vue';
+
 let minutosInactividad = 10;
+
+// Aviso previo: faltando 60 s (o 30 s si el límite es muy corto) para cerrar la sesión se le pregunta a la persona si sigue ahí.
+// Mientras el aviso está abierto, mover el mouse no lo cierra: hay que tocar «Seguir trabajando».
+export const inactividad = reactive({ restante: 0 });
+let continuarActual = null;
+export const continuarSesion = () => continuarActual?.();
 
 // El administrador del sistema define el tiempo (Sistema → Seguridad).
 export function fijarMinutosInactividad(minutos) {
@@ -16,7 +24,7 @@ export const minutosDeInactividad = () => minutosInactividad;
 
 const CLAVE_ACTIVIDAD = 'conejo-blanco-ultima-actividad';
 const EVENTOS = ['mousedown', 'mousemove', 'keydown', 'scroll', 'touchstart', 'click'];
-const REVISAR_CADA_MS = 15_000;
+const REVISAR_CADA_MS = 5_000;
 const GUARDAR_CADA_MS = 5_000; // no escribir en localStorage en cada mousemove
 
 // Para el arranque de la app: si la pestaña se cerró y se reabre pasado el
@@ -30,7 +38,19 @@ export function sesionVencidaPorInactividad() {
 export function iniciarControlInactividad(alExpirar) {
   let ultimoGuardado = 0;
 
-  function registrarActividad() {
+  let avisoActivo = false;
+  let cuenta = null;
+  const AVISO_MS = minutosInactividad * 60_000 > 150_000 ? 60_000 : 30_000;
+
+  function cerrarAviso() {
+    avisoActivo = false;
+    inactividad.restante = 0;
+    clearInterval(cuenta);
+    cuenta = null;
+  }
+
+  function registrarActividad(e) {
+    if (avisoActivo && e) return; // con el aviso abierto solo cuenta el botón «Seguir trabajando»
     const ahora = Date.now();
     if (ahora - ultimoGuardado < GUARDAR_CADA_MS) return;
     ultimoGuardado = ahora;
@@ -44,11 +64,26 @@ export function iniciarControlInactividad(alExpirar) {
 
   function revisar() {
     const ultima = Number(localStorage.getItem(CLAVE_ACTIVIDAD) ?? Date.now());
-    if (Date.now() - ultima >= minutosInactividad * 60_000) {
+    const faltan = minutosInactividad * 60_000 - (Date.now() - ultima);
+    if (faltan <= 0) {
+      cerrarAviso();
       detener();
       alExpirar();
+    } else if (faltan <= AVISO_MS) {
+      avisoActivo = true;
+      inactividad.restante = Math.ceil(faltan / 1000);
+      if (!cuenta) cuenta = setInterval(revisar, 1000);
+    } else if (avisoActivo) {
+      cerrarAviso(); // hubo actividad en otra pestaña
     }
   }
+
+  // «Seguir trabajando»: cuenta como actividad ahora mismo.
+  continuarActual = () => {
+    cerrarAviso();
+    ultimoGuardado = 0;
+    registrarActividad();
+  };
 
   function alVolverAVerse() {
     if (document.visibilityState === 'visible') revisar();
@@ -66,6 +101,8 @@ export function iniciarControlInactividad(alExpirar) {
 
   function detener() {
     clearInterval(intervalo);
+    cerrarAviso();
+    continuarActual = null;
     for (const evento of EVENTOS) window.removeEventListener(evento, registrarActividad);
     document.removeEventListener('visibilitychange', alVolverAVerse);
   }

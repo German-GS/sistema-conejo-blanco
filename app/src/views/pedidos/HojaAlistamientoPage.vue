@@ -1,4 +1,5 @@
 <script setup>
+import Cargando from '../../components/Cargando.vue';
 import { onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { ArrowLeft, Printer } from '@lucide/vue';
@@ -48,7 +49,7 @@ function imprimir() {
       </button>
     </div>
 
-    <p v-if="cargando" class="text-lg text-slate-500 print:hidden">Cargando…</p>
+    <Cargando v-if="cargando" texto="Cargando…" class="print:hidden" />
     <p v-if="error" class="text-lg font-medium text-red-600 print:hidden">{{ error }}</p>
 
     <div v-else-if="pedido" class="text-black">

@@ -118,9 +118,9 @@ function salir() {
     <div class="flex w-full max-w-sm flex-col gap-4">
       <form class="card" @submit.prevent="enviar">
         <h1 class="mb-1 text-2xl font-bold text-slate-900">Mi cuenta</h1>
-        <p v-if="debeCambiarClave" class="mb-4 rounded-xl bg-amber-50 p-3 text-sm font-medium text-amber-800">Entraste con una clave temporal. Elegí tu propia contraseña (fácil para vos de recordar, pero no tan fácil de adivinar: por ejemplo, tres palabras y un número) para continuar.</p>
-        <p v-else-if="exigeDosPasos" class="mb-4 rounded-xl bg-amber-50 p-3 text-sm font-medium text-amber-800">Tu perfil exige verificación en dos pasos. Activala abajo para continuar.</p>
-        <p v-else class="mb-4 text-base text-slate-500">Cambiá tu contraseña. Se mantiene tu sesión en este equipo.</p>
+        <p v-if="debeCambiarClave" class="mb-4 rounded-xl bg-amber-50 p-3 text-sm font-medium text-amber-800">Entró con una clave temporal. Elija su propia contraseña (fácil de recordar para usted, pero no tan fácil de adivinar: por ejemplo, tres palabras y un número) para continuar.</p>
+        <p v-else-if="exigeDosPasos" class="mb-4 rounded-xl bg-amber-50 p-3 text-sm font-medium text-amber-800">Su perfil exige verificación en dos pasos. Activala abajo para continuar.</p>
+        <p v-else class="mb-4 text-base text-slate-500">Cambie su contraseña. Se mantiene su sesión en este equipo.</p>
 
         <p class="mb-2 text-base font-semibold text-slate-900">Contraseña</p>
         <label class="label" for="actual">Contraseña actual</label>
@@ -147,14 +147,14 @@ function salir() {
 
       <section class="card">
         <p class="mb-1 text-base font-semibold text-slate-900">Verificación en dos pasos</p>
-        <p class="mb-3 text-sm text-slate-500">Además de la contraseña, el ingreso pide un código de 6 dígitos de una app autenticadora en tu teléfono.</p>
+        <p class="mb-3 text-sm text-slate-500">Además de la contraseña, el ingreso pide un código de 6 dígitos de una app autenticadora en su teléfono.</p>
 
         <template v-if="auth.usuario?.totpActivo">
-          <p class="mb-3 rounded-xl bg-green-50 p-3 text-sm font-medium text-green-800">Activada: tu cuenta pide el código al ingresar.</p>
+          <p class="mb-3 rounded-xl bg-green-50 p-3 text-sm font-medium text-green-800">Activada: su cuenta pide el código al ingresar.</p>
           <details class="text-sm">
             <summary class="cursor-pointer font-semibold text-slate-700">Desactivarla</summary>
             <div class="mt-3 flex flex-col gap-2">
-              <CampoClave v-model="passwordDesactivar" placeholder="Tu contraseña" autocomplete="current-password" />
+              <CampoClave v-model="passwordDesactivar" placeholder="Su contraseña" autocomplete="current-password" />
               <input v-model="codigo" inputmode="numeric" class="input" placeholder="Código actual de la app" maxlength="7" />
               <button type="button" class="btn-secondary" :disabled="trabajando || !passwordDesactivar || codigo.length < 6" @click="desactivarDosPasos">Desactivar verificación en dos pasos</button>
             </div>
@@ -168,8 +168,8 @@ function salir() {
         <template v-else>
           <ol class="mb-3 list-decimal space-y-1 pl-5 text-sm text-slate-700">
             <li>Instalá una app autenticadora (Google Authenticator, Microsoft Authenticator o Authy).</li>
-            <li>Escaneá este código QR con la app (o escribí la clave a mano).</li>
-            <li>Escribí abajo el código de 6 dígitos que muestra la app.</li>
+            <li>Escanee este código QR con la app (o escriba la clave a mano).</li>
+            <li>Escriba abajo el código de 6 dígitos que muestra la app.</li>
           </ol>
           <img v-if="qr" :src="qr" alt="Código QR para la app autenticadora" class="mx-auto mb-2 size-48 rounded-lg border border-slate-200" />
           <p class="mb-3 select-all break-all text-center font-mono text-xs text-slate-600">{{ secreto }}</p>

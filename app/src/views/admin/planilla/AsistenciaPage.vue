@@ -1,4 +1,5 @@
 <script setup>
+import { exito } from '../../../lib/avisos.js';
 import { computed, onMounted, reactive, ref } from 'vue';
 import { FileSpreadsheet } from '@lucide/vue';
 import { useRoute } from 'vue-router';
@@ -247,7 +248,7 @@ async function resolver(d) {
       cuerpo.justificarHoras = decision.justificarHoras;
     }
     await api.post(`/planilla/asistencia/dias/${d.id}/resolver`, cuerpo);
-    aviso.value = `${d.empleado.nombre}, ${formatearFecha(d.fecha)}: decisión guardada.`;
+    exito(`${d.empleado.nombre}, ${formatearFecha(d.fecha)}: decisión guardada.`);
     abierto.value = null;
     await cargarDias();
   } catch (err) {
@@ -304,7 +305,7 @@ async function resolverMasivo(g) {
       await api.post(`/planilla/asistencia/dias/${d.id}/resolver`, { tipo: masivo.tipo, motivo: masivo.motivo.trim(), justificante });
       hechos++;
     }
-    aviso.value = `${g.nombre}: ${hechos} día(s) resueltos.`;
+    exito(`${g.nombre}: ${hechos} día(s) resueltos.`);
     masivo.abierto = null;
   } catch (err) {
     error.value = `${g.nombre}: se resolvieron ${hechos} de ${g.pendientes.length}. ` + (err instanceof ApiError ? err.message : 'No se pudo guardar.');
@@ -326,8 +327,8 @@ const hhmm = (min) => `${Math.floor(min / 60)}:${String(min % 60).padStart(2, '0
     <div class="card flex flex-col gap-3">
       <p class="text-base font-semibold text-slate-900">1. Importar el Excel del reloj</p>
       <p class="text-sm text-slate-500">
-        Subí el archivo que exporta el reloj (la «Tarjeta de Tiempo» en .xls, o un .xlsx). El sistema revisa las marcas
-        de cada empleado y, después de importar, te pide qué hacer con los días que no se pueden pagar solos (ausencias,
+        Suba el archivo que exporta el reloj (la «Tarjeta de Tiempo» en .xls, o un .xlsx). El sistema revisa las marcas
+        de cada empleado y, después de importar, le pide qué hacer con los días que no se pueden pagar solos (ausencias,
         marcas que faltan). Volver a importar el mismo período no pisa los días que ya resolviste.
       </p>
       <div class="flex flex-wrap items-center gap-3">
@@ -335,10 +336,10 @@ const hhmm = (min) => `${Math.floor(min / 60)}:${String(min % 60).padStart(2, '0
           class="flex min-w-72 flex-1 cursor-pointer items-center gap-3 rounded-xl border-2 border-dashed px-4 py-3 transition-colors"
           :class="archivo ? 'border-blue-400 bg-blue-50' : 'border-slate-300 bg-slate-50 hover:border-blue-400 hover:bg-blue-50'"
         >
-          <FileSpreadsheet class="size-8 shrink-0" :class="archivo ? 'text-blue-600' : 'text-slate-400'" />
+          <FileSpreadsheet class="size-8 shrink-0" :class="archivo ? 'text-blue-600' : 'text-slate-500'" />
           <span class="min-w-0 flex-1">
             <span class="block truncate text-sm font-semibold text-slate-800">{{ archivo ? archivo.name : 'Elegir el archivo del reloj' }}</span>
-            <span class="block text-xs text-slate-500">{{ archivo ? 'Hacé clic para cambiar de archivo' : 'Excel .xls o .xlsx · la Tarjeta de Tiempo del reloj de huella' }}</span>
+            <span class="block text-xs text-slate-500">{{ archivo ? 'Haga clic para cambiar de archivo' : 'Excel .xls o .xlsx · la Tarjeta de Tiempo del reloj de huella' }}</span>
           </span>
           <input type="file" accept=".xls,.xlsx" class="hidden" @change="elegirArchivo" />
         </label>
@@ -350,7 +351,7 @@ const hhmm = (min) => `${Math.floor(min / 60)}:${String(min % 60).padStart(2, '0
       <div v-if="previa?.formato === 'tarjeta'" class="flex flex-col gap-3">
         <p class="text-sm text-slate-600">
           Tarjeta de Tiempo del {{ formatearFecha(previa.periodoDesde) }} al {{ formatearFecha(previa.periodoHasta) }}:
-          {{ previa.empleadosReloj.length }} empleados y {{ previa.marcas }} marcas. Confirmá quién es quién:
+          {{ previa.empleadosReloj.length }} empleados y {{ previa.marcas }} marcas. Confirme quién es quién:
         </p>
         <div class="overflow-x-auto rounded-lg border border-slate-200">
           <table class="min-w-full text-sm">
@@ -369,14 +370,14 @@ const hhmm = (min) => `${Math.floor(min / 60)}:${String(min % 60).padStart(2, '0
                     <option v-for="s in previa.empleadosSistema" :key="s.id" :value="s.id">{{ s.nombre }} (reloj {{ s.numeroReloj }})</option>
                   </select>
                   <p v-if="e.sugerido && vinculos[e.numero] === e.empleadoId" class="mt-0.5 text-xs text-amber-700">Sugerido por el nombre: confirmalo.</p>
-                  <p v-else-if="e.nombreDistinto && vinculos[e.numero] === e.empleadoId" class="mt-0.5 text-xs text-amber-700">El número coincide, pero el nombre no se parece: verificá que sea la misma persona.</p>
+                  <p v-else-if="e.nombreDistinto && vinculos[e.numero] === e.empleadoId" class="mt-0.5 text-xs text-amber-700">El número coincide, pero el nombre no se parece: verifique que sea la misma persona.</p>
                 </td>
               </tr>
             </tbody>
           </table>
         </div>
         <p v-if="sinVincular.length" class="text-xs text-slate-500">
-          Sin vincular ({{ sinVincular.length }}): no se importan. Si alguno debe cobrar, creálo primero en Planilla → Empleados.
+          Sin vincular ({{ sinVincular.length }}): no se importan. Si alguno debe cobrar, créelo primero en Planilla → Empleados.
         </p>
         <p class="text-xs text-slate-500">Al importar, el número del reloj de cada empleado vinculado queda guardado en el sistema para las próximas semanas.</p>
         <div class="flex gap-2">
@@ -441,7 +442,7 @@ const hhmm = (min) => `${Math.floor(min / 60)}:${String(min % 60).padStart(2, '0
         <p v-if="resultado.resumen.desconocidos?.length" class="mt-1 text-amber-800">
           En el archivo hay números sin empleado registrado (no se importaron):
           {{ resultado.resumen.desconocidos.map((d) => `${d.numero}${d.nombre ? ' ' + d.nombre : ''}`).join(', ') }}.
-          Creálos en Empleados con ese número de reloj y volvé a importar.
+          Créelos en Empleados con ese número de reloj y vuelva a importar.
         </p>
         <p v-if="resultado.resumen.omitidosTienda?.length" class="mt-1 text-emerald-800">
           Personal de tienda omitido (sus horas se meten a mano): {{ resultado.resumen.omitidosTienda.join(', ') }}.
@@ -611,8 +612,8 @@ const hhmm = (min) => `${Math.floor(min / 60)}:${String(min % 60).padStart(2, '0
       <div>
         <p class="text-base font-semibold text-slate-900">3. Guardar la revisión</p>
         <p class="text-sm text-slate-500">
-          Cada decisión se guarda en el momento en que la tomás. Este botón lo confirma: vuelve a leer todo del servidor
-          y te dice cuántos días quedaron resueltos y si falta alguno antes de calcular la planilla.
+          Cada decisión se guarda en el momento en que la toma. Este botón lo confirma: vuelve a leer todo del servidor
+          y le dice cuántos días quedaron resueltos y si falta alguno antes de calcular la planilla.
         </p>
       </div>
       <button type="button" class="btn-primary w-fit" :disabled="revision.trabajando || !filtro.desde" @click="guardarRevision">

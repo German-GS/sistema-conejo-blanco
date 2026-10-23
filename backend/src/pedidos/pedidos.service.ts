@@ -106,7 +106,7 @@ export class PedidosService {
   async crear(dto: CrearPedidoDto, vendedorId: string): Promise<Pedido> {
     if (Boolean(dto.clienteId) === Boolean(dto.clienteNuevo)) {
       throw new BadRequestException(
-        'El pedido necesita un cliente: elegí uno existente o completá los datos de un cliente nuevo, no ambos ni ninguno.',
+        'El pedido necesita un cliente: elija uno existente o complete los datos de un cliente nuevo, no ambos ni ninguno.',
       );
     }
     let cliente: Cliente | null = null;
@@ -254,7 +254,7 @@ export class PedidosService {
     const pedido = await this.buscarPorIdOFallar(id);
     if (pedido.factura) {
       throw new BadRequestException(
-        'Este pedido ya fue facturado — anulá la factura desde Facturas (genera una nota de crédito).',
+        'Este pedido ya fue facturado — anule la factura desde Facturas (genera una nota de crédito).',
       );
     }
 

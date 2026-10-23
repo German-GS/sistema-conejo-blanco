@@ -66,7 +66,7 @@ const hayDatos = computed(() => props.series.some((s) => s.datos.some((v) => v !
         <!-- un punto aislado (tramo de un solo valor) igual se ve -->
         <circle v-for="(t, i) in s.tramos.filter((p) => !p.includes(' '))" :key="`p${i}`" :cx="t.split(',')[0]" :cy="t.split(',')[1]" r="2.2" :fill="s.color" />
       </template>
-      <text v-if="!hayDatos" :x="W / 2" :y="alto / 2" text-anchor="middle" font-size="11" fill="currentColor" class="text-slate-400">Todavía no hay datos en este rango</text>
+      <text v-if="!hayDatos" :x="W / 2" :y="alto / 2" text-anchor="middle" font-size="11" fill="currentColor" class="text-slate-500">Todavía no hay datos en este rango</text>
     </svg>
   </div>
 </template>

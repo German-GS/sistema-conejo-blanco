@@ -1,4 +1,5 @@
 <script setup>
+import Cargando from '../../components/Cargando.vue';
 import { computed, onMounted, ref, watch } from 'vue';
 import { Download, Package, Plus, TriangleAlert, Search, X } from '@lucide/vue';
 import { descargarCsv, fechaArchivo } from '../../lib/csv.js';
@@ -335,7 +336,7 @@ async function confirmarAjuste() {
         </div>
         <template v-else>
           <div class="relative">
-            <Search class="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-slate-400" />
+            <Search class="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-slate-500" />
             <input
               v-model="ingresoProductoTexto"
               type="text"
@@ -404,7 +405,7 @@ async function confirmarAjuste() {
         </div>
         <template v-else>
           <div class="relative">
-            <Search class="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-slate-400" />
+            <Search class="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-slate-500" />
             <input
               v-model="ajusteProductoTexto"
               type="text"
@@ -462,7 +463,7 @@ async function confirmarAjuste() {
     <div class="card flex flex-col gap-4">
       <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
         <div class="relative">
-          <Search class="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-slate-400" />
+          <Search class="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-slate-500" />
           <input
             v-model="textoBusqueda"
             type="text"
@@ -473,7 +474,7 @@ async function confirmarAjuste() {
             v-if="textoBusqueda"
             type="button"
             aria-label="Limpiar búsqueda"
-            class="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+            class="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-600"
             @click="textoBusqueda = ''"
           >
             <X class="size-4" />
@@ -486,7 +487,7 @@ async function confirmarAjuste() {
       </div>
 
       <p v-if="error" class="text-sm font-medium text-red-600">{{ error }}</p>
-      <p v-if="cargando" class="text-sm text-slate-500">Cargando…</p>
+      <Cargando v-if="cargando" texto="Cargando…" compacto />
 
       <!-- Existencias -->
       <template v-else-if="vista === 'existencias'">

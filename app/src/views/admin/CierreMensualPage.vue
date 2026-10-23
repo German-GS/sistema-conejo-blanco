@@ -1,4 +1,5 @@
 <script setup>
+import { confirmar } from '../../lib/confirmar.js';
 import { computed, onMounted, reactive, ref } from 'vue';
 import { Lock, LockOpen } from '@lucide/vue';
 import { api, ApiError } from '../../lib/api.js';
@@ -53,7 +54,7 @@ async function verCierre() {
 async function cerrar() {
   const n = vista.value.lineas.filter((l) => l.monto > 0).length;
   const texto = `¿Cerrar ${periodo.value}? Se generan ${n} asiento(s) de pago por ${m(vista.value.totalAPagar)} y el mes queda bloqueado.`;
-  if (!window.confirm(texto)) return;
+  if (!await confirmar(texto)) return;
   error.value = '';
   trabajando.value = true;
   try {
@@ -73,7 +74,7 @@ async function cerrar() {
 }
 
 async function reabrir(p) {
-  if (!window.confirm(`¿Reabrir ${p.periodo}? Se reversan los asientos de pago que generó el cierre y el mes vuelve a admitir asientos.`)) return;
+  if (!await confirmar(`¿Reabrir ${p.periodo}? Se reversan los asientos de pago que generó el cierre y el mes vuelve a admitir asientos.`)) return;
   error.value = '';
   try {
     await api.post(`/contabilidad/periodos/${p.periodo}/reabrir`, {});
@@ -104,7 +105,7 @@ onMounted(async () => {
         <div>
           <label class="label">Mes a cerrar</label>
           <select v-model="periodo" class="input" @change="verCierre">
-            <option value="">Elegí un mes…</option>
+            <option value="">Elija un mes…</option>
             <option v-for="p in mesesDisponibles" :key="p" :value="p">{{ p }}</option>
           </select>
         </div>

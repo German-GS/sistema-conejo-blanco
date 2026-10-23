@@ -203,7 +203,7 @@ export class UsuariosService implements OnModuleInit {
       empleadoId = empleado.id;
       nombre = nombre || empleado.nombre;
     }
-    if (!nombre) throw new BadRequestException('Indicá el nombre de la persona o elegí un empleado.');
+    if (!nombre) throw new BadRequestException('Indique el nombre de la persona o elija un empleado.');
     const ubicacionId = dto.rol === Rol.ENCARGADO_TIENDA ? await this.tiendaValida(dto.ubicacionId) : null;
 
     // La clave del primer ingreso no pasa por la política de contraseñas: es temporal, la persona debe
@@ -235,7 +235,7 @@ export class UsuariosService implements OnModuleInit {
 
   // La tienda de un encargado de tienda: tiene que existir, estar activa y ser una tienda (no la bodega ni la fábrica).
   private async tiendaValida(ubicacionId: string | undefined): Promise<string> {
-    if (!ubicacionId) throw new BadRequestException('Elegí la tienda donde trabaja el encargado.');
+    if (!ubicacionId) throw new BadRequestException('Elija la tienda donde trabaja el encargado.');
     const ub = await this.ubicacionRepo.findOneBy({ id: ubicacionId });
     if (!ub || ub.tipo !== TipoUbicacion.TIENDA || !ub.activa) throw new BadRequestException('Esa ubicación no es una tienda activa.');
     return ub.id;
@@ -260,7 +260,7 @@ export class UsuariosService implements OnModuleInit {
     if (dto.rol !== undefined && dto.rol !== usuario.rol) this.exigirNoSistema(usuario, 'cambiar de perfil');
     if (dto.activo === false) this.exigirNoSistema(usuario, 'desactivar');
     if (id === actor.id && (dto.activo === false || (dto.rol && dto.rol !== usuario.rol))) {
-      throw new ConflictException('No podés desactivar tu propia cuenta ni cambiar tu propio perfil.');
+      throw new ConflictException('No puede desactivar su propia cuenta ni cambiar su propio perfil.');
     }
     if ((dto.rol === Rol.GERENTE_GENERAL && usuario.rol !== Rol.GERENTE_GENERAL) || (dto.activo === true && !usuario.activo && usuario.rol === Rol.GERENTE_GENERAL)) {
       await this.exigirUnicoGerenteGeneral(id);
@@ -366,7 +366,7 @@ export class UsuariosService implements OnModuleInit {
   // clave temporal se devuelve una sola vez, no se guarda en claro.
   async restablecerPassword(id: string, actor: { id: string; email: string }, ip?: string): Promise<{ passwordTemporal: string; venceEn: Date }> {
     const usuario = await this.buscarGestionable(id);
-    this.exigirNoSistema(usuario, 'restablecer la clave desde acá; usá "Cambiar contraseña"');
+    this.exigirNoSistema(usuario, 'restablecer la clave desde acá; use "Cambiar contraseña"');
     const passwordTemporal = generarPasswordTemporal(await this.sistemaConfig.get<number>('seguridad.clave_largo_minimo'));
     await this.usuarioRepo.update(
       { id },

@@ -89,7 +89,7 @@ export class CrearFacturaManualDto {
   @IsOptional() @IsString() @MaxLength(2000) leyenda?: string;
 
   @IsArray()
-  @ArrayMinSize(1, { message: 'Agregá al menos una línea.' })
+  @ArrayMinSize(1, { message: 'Agregue al menos una línea.' })
   @ArrayMaxSize(100)
   @ValidateNested({ each: true })
   @Type(() => LineaFacturaManualDto)

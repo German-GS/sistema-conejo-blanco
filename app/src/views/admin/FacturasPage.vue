@@ -1,4 +1,5 @@
 <script setup>
+import Cargando from '../../components/Cargando.vue';
 import { computed, onMounted, ref, watch } from 'vue';
 import { FileText, Download, Plus, Undo2 } from '@lucide/vue';
 import { api, ApiError, descargarArchivo } from '../../lib/api.js';
@@ -115,7 +116,7 @@ function alternarAnular(facturaId) {
 
 async function confirmarAnular(factura) {
   if (!motivoAnular.value.trim()) {
-    errorAnular.value = 'Indicá el motivo de la anulación.';
+    errorAnular.value = 'Indique el motivo de la anulación.';
     return;
   }
   errorAnular.value = '';
@@ -188,7 +189,7 @@ async function confirmarAnular(factura) {
       </div>
 
       <p v-if="error" class="text-sm font-medium text-red-600">{{ error }}</p>
-      <p v-if="cargando" class="text-sm text-slate-500">Cargando…</p>
+      <Cargando v-if="cargando" texto="Cargando…" compacto />
       <p v-else-if="facturas.length === 0" class="text-sm text-slate-500">No hay facturas en esta categoría.</p>
 
       <ul v-else class="flex flex-col gap-2">

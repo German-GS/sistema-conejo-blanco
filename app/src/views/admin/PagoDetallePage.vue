@@ -1,4 +1,5 @@
 <script setup>
+import Cargando from '../../components/Cargando.vue';
 import { onMounted, ref } from 'vue';
 import { ArrowLeft, Printer } from '@lucide/vue';
 import { api, ApiError } from '../../lib/api.js';
@@ -59,7 +60,7 @@ const imprimir = () => window.print();
     </div>
 
     <p v-if="error" class="text-sm font-medium text-red-600">{{ error }}</p>
-    <p v-else-if="!pago" class="text-sm text-slate-500">Cargando…</p>
+    <Cargando v-else-if="!pago" texto="Cargando…" compacto />
 
     <article v-else class="relative mx-auto w-full max-w-3xl rounded-xl border border-slate-200 bg-white p-8 text-slate-800 shadow-sm print:max-w-none print:border-0 print:p-0 print:shadow-none">
       <p v-if="pago.estado === 'anulado'" class="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 -rotate-12 select-none text-7xl font-black tracking-widest text-red-500/20">ANULADO</p>
@@ -102,7 +103,7 @@ const imprimir = () => window.print();
 
       <section v-if="pago.notas" class="mt-6"><p class="text-xs font-semibold uppercase text-slate-500">Notas</p><p class="whitespace-pre-line text-sm">{{ pago.notas }}</p></section>
       <p v-if="pago.estado === 'anulado'" class="mt-4 text-sm font-medium text-red-600">Anulado: {{ pago.motivoAnulacion }}</p>
-      <p class="mt-8 text-center text-[11px] text-slate-400">Registrado por {{ pago.creadoPor?.nombre ?? '—' }}</p>
+      <p class="mt-8 text-center text-[11px] text-slate-500">Registrado por {{ pago.creadoPor?.nombre ?? '—' }}</p>
     </article>
   </div>
 </template>

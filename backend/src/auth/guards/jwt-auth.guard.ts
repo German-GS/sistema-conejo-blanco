@@ -32,14 +32,14 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
       throw new ForbiddenException({
         statusCode: 403,
         code: 'CAMBIO_CLAVE_REQUERIDO',
-        message: 'Debés cambiar tu contraseña temporal antes de continuar.',
+        message: 'Debe cambiar su contraseña temporal antes de continuar.',
       });
     }
     if (usuario?.requiereDosPasos && !RUTAS_PERMITIDAS_CON_CLAVE_TEMPORAL.includes(ruta)) {
       throw new ForbiddenException({
         statusCode: 403,
         code: 'DOS_PASOS_REQUERIDO',
-        message: 'Tu perfil exige verificación en dos pasos: activala para continuar.',
+        message: 'Su perfil exige verificación en dos pasos: actívela para continuar.',
       });
     }
 
@@ -51,7 +51,7 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
       }
       const modulo = this.reflector.getAllAndOverride<string>(MODULO_KEY, [context.getHandler(), context.getClass()]);
       if (modulo && !(await this.config.moduloActivo(modulo))) {
-        throw new ForbiddenException({ statusCode: 403, code: 'MODULO_APAGADO', message: 'Este módulo no está habilitado en tu sistema.' });
+        throw new ForbiddenException({ statusCode: 403, code: 'MODULO_APAGADO', message: 'Este módulo no está habilitado en su sistema.' });
       }
     }
     return true;

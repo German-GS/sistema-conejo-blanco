@@ -144,7 +144,7 @@ export class CatalogoService {
       }
       const [{ existencias }] = await this.dataSource.query('SELECT COALESCE(SUM(cantidad), 0)::int AS existencias FROM stock_ubicaciones WHERE variante_id = ANY($1)', [ids]);
       if (Number(existencias) !== 0) {
-        throw new BadRequestException(`Este producto todavía tiene ${existencias} pares en bodega: dejá el inventario en cero antes de eliminarlo.`);
+        throw new BadRequestException(`Este producto todavía tiene ${existencias} pares en bodega: deje el inventario en cero antes de eliminarlo.`);
       }
     }
     await this.dataSource.transaction(async (manager) => {

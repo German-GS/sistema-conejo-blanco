@@ -1,4 +1,5 @@
 <script setup>
+import { confirmar } from '../../lib/confirmar.js';
 import { computed, onMounted, reactive, ref } from 'vue';
 import { Landmark } from '@lucide/vue';
 import { api, ApiError } from '../../lib/api.js';
@@ -48,7 +49,7 @@ async function calcular() {
 
 async function cerrar() {
   const texto = `¿Cerrar el año fiscal ${anio.value}? Se provisiona el impuesto de renta (${m(vista.value.renta.impuesto)}) y los ingresos y gastos del año se saldan contra utilidades acumuladas.`;
-  if (!window.confirm(texto)) return;
+  if (!await confirmar(texto)) return;
   error.value = '';
   trabajando.value = true;
   try {
@@ -69,7 +70,7 @@ async function cerrar() {
 }
 
 async function reabrir(c) {
-  if (!window.confirm(`¿Reabrir el año fiscal ${c.anio}? Se reversan el asiento del impuesto y el de cierre de resultados.`)) return;
+  if (!await confirmar(`¿Reabrir el año fiscal ${c.anio}? Se reversan el asiento del impuesto y el de cierre de resultados.`, { palabra: 'REABRIR' })) return;
   error.value = '';
   try {
     await api.post(`/contabilidad/cierre-fiscal/${c.anio}/reabrir`, {});
@@ -112,7 +113,7 @@ onMounted(() => {
         <div>
           <label class="label">Año fiscal</label>
           <select v-model="anio" class="input" @change="calcular">
-            <option value="">Elegí un año…</option>
+            <option value="">Elija un año…</option>
             <option v-for="a in anios" :key="a" :value="a" :disabled="cierres.some((c) => c.anio === a)">{{ a }}{{ cierres.some((c) => c.anio === a) ? ' (cerrado)' : '' }}</option>
           </select>
         </div>

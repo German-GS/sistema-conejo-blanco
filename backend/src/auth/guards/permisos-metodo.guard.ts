@@ -17,7 +17,7 @@ export class PermisosMetodoGuard implements CanActivate {
     // Quien puede gestionar también puede consultar.
     const ok = req.user?.permisos.has(requerido) || (lee && req.user?.permisos.has(cfg.escritura));
     if (!ok) {
-      throw new ForbiddenException(`No tenés permiso para esta acción (falta: ${requerido}). Pedile al administrador del sistema que te lo autorice.`);
+      throw new ForbiddenException(`No tiene permiso para esta acción (falta: ${requerido}). Pida al administrador del sistema que se lo autorice.`);
     }
     return true;
   }

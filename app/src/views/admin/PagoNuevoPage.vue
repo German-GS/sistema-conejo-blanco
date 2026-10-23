@@ -1,4 +1,6 @@
 <script setup>
+import { usarBorrador } from '../../lib/borrador.js';
+import BorradorAviso from '../../components/BorradorAviso.vue';
 import { redondear } from '../../lib/dinero.js';
 import { computed, onMounted, reactive, ref } from 'vue';
 import { useRouter } from 'vue-router';
@@ -80,12 +82,12 @@ const total = computed(() => {
 });
 const excedido = computed(() => facturas.value.find((f) => Number(montos[f.id]) > f.saldo + 0.005));
 const problema = computed(() => {
-  if (!form.cuentaBancariaId) return 'Elegí la cuenta bancaria (se configuran en Configuración).';
+  if (!form.cuentaBancariaId) return 'Elija la cuenta bancaria (se configuran en Configuración).';
   if (form.tipo === 'factura') {
-    if (!cliente.value) return 'Elegí el cliente.';
+    if (!cliente.value) return 'Elija el cliente.';
     if (excedido.value) return `Se pasa del saldo de la factura ${excedido.value.consecutivo}.`;
   } else if (form.concepto.trim().length < 3) {
-    return 'Anotá de qué es el ingreso.';
+    return 'Anote de qué es el ingreso.';
   }
   if (total.value <= 0) return 'El total debe ser mayor a cero.';
   return '';
@@ -113,6 +115,7 @@ async function guardar() {
         : { concepto: form.concepto.trim(), monto: Number(form.monto), ...(cliente.value ? { clienteId: cliente.value.id } : {}) }),
     };
     const pago = await api.post('/pagos', cuerpo);
+    borrador.limpiar();
     router.push({ name: 'admin-pago-detalle', params: { id: pago.id } });
   } catch (err) {
     error.value = err instanceof ApiError ? err.message : 'No se pudo guardar el pago.';
@@ -120,10 +123,25 @@ async function guardar() {
     guardando.value = false;
   }
 }
+
+// Borrador automático del pago en curso.
+const borrador = usarBorrador({
+  clave: 'pago-nuevo',
+  obtener: () => JSON.parse(JSON.stringify({ form: { ...form }, cliente: cliente.value, montos: { ...montos } })),
+  aplicar: async (d) => {
+    Object.assign(form, d.form);
+    if (d.cliente) {
+      await elegirCliente(d.cliente);
+      Object.assign(montos, d.montos ?? {});
+    }
+  },
+  tieneDatos: (d) => Boolean(d.cliente) || Boolean(d.form.concepto?.trim()) || Number(d.form.monto) > 0,
+});
 </script>
 
 <template>
   <div class="mx-auto flex max-w-4xl flex-col gap-5">
+    <BorradorAviso :borrador="borrador" />
     <div class="flex items-center justify-between">
       <router-link :to="{ name: 'admin-pagos' }" class="flex items-center gap-1 text-sm font-semibold text-blue-700"><ArrowLeft class="size-4" /> Volver a pagos</router-link>
       <h1 class="text-xl font-bold text-slate-900">Nuevo pago recibido</h1>
@@ -151,7 +169,7 @@ async function guardar() {
         <div class="relative">
           <label class="label">Cliente {{ form.tipo === 'factura' ? '*' : '(opcional)' }}</label>
           <div class="relative">
-            <Search class="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+            <Search class="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-500" />
             <input v-model="clienteTexto" class="input pl-9" placeholder="Buscar por nombre o cédula…" @input="buscarCliente" />
           </div>
           <ul v-if="clientesEncontrados.length" class="absolute z-10 mt-1 max-h-56 w-full overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-lg">
@@ -176,12 +194,12 @@ async function guardar() {
         <div><label class="label">Moneda</label><input class="input" value="CRC - Colón costarricense" disabled /></div>
       </div>
       <p v-if="cuentas.length <= 1" class="rounded-lg bg-amber-50 p-3 text-sm text-amber-800">
-        Solo hay la caja general. Para recibir pagos en un banco, agregá la cuenta en
+        Solo hay la caja general. Para recibir pagos en un banco, agregue la cuenta en
         <router-link :to="{ name: 'admin-configuracion' }" class="font-semibold underline">Configuración → Cuentas bancarias</router-link>.
       </p>
 
       <template v-if="form.tipo === 'factura'">
-        <p v-if="!cliente" class="rounded-lg bg-slate-100 p-3 text-sm text-slate-600">Seleccioná un cliente para traer sus facturas por cobrar.</p>
+        <p v-if="!cliente" class="rounded-lg bg-slate-100 p-3 text-sm text-slate-600">Seleccione un cliente para traer sus facturas por cobrar.</p>
         <p v-else-if="facturas.length === 0" class="rounded-lg bg-slate-100 p-3 text-sm text-slate-600">Este cliente no tiene facturas a crédito con saldo pendiente.</p>
         <div v-else class="overflow-x-auto rounded-lg border border-slate-200">
           <table class="min-w-full text-sm">

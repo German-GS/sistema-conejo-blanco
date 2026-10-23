@@ -40,7 +40,7 @@ export class AuthService {
       await bcrypt.compare(password, HASH_RELLENO);
       await this.bitacora.registrar({ accion: 'login_bloqueado', usuarioId: usuario.id, usuarioEmail: usuario.email, detalle: 'cuenta bloqueada por intentos fallidos', ip });
       throw new HttpException(
-        'Demasiados intentos fallidos. Esperá unos minutos o pedile al administrador del sistema que restablezca tu clave.',
+        'Demasiados intentos fallidos. Espere unos minutos o pida al administrador del sistema que restablezca su clave.',
         HttpStatus.TOO_MANY_REQUESTS,
       );
     }
@@ -60,7 +60,7 @@ export class AuthService {
     // La clave temporal solo sirve un tiempo: si no se usó a tiempo hay que pedir otra.
     if (usuario.debeCambiarClave && usuario.claveTemporalVence && usuario.claveTemporalVence.getTime() < Date.now()) {
       await this.bitacora.registrar({ accion: 'login_fallido', usuarioId: usuario.id, usuarioEmail: usuario.email, detalle: 'clave temporal vencida', ip });
-      throw new UnauthorizedException('Tu clave temporal venció. Pedile al administrador del sistema que te genere una nueva.');
+      throw new UnauthorizedException('Su clave temporal venció. Pida al administrador del sistema que le genere una nueva.');
     }
 
     // La cuenta del sistema puede restringirse a ciertas direcciones IP.
@@ -95,7 +95,7 @@ export class AuthService {
     try {
       payload = await this.jwtService.verifyAsync(ticket);
     } catch {
-      throw new UnauthorizedException('El paso anterior venció. Ingresá de nuevo.');
+      throw new UnauthorizedException('El paso anterior venció. Ingrese de nuevo.');
     }
     if (payload.tipo !== '2fa') throw new UnauthorizedException('El paso anterior no es válido.');
 
@@ -130,8 +130,8 @@ export class AuthService {
 
   async activarDosPasos(usuarioId: string, codigo: string, ip?: string) {
     const { activo, secreto } = await this.usuariosService.totpDe(usuarioId);
-    if (activo || !secreto) throw new ForbiddenException('Primero iniciá la activación.');
-    if (!verificarTotp(secreto, codigo)) throw new UnauthorizedException('El código no es correcto. Revisá la hora del teléfono.');
+    if (activo || !secreto) throw new ForbiddenException('Primero inicie la activación.');
+    if (!verificarTotp(secreto, codigo)) throw new UnauthorizedException('El código no es correcto. Revise la hora del teléfono.');
     const usuario = await this.usuariosService.activarTotp(usuarioId);
     await this.bitacora.registrar({ accion: 'dos_pasos_activado', usuarioId, usuarioEmail: usuario.email, objetivo: usuario.email, ip });
     return { accessToken: await this.emitirToken(usuario) };
@@ -139,7 +139,7 @@ export class AuthService {
 
   async desactivarDosPasos(usuarioId: string, rol: Rol, password: string, codigo: string, ip?: string) {
     if ((await this.sistemaConfig.get<string[]>('seguridad.dos_pasos_roles')).includes(rol)) {
-      throw new ForbiddenException('Tu perfil exige verificación en dos pasos: no se puede desactivar.');
+      throw new ForbiddenException('Su perfil exige verificación en dos pasos: no se puede desactivar.');
     }
     const usuario = await this.usuariosService.buscarPorIdConHash(usuarioId);
     if (!usuario || !(await bcrypt.compare(password, usuario.passwordHash))) throw new UnauthorizedException('La contraseña no es correcta.');

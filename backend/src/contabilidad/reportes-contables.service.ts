@@ -19,7 +19,7 @@ export interface Reporte {
 
 const FECHA = /^\d{4}-\d{2}-\d{2}$/;
 function validarFecha(valor: string | undefined, nombre: string): string {
-  if (!valor || !FECHA.test(valor)) throw new BadRequestException(`Indicá la fecha ${nombre} (YYYY-MM-DD).`);
+  if (!valor || !FECHA.test(valor)) throw new BadRequestException(`Indique la fecha ${nombre} (YYYY-MM-DD).`);
   return valor;
 }
 
@@ -279,7 +279,7 @@ export class ReportesContablesService {
       case 'balance-general':
         return this.balanceGeneral(q.hasta ?? '');
       case 'mayor':
-        if (!q.cuentaId) throw new BadRequestException('Elegí la cuenta.');
+        if (!q.cuentaId) throw new BadRequestException('Elija la cuenta.');
         return this.mayor(q.cuentaId, q.desde ?? '', q.hasta ?? '');
       default:
         throw new NotFoundException('Ese reporte no existe.');

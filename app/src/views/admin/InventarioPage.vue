@@ -1,4 +1,6 @@
 <script setup>
+import { confirmar } from '../../lib/confirmar.js';
+import Cargando from '../../components/Cargando.vue';
 import { computed, onMounted, reactive, ref } from 'vue';
 import { Plus, Trash2, Pencil, History, Search, X, Image, Upload } from '@lucide/vue';
 import { api, ApiError, API_URL, subirArchivo } from '../../lib/api.js';
@@ -87,7 +89,7 @@ const guardandoVariante = ref(false);
 // Solo gerencia y el administrador del sistema; solo si el producto nunca se usó y no tiene existencias.
 async function eliminarProducto(producto) {
   if (producto.esPrueba) {
-    if (!window.confirm(`¿Eliminar el producto de PRUEBA "${producto.codigo} — ${producto.nombre}"?\n\nSe borra también TODO lo que se hizo con él: ventas de caja, pedidos y traspasos de tienda, existencias y movimientos. No se puede deshacer.`)) return;
+    if (!await confirmar(`¿Eliminar el producto de PRUEBA "${producto.codigo} — ${producto.nombre}"?\n\nSe borra también TODO lo que se hizo con él: ventas de caja, pedidos y traspasos de tienda, existencias y movimientos. No se puede deshacer.`, { palabra: 'ELIMINAR' })) return;
     error.value = '';
     try {
       await api.delete(`/catalogo/productos/${producto.id}`);
@@ -97,7 +99,7 @@ async function eliminarProducto(producto) {
     }
     return;
   }
-  if (!window.confirm(`¿Eliminar "${producto.codigo} — ${producto.nombre}" con todos sus colores y fotos? No se puede deshacer. Solo se elimina si nunca se usó en pedidos, facturas o traspasos y no tiene pares en bodega.`)) return;
+  if (!await confirmar(`¿Eliminar "${producto.codigo} — ${producto.nombre}" con todos sus colores y fotos? No se puede deshacer. Solo se elimina si nunca se usó en pedidos, facturas o traspasos y no tiene pares en bodega.`, { palabra: 'ELIMINAR' })) return;
   error.value = '';
   try {
     await api.delete(`/catalogo/productos/${producto.id}`);
@@ -450,7 +452,7 @@ async function cargarEdiciones(productoId) {
     </div>
 
     <div class="relative">
-      <Search class="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-slate-400" />
+      <Search class="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-slate-500" />
       <input
         v-model="textoBusqueda"
         type="text"
@@ -461,7 +463,7 @@ async function cargarEdiciones(productoId) {
         v-if="textoBusqueda"
         type="button"
         aria-label="Limpiar búsqueda"
-        class="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+        class="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-600"
         @click="textoBusqueda = ''"
       >
         <X class="size-4" />
@@ -472,7 +474,7 @@ async function cargarEdiciones(productoId) {
     </p>
 
     <p v-if="error && !mostrarFormProducto" class="text-sm font-medium text-red-600">{{ error }}</p>
-    <p v-if="cargando" class="text-base text-slate-500">Cargando…</p>
+    <Cargando v-if="cargando" texto="Cargando…" />
     <p v-else-if="productosFiltrados.length === 0 && textoBusqueda" class="text-base text-slate-500">
       Ningún producto coincide con "{{ textoBusqueda }}".
     </p>
@@ -610,19 +612,19 @@ async function cargarEdiciones(productoId) {
             type="button"
             class="rounded-full border-2 px-4 py-2 text-sm font-medium"
             :class="[
-              variante.activo ? 'border-slate-300 bg-white text-slate-700' : 'border-slate-200 bg-slate-100 text-slate-400 line-through',
+              variante.activo ? 'border-slate-300 bg-white text-slate-700' : 'border-slate-200 bg-slate-100 text-slate-500 line-through',
               colorCoincide(variante.color) ? 'ring-2 ring-blue-400 ring-offset-1' : '',
             ]"
             @click="alternarVariante(variante)"
           >
             {{ variante.color }} · {{ formatearColones(variante.precioPorPar) }}
-            <span v-if="variante.costo" class="text-slate-400">(costo {{ formatearColones(variante.costo) }})</span>
+            <span v-if="variante.costo" class="text-slate-500">(costo {{ formatearColones(variante.costo) }})</span>
           </button>
         </div>
 
         <!-- Historial: quién creó/cambió qué y cuándo -->
         <div v-if="historialAbierto === producto.id" class="mt-3 border-t border-slate-200 pt-3">
-          <p v-if="cargandoEdiciones && !ediciones[producto.id]" class="text-sm text-slate-500">Cargando historial…</p>
+          <Cargando v-if="cargandoEdiciones && !ediciones[producto.id]" texto="Cargando historial…" compacto />
           <p v-else-if="(ediciones[producto.id]?.length ?? 0) === 0" class="text-sm text-slate-500">Sin cambios registrados.</p>
           <ul v-else class="flex flex-col gap-2">
             <li v-for="edicion in ediciones[producto.id]" :key="edicion.id" class="rounded-xl bg-slate-50 p-3">

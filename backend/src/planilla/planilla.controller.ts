@@ -304,7 +304,7 @@ export class PlanillaController {
   @Get('asistencia/resumen')
   resumenAsistencia(@Query('desde') desde = '', @Query('hasta') hasta = '') {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(desde) || !/^\d{4}-\d{2}-\d{2}$/.test(hasta)) {
-      throw new BadRequestException('Indicá las fechas desde y hasta (YYYY-MM-DD).');
+      throw new BadRequestException('Indique las fechas desde y hasta (YYYY-MM-DD).');
     }
     return this.asistencia.resumenPeriodo(desde, hasta);
   }

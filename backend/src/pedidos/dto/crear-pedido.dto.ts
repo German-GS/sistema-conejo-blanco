@@ -68,7 +68,7 @@ export class CrearPedidoDto {
   // Obligatoria solo cuando el método es Encomienda.
   @ValidateIf((dto: CrearPedidoDto) => dto.metodoEntrega === MetodoEntrega.ENCOMIENDA)
   @IsString()
-  @MinLength(2, { message: 'Indicá el nombre de la empresa de encomienda.' })
+  @MinLength(2, { message: 'Indique el nombre de la empresa de encomienda.' })
   @MaxLength(120)
   empresaEncomienda?: string;
 

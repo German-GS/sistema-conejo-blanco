@@ -62,11 +62,11 @@ export function estimarLiquidacion(e: EntradaLiquidacion) {
   if (e.tipoCese === 'despido_con_responsabilidad') {
     notas.push('Por despido sin justa causa le corresponden además PREAVISO y CESANTÍA, que dependen de su antigüedad (arts. 28 y 29 del Código de Trabajo). Calculalos con la contadora o el abogado: no están incluidos en este total.');
   } else if (e.tipoCese === 'renuncia') {
-    notas.push('Por renuncia el empleado debe dar preaviso (si no lo da, consultá con el abogado cómo se maneja). La cesantía normalmente no aplica; el ahorro del FCL y del ROP se retira directamente en la operadora.');
+    notas.push('Por renuncia el empleado debe dar preaviso (si no lo da, consulte con el abogado cómo se maneja). La cesantía normalmente no aplica; el ahorro del FCL y del ROP se retira directamente en la operadora.');
   } else if (e.tipoCese === 'despido_sin_responsabilidad') {
     notas.push('Con justa causa no hay preaviso ni cesantía, pero la causa debe estar bien documentada: confirmala con el abogado antes de liquidar.');
   } else {
-    notas.push('Revisá con la contadora si en este caso corresponde preaviso o cesantía.');
+    notas.push('Revise con la contadora si en este caso corresponde preaviso o cesantía.');
   }
   notas.push('Se debe entregar el finiquito firmado y reportar la baja a la CCSS (SICERE/INS) y entregar la carta o constancia de trabajo.');
 

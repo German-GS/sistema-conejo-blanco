@@ -71,7 +71,7 @@ export class InformesService {
   async generar(tipo: string, desde: string, hasta: string): Promise<Informe> {
     if (!TIPOS_INFORME.includes(tipo as TipoInforme)) throw new BadRequestException('Ese informe no existe.');
     if (tipo !== 'deudas') {
-      if (!FECHA.test(desde) || !FECHA.test(hasta)) throw new BadRequestException('Indicá las fechas desde y hasta (YYYY-MM-DD).');
+      if (!FECHA.test(desde) || !FECHA.test(hasta)) throw new BadRequestException('Indique las fechas desde y hasta (YYYY-MM-DD).');
       if (desde > hasta) throw new BadRequestException('La fecha inicial no puede ser posterior a la final.');
     }
     switch (tipo as TipoInforme) {

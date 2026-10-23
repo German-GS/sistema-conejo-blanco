@@ -1,4 +1,6 @@
 <script setup>
+import { confirmar } from '../../../lib/confirmar.js';
+import Cargando from '../../../components/Cargando.vue';
 import { computed, onMounted, ref, watch } from 'vue';
 import { api, ApiError } from '../../../lib/api.js';
 import { useAuthStore } from '../../../stores/auth.js';
@@ -47,7 +49,7 @@ onMounted(cargar);
 watch([estado, tienda], cargar);
 
 async function convertirEnPrueba() {
-  if (!window.confirm(`¿Convertir el pedido ${detalle.value.numeroTexto} en pedido de PRUEBA?\n\nSe BORRA su asiento contable y deja de contar en reportes. El inventario ya movido no se toca. Solo para la etapa de pruebas.`)) return;
+  if (!await confirmar(`¿Convertir el pedido ${detalle.value.numeroTexto} en pedido de PRUEBA?\n\nSe BORRA su asiento contable y deja de contar en reportes. El inventario ya movido no se toca. Solo para la etapa de pruebas.`, { palabra: 'CONVERTIR', aceptar: 'Sí, convertir y borrar el asiento' })) return;
   try {
     await api.post(`/pos/ordenes/${detalle.value.id}/convertir-prueba`, {});
     detalle.value = null;
@@ -97,8 +99,8 @@ async function accion(ruta, cuerpo, mensajeOk) {
 }
 const recibir = () => accion('recibir', { nota: nota.value.trim() || undefined });
 const alistar = () => accion('alistar', { nota: nota.value.trim() || undefined });
-const enviar = () => {
-  if (window.confirm('Esto descuenta la mercadería de la bodega y la deja en camino a la tienda. ¿Enviar?')) return accion('enviar', {});
+const enviar = async () => {
+  if (await confirmar('Esto descuenta la mercadería de la bodega y la deja en camino a la tienda. ¿Enviar?')) return accion('enviar', {});
 };
 const revisar = () =>
   accion('revisar', {
@@ -125,7 +127,7 @@ const enRevision = computed(() => detalle.value && (detalle.value.estado === 'en
       </label>
     </div>
     <p v-if="error && !detalle" class="text-sm font-medium text-red-600">{{ error }}</p>
-    <p v-if="cargando" class="text-sm text-slate-500">Cargando…</p>
+    <Cargando v-if="cargando" texto="Cargando…" compacto />
     <p v-else-if="!ordenes.length" class="text-sm text-slate-500">No hay pedidos de tienda con este filtro.</p>
     <ul class="flex flex-col gap-2">
       <li v-for="o in ordenes" :key="o.id">
@@ -157,7 +159,7 @@ const enRevision = computed(() => detalle.value && (detalle.value.estado === 'en
 
         <!-- Seguimiento -->
         <ol class="mt-3 flex flex-wrap gap-x-1 gap-y-1 text-xs">
-          <li v-for="(p, i) in PASOS" :key="p" class="flex items-center gap-1"><span class="rounded-full px-2 py-0.5 font-semibold" :class="i <= pasoActual ? COLOR[p] : 'bg-slate-100 text-slate-400'">{{ ['Enviado', 'Recibido', 'Revisado', 'Alistado', 'En camino', 'Aceptado por la tienda'][i] }}</span><span v-if="i < PASOS.length - 1" class="text-slate-300">›</span></li>
+          <li v-for="(p, i) in PASOS" :key="p" class="flex items-center gap-1"><span class="rounded-full px-2 py-0.5 font-semibold" :class="i <= pasoActual ? COLOR[p] : 'bg-slate-100 text-slate-500'">{{ ['Enviado', 'Recibido', 'Revisado', 'Alistado', 'En camino', 'Aceptado por la tienda'][i] }}</span><span v-if="i < PASOS.length - 1" class="text-slate-300">›</span></li>
         </ol>
         <ul class="mt-2 space-y-0.5 text-xs text-slate-600">
           <li v-for="(e, i) in detalle.eventos" :key="i"><span class="font-semibold">{{ e.fecha }}</span> · {{ e.etiqueta }}<span v-if="e.usuario"> — {{ e.usuario }}</span><span v-if="e.nota" class="italic"> · «{{ e.nota }}»</span></li>

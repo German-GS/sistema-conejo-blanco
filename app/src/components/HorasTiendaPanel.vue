@@ -1,4 +1,6 @@
 <script setup>
+import { exito } from '../lib/avisos.js';
+import Cargando from './Cargando.vue';
 import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { api, ApiError } from '../lib/api.js';
 import { formatearFecha } from '../lib/format.js';
@@ -120,7 +122,7 @@ async function guardar() {
         ...(f.motivo.trim() ? { motivo: f.motivo.trim() } : {}),
       })),
     });
-    aviso.value = `Horas de ${empleado.value?.nombre} guardadas (${hhmm(total.value)} h trabajadas en la semana).`;
+    exito(`Horas de ${empleado.value?.nombre} guardadas (${hhmm(total.value)} h trabajadas en la semana).`);
     emit('guardado');
     await cargar();
   } catch (err) {
@@ -149,7 +151,7 @@ async function guardar() {
         <p class="pb-2 text-xs text-slate-500">Semana del {{ desde && formatearFecha(desde) }} al {{ desde && formatearFecha(sumar(desde, 5)) }}</p>
       </div>
 
-      <p v-if="cargando" class="text-sm text-slate-500">Cargando…</p>
+      <Cargando v-if="cargando" texto="Cargando…" compacto />
       <div v-else class="overflow-x-auto rounded-lg border border-slate-200">
         <table class="min-w-full text-sm">
           <thead class="bg-slate-50 text-left text-xs font-semibold text-slate-600">

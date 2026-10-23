@@ -275,13 +275,13 @@ export function aplicarResolucion(
   }
   if (tipo === TipoResolucionDia.HORARIO_ESTANDAR) {
     const tramo = horarioDelDia(horario, fecha);
-    if (!tramo) throw new Error('Ese día no tiene horario: elegí otra opción (hora manual o ausencia).');
+    if (!tramo) throw new Error('Ese día no tiene horario: elija otra opción (hora manual o ausencia).');
     const marcas = [tramo.entrada, tramo.salida];
     return clasificarDia(marcas, tipoDia, p, undefined, esperadoMinutos(fecha, horario, p), opcionesEmpleado(horario, p, fecha));
   }
   if (tipo === TipoResolucionDia.ALMUERZO_MANUAL) {
     // El día trae entrada y salida: administración dice cuánto almorzó.
-    if (datos.almuerzoMinutos === undefined) throw new Error('Indicá cuántos minutos de almuerzo.');
+    if (datos.almuerzoMinutos === undefined) throw new Error('Indique cuántos minutos de almuerzo.');
     const r = clasificarDia(datos.marcas ?? [], tipoDia, p, datos.almuerzoMinutos, esperadoMinutos(fecha, horario, p), opcionesEmpleado(horario, p, fecha));
     if (r.estado !== EstadoDia.OK || r.marcas.length !== 2) {
       throw new Error('El almuerzo solo se ajusta en días con entrada y salida (sin marcas de almuerzo).');

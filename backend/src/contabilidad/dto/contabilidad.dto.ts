@@ -60,7 +60,7 @@ export class CrearAsientoManualDto {
 }
 
 export class ReversarAsientoDto {
-  @IsString() @MinLength(3, { message: 'Indicá el motivo.' }) @MaxLength(200) motivo: string;
+  @IsString() @MinLength(3, { message: 'Indique el motivo.' }) @MaxLength(200) motivo: string;
 }
 
 export class CerrarPeriodoDto {

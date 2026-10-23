@@ -32,7 +32,7 @@ export class ResolverDiaDto {
 
   // Siempre se pide la razón: queda en la bitácora de la decisión.
   @IsString()
-  @MinLength(3, { message: 'Anotá el motivo de la decisión.' })
+  @MinLength(3, { message: 'Anote el motivo de la decisión.' })
   @MaxLength(255)
   motivo: string;
 

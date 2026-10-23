@@ -186,7 +186,7 @@ export class CierreMensualService {
     const registro = await this.dataSource.getRepository(PeriodoCerrado).findOneBy({ periodo });
     if (!registro) throw new NotFoundException('Ese período no está cerrado.');
     if (await this.dataSource.query('SELECT 1 FROM cierres_fiscales WHERE anio = $1', [Number(periodo.slice(0, 4))]).then((r: unknown[]) => r.length > 0)) {
-      throw new BadRequestException(`El año fiscal ${periodo.slice(0, 4)} ya está cerrado: primero reabrí el cierre fiscal.`);
+      throw new BadRequestException(`El año fiscal ${periodo.slice(0, 4)} ya está cerrado: primero reabra el cierre fiscal.`);
     }
     await this.dataSource.transaction(async (manager) => {
       await manager.delete(PeriodoCerrado, { periodo });

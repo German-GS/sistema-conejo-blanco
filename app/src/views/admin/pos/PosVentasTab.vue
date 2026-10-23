@@ -1,4 +1,5 @@
 <script setup>
+import { confirmar } from '../../../lib/confirmar.js';
 import { computed, onMounted, ref, watch } from 'vue';
 import { api, ApiError } from '../../../lib/api.js';
 import { useAuthStore } from '../../../stores/auth.js';
@@ -95,7 +96,7 @@ async function exportarCsv() {
 
 const convirtiendo = ref(false);
 async function convertirEnPrueba() {
-  if (!window.confirm(`¿Convertir el tiquete ${detalle.value.numeroTexto} en venta de PRUEBA?\n\nSe BORRAN sus asientos contables (y las reversas) y deja de contar en reportes y caja. Solo para la etapa de pruebas.`)) return;
+  if (!await confirmar(`¿Convertir el tiquete ${detalle.value.numeroTexto} en venta de PRUEBA?\n\nSe BORRAN sus asientos contables (y las reversas) y deja de contar en reportes y caja. Solo para la etapa de pruebas.`, { palabra: 'CONVERTIR', aceptar: 'Sí, convertir y borrar asientos' })) return;
   convirtiendo.value = true;
   try {
     await api.post(`/pos/ventas/${detalle.value.id}/convertir-prueba`, {});
@@ -109,7 +110,7 @@ async function convertirEnPrueba() {
 }
 async function anular() {
   if (!motivo.value.trim()) return (error.value = 'Escriba el motivo de la anulación.');
-  if (!window.confirm(`¿Anular el tiquete ${detalle.value.numeroTexto}? Las existencias vuelven a la tienda y se reversa el asiento.`)) return;
+  if (!await confirmar(`¿Anular el tiquete ${detalle.value.numeroTexto}? Las existencias vuelven a la tienda y se reversa el asiento.`)) return;
   anulando.value = true;
   try {
     await api.post(`/pos/ventas/${detalle.value.id}/anular`, { motivo: motivo.value.trim() });

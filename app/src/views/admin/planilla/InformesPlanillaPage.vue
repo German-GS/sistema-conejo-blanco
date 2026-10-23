@@ -128,7 +128,7 @@ const valor = (col, v) => {
           {{ informe.descripcion }}
           <template v-if="!sinFechas"> Del {{ rango.desde }} al {{ rango.hasta }}.</template>
         </p>
-        <p v-if="!sinFechas && ['libro', 'cargas', 'renta', 'provisiones'].includes(tipo)" class="text-xs text-slate-400">
+        <p v-if="!sinFechas && ['libro', 'cargas', 'renta', 'provisiones'].includes(tipo)" class="text-xs text-slate-500">
           Incluye solo planillas aprobadas o pagadas cuyo período termina dentro del rango.
         </p>
       </div>

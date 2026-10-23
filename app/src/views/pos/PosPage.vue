@@ -1,4 +1,5 @@
 <script setup>
+import { confirmar } from '../../lib/confirmar.js';
 import CampoClave from '../../components/CampoClave.vue';
 import CambiarVista from '../../layout/CambiarVista.vue';
 import CambiarTema from '../../layout/CambiarTema.vue';
@@ -244,8 +245,8 @@ function quitar(l) {
   carrito.value = carrito.value.filter((x) => x !== l);
   entrada.value?.focus();
 }
-function vaciar() {
-  if (carrito.value.length && window.confirm('¿Vaciar el tiquete?')) {
+async function vaciar() {
+  if (carrito.value.length && await confirmar('¿Vaciar el tiquete?')) {
     void registrarActividad('tiquete_vaciado', `Vació el tiquete sin cobrar: ${carrito.value.reduce((a, l) => a + l.cantidad, 0)} par(es), ${formatearColones(total.value)}`);
     carrito.value = [];
   }
@@ -401,7 +402,7 @@ const cierreHecho = ref(null);
 async function hacerCerrarCaja() {
   errorCaja.value = '';
   if (contado.value === '') return (errorCaja.value = 'Cuente el efectivo de la gaveta e indíquelo.');
-  if (carrito.value.length && !window.confirm('Hay un tiquete sin cobrar que se perderá. ¿Cerrar la caja de todos modos?')) return;
+  if (carrito.value.length && !await confirmar('Hay un tiquete sin cobrar que se perderá. ¿Cerrar la caja de todos modos?')) return;
   try {
     carrito.value = [];
     cierreHecho.value = await cerrarCaja(Number(contado.value), notasCaja.value);
@@ -454,7 +455,7 @@ async function elegir(t) {
 }
 async function cambiar() {
   try {
-    if (!window.confirm('¿Cambiar la tienda de esta terminal?')) return;
+    if (!await confirmar('¿Cambiar la tienda de esta terminal?')) return;
     await cambiarTienda();
     cargarTiendas();
   } catch (err) {
@@ -577,7 +578,7 @@ watch(
         </div>
 
         <div class="relative">
-          <ScanBarcode class="pointer-events-none absolute left-4 top-1/2 size-7 -translate-y-1/2 text-slate-400" />
+          <ScanBarcode class="pointer-events-none absolute left-4 top-1/2 size-7 -translate-y-1/2 text-slate-500" />
           <input ref="entrada" v-model="texto" type="text" autocomplete="off" :disabled="!pos.caja" :placeholder="pos.caja ? 'Escanee el producto o escriba su nombre aquí' : 'Primero abra la caja'" class="w-full rounded-2xl border-2 border-slate-300 bg-white py-4 pl-14 pr-4 text-xl outline-none focus:border-blue-500 disabled:bg-slate-100" @keydown.enter.prevent="alEnter" />
         </div>
         <p v-if="aviso" class="rounded-xl bg-amber-100 px-4 py-3 text-base font-semibold text-amber-900">{{ aviso }}</p>
@@ -643,14 +644,14 @@ watch(
               <button type="button" class="rounded-lg border-2 border-slate-300 p-2 hover:bg-slate-100" aria-label="Más" @click="cambiarCantidad(l, 1)"><Plus class="size-5" /></button>
             </div>
             <p class="w-24 text-right text-base font-extrabold">{{ formatearColones(l.precio * l.cantidad) }}</p>
-            <button type="button" class="p-1.5 text-slate-400 hover:text-red-600" aria-label="Quitar" @click="quitar(l)"><Trash2 class="size-5" /></button>
+            <button type="button" class="p-1.5 text-slate-500 hover:text-red-600" aria-label="Quitar" @click="quitar(l)"><Trash2 class="size-5" /></button>
           </li>
-          <li v-if="!carrito.length" class="px-4 py-10 text-center text-lg text-slate-400">Aquí aparecen los productos que escanee.</li>
+          <li v-if="!carrito.length" class="px-4 py-10 text-center text-lg text-slate-500">Aquí aparecen los productos que escanee.</li>
         </ul>
         <div class="border-t-2 border-slate-200 p-4">
           <p class="flex items-baseline justify-between"><span class="text-xl font-bold text-slate-600">TOTAL</span><span class="text-4xl font-extrabold text-slate-900">{{ formatearColones(total) }}</span></p>
           <button type="button" class="mt-3 w-full rounded-2xl py-5 text-2xl font-extrabold text-white shadow-sm transition disabled:cursor-not-allowed disabled:bg-slate-300" :class="pos.caja ? 'bg-green-600 hover:bg-green-700' : 'bg-blue-600 hover:bg-blue-700'" :disabled="!!pos.caja && !carrito.length" @click="abrirCobro">{{ !pos.caja ? 'ABRIR LA CAJA PRIMERO' : carrito.length ? `COBRAR ${formatearColones(total)}` : 'COBRAR' }}</button>
-          <p class="mt-1 text-center text-xs text-slate-400">Atajos: F2 buscar · F12 cobrar</p>
+          <p class="mt-1 text-center text-xs text-slate-500">Atajos: F2 buscar · F12 cobrar</p>
         </div>
       </aside>
     </main>
@@ -694,7 +695,7 @@ watch(
             <div class="flex items-center gap-2">
               <select v-model="p.medio" class="input !w-auto"><option v-for="m in MEDIOS" :key="m[0]" :value="m[0]">{{ m[1] }}</option></select>
               <input v-model="p.monto" type="number" min="0" step="0.01" class="input" aria-label="Monto" />
-              <button v-if="pagos.length > 1" type="button" class="p-1 text-slate-400 hover:text-red-600" aria-label="Quitar pago" @click="quitarPago(i)"><Trash2 class="size-5" /></button>
+              <button v-if="pagos.length > 1" type="button" class="p-1 text-slate-500 hover:text-red-600" aria-label="Quitar pago" @click="quitarPago(i)"><Trash2 class="size-5" /></button>
             </div>
             <input v-if="p.medio === 'efectivo'" v-model="p.recibido" type="number" min="0" step="1" placeholder="Efectivo que le dieron" class="input mt-2" aria-label="Efectivo recibido" />
             <input v-else v-model="p.referencia" type="text" maxlength="60" placeholder="Voucher o comprobante (opcional)" class="input mt-2" />

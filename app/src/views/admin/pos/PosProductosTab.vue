@@ -1,4 +1,6 @@
 <script setup>
+import { exito } from '../../../lib/avisos.js';
+import Cargando from '../../../components/Cargando.vue';
 import { computed, onMounted, ref, watch } from 'vue';
 import { api, ApiError } from '../../../lib/api.js';
 import { formatearColones } from '../../../lib/format.js';
@@ -134,7 +136,7 @@ async function guardar() {
       for (const f of filas.value) f.orig.minimo = Number(f.minimo || 0);
       hechos += minimos.length;
     }
-    aviso.value = hechos ? 'Cambios guardados. La terminal los recibe al actualizar el catálogo (cada 10 minutos o al reconectarse).' : 'No había cambios.';
+    exito(hechos ? 'Cambios guardados. La caja los recibe al actualizar el catálogo (cada 10 minutos o al reconectarse).' : 'No había cambios que guardar.');
   } catch (err) {
     error.value = err instanceof Error ? err.message : 'No se pudo guardar.';
   } finally {
@@ -163,7 +165,7 @@ async function guardar() {
     </div>
     <p v-if="error" class="text-sm font-medium text-red-600">{{ error }}</p>
     <p v-if="aviso" class="text-sm text-green-600">{{ aviso }}</p>
-    <p v-if="cargando" class="text-sm text-slate-500">Cargando…</p>
+    <Cargando v-if="cargando" texto="Cargando…" compacto />
     <div class="overflow-x-auto">
       <table class="w-full min-w-[56rem] text-sm">
         <thead><tr class="border-b border-slate-200 text-left text-xs text-slate-500"><th class="py-1 pr-2">Producto</th><th class="py-1 pr-2">Color</th><th class="py-1 pr-2 text-right">Mayoreo</th><th class="py-1 pr-2">Precio tienda</th><th class="py-1 pr-2">Código de barras</th><th class="py-1 pr-2 text-right">Existencia</th><th class="py-1">Mínimo</th></tr></thead>

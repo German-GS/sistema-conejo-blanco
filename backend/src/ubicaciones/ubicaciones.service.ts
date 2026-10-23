@@ -52,7 +52,7 @@ export class UbicacionesService {
     });
     if (!bodega) {
       throw new BadRequestException(
-        'No hay ninguna bodega de distribución activa configurada — pedile a administración que la cree en Inventario.',
+        'No hay ninguna bodega de distribución activa configurada — pida a administración que la cree en Inventario.',
       );
     }
     return bodega;

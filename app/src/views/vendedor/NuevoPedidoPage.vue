@@ -1,4 +1,6 @@
 <script setup>
+import { usarBorrador } from '../../lib/borrador.js';
+import BorradorAviso from '../../components/BorradorAviso.vue';
 import { computed, onMounted, reactive, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { ArrowLeft, Search, Plus, Trash2, UserPlus, Check, TriangleAlert } from '@lucide/vue';
@@ -238,6 +240,18 @@ const puedeGuardar = computed(
     (tipoPago.value === 'contado' || (diasCredito.value && diasCredito.value >= 30)),
 );
 
+// Qué falta para poder guardar (se muestra sobre el botón, para que la persona nunca tenga que adivinar).
+const faltante = computed(() => {
+  const f = [];
+  if (!(clienteSeleccionado.value || clienteNuevoPendiente.value)) f.push('el cliente');
+  if (!metodoEntrega.value) f.push('la vía de entrega');
+  else if (metodoEntrega.value === 'encomienda' && !empresaEncomienda.value.trim()) f.push('la empresa de encomienda');
+  if (!lineas.value.length) f.push('al menos un producto');
+  else if (!lineasValidas.value || lineas.value.some((l) => !(Number(l.docenas) > 0))) f.push('corregir las líneas con error');
+  if (tipoPago.value === 'credito' && !(diasCredito.value && diasCredito.value >= 30)) f.push('los días de crédito (mínimo 30)');
+  return f.length ? `Falta: ${f.join(', ')}.` : '';
+});
+
 async function guardarPedido() {
   if (!puedeGuardar.value) return;
   error.value = '';
@@ -257,6 +271,7 @@ async function guardarPedido() {
         descuentoPorcentaje: Number(l.descuentoPorcentaje) || 0,
       })),
     });
+    borrador.limpiar();
     router.replace({ name: 'pedido-detalle', params: { id: pedido.id } });
   } catch (err) {
     error.value = err instanceof ApiError ? err.message : 'No se pudo guardar el pedido.';
@@ -264,6 +279,23 @@ async function guardarPedido() {
     guardando.value = false;
   }
 }
+
+// Borrador automático: si la sesión se cierra o se pierde la señal, al volver se puede recuperar el pedido a medias.
+const borrador = usarBorrador({
+  clave: 'pedido-nuevo',
+  obtener: () => JSON.parse(JSON.stringify({ cliente: clienteSeleccionado.value, clienteNuevo: clienteNuevoPendiente.value, fecha: fecha.value, tipoPago: tipoPago.value, diasCredito: diasCredito.value, metodoEntrega: metodoEntrega.value, empresaEncomienda: empresaEncomienda.value, lineas: lineas.value })),
+  aplicar: (d) => {
+    clienteSeleccionado.value = d.cliente ?? null;
+    clienteNuevoPendiente.value = d.clienteNuevo ?? null;
+    fecha.value = d.fecha ?? fecha.value;
+    tipoPago.value = d.tipoPago ?? 'contado';
+    diasCredito.value = d.diasCredito ?? 30;
+    metodoEntrega.value = d.metodoEntrega ?? '';
+    empresaEncomienda.value = d.empresaEncomienda ?? '';
+    lineas.value = d.lineas ?? [];
+  },
+  tieneDatos: (d) => Boolean(d.cliente || d.clienteNuevo) || (d.lineas?.length ?? 0) > 0,
+});
 </script>
 
 <template>
@@ -272,6 +304,8 @@ async function guardarPedido() {
       <ArrowLeft class="size-5" />
       Volver
     </button>
+
+    <BorradorAviso :borrador="borrador" />
 
     <h1 class="text-2xl font-bold text-slate-900">Nuevo pedido</h1>
 
@@ -307,11 +341,11 @@ async function guardarPedido() {
 
       <template v-else>
         <div class="relative mb-2">
-          <Search class="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-slate-400" />
+          <Search class="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-slate-500" />
           <input
             v-model="clienteTexto"
             type="text"
-            placeholder="Buscar por nombre, cédula, teléfono, correo…"
+            placeholder="Nombre, cédula o teléfono"
             class="input pl-12"
             @input="alEscribirCliente"
           />
@@ -434,11 +468,11 @@ async function guardarPedido() {
       <h2 class="mb-3 text-xl font-bold text-slate-900">3. Productos</h2>
 
       <div class="relative mb-2">
-        <Search class="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-slate-400" />
+        <Search class="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-slate-500" />
         <input
           v-model="productoTexto"
           type="text"
-          placeholder="Buscar por código (ej. KW 223) o nombre…"
+          placeholder="Código o nombre del producto"
           class="input pl-12"
           @input="alEscribirProducto"
         />
@@ -485,10 +519,10 @@ async function guardarPedido() {
       </div>
 
       <p v-if="topeDescuento > 0" class="mt-2 text-sm text-slate-500">
-        Podés descontar hasta {{ topeDescuento }}% en este pedido.
+        Puede descontar hasta {{ topeDescuento }}% en este pedido.
       </p>
 
-      <p v-if="lineas.length === 0" class="mt-2 text-base text-slate-500">Todavía no agregaste productos.</p>
+      <p v-if="lineas.length === 0" class="mt-2 text-base text-slate-500">Todavía no agregó productos.</p>
 
       <ul v-else class="mt-3 flex flex-col gap-2">
         <li v-for="(linea, index) in lineas" :key="index" class="flex flex-col gap-2 rounded-xl border border-slate-200 p-3">
@@ -553,6 +587,7 @@ async function guardarPedido() {
 
     <p v-if="error" class="text-lg font-medium text-red-600">{{ error }}</p>
 
+    <p v-if="faltante && !guardando" class="text-center text-base font-semibold text-amber-700">{{ faltante }}</p>
     <button type="button" class="btn-primary w-full min-h-16 text-xl" :disabled="!puedeGuardar || guardando" @click="guardarPedido">
       <Check class="size-6" />
       {{ guardando ? 'Guardando…' : 'Guardar pedido' }}

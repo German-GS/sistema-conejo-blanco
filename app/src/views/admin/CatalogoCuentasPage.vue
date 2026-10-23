@@ -1,4 +1,5 @@
 <script setup>
+import Cargando from '../../components/Cargando.vue';
 import { computed, onMounted, reactive, ref } from 'vue';
 import { BookOpen, Search } from '@lucide/vue';
 import { api, ApiError } from '../../lib/api.js';
@@ -154,20 +155,20 @@ async function alternar(c) {
 
     <div class="flex flex-wrap items-center gap-4">
       <div class="relative w-full max-w-sm">
-        <Search class="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+        <Search class="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-500" />
         <input v-model="busqueda" class="input pl-9" placeholder="Buscar por código, nombre o uso…" />
       </div>
       <label class="flex items-center gap-2 text-sm text-slate-600"><input v-model="verInactivas" type="checkbox" class="size-4" /> Ver inactivas</label>
     </div>
 
     <p v-if="error" class="text-sm font-medium text-red-600">{{ error }}</p>
-    <p v-if="cargando" class="text-sm text-slate-500">Cargando…</p>
+    <Cargando v-if="cargando" texto="Cargando…" compacto />
 
     <template v-else>
       <section v-for="g in GRUPOS" :key="g.tipo" class="card">
         <p class="text-base font-bold text-slate-900">{{ g.titulo }}</p>
         <p class="mb-2 text-xs text-slate-500">{{ g.ayuda }}</p>
-        <p v-if="visibles(g.tipo).length === 0" class="text-sm text-slate-400">Sin cuentas.</p>
+        <p v-if="visibles(g.tipo).length === 0" class="text-sm text-slate-500">Sin cuentas.</p>
         <ul class="divide-y divide-slate-100">
           <li v-for="c in visibles(g.tipo)" :key="c.id" class="flex flex-wrap items-center justify-between gap-2 py-2" :class="!c.activa && 'opacity-50'">
             <div class="min-w-0 flex-1">

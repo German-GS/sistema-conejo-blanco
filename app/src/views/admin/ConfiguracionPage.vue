@@ -1,4 +1,5 @@
 <script setup>
+import Cargando from '../../components/Cargando.vue';
 import { onMounted, ref } from 'vue';
 import { api, ApiError, API_URL, subirArchivo } from '../../lib/api.js';
 import FacturaEncabezado from '../../components/FacturaEncabezado.vue';
@@ -159,7 +160,7 @@ async function guardar() {
   <div class="flex flex-col gap-6">
     <h1 class="text-xl font-bold text-slate-900">Configuración</h1>
 
-    <p v-if="cargando" class="text-base text-slate-500">Cargando…</p>
+    <Cargando v-if="cargando" texto="Cargando…" />
 
     <div v-else class="card flex flex-col gap-3">
       <p class="text-base font-semibold text-slate-900">Descuentos</p>
@@ -199,7 +200,7 @@ async function guardar() {
       <div class="flex flex-wrap items-center gap-4">
         <div class="flex h-24 w-40 items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50">
           <img v-if="factura.logoUrl" :src="`${API_URL}${factura.logoUrl}`" alt="Logo" class="max-h-full max-w-full object-contain" />
-          <span v-else class="text-xs text-slate-400">Sin logo</span>
+          <span v-else class="text-xs text-slate-500">Sin logo</span>
         </div>
         <div class="flex flex-col gap-2">
           <label class="btn-secondary cursor-pointer">

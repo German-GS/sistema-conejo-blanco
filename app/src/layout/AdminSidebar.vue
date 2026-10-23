@@ -141,13 +141,13 @@ function alternar(etiqueta) {
         v-if="expandido"
         type="button"
         class="hidden rounded-lg p-1.5 hover:bg-slate-100 lg:block"
-        :class="menuFijado ? 'text-blue-600' : 'text-slate-400'"
+        :class="menuFijado ? 'text-blue-600' : 'text-slate-500'"
         :title="menuFijado ? 'Desfijar el menú' : 'Fijar el menú abierto'"
         @click="menuFijado = !menuFijado"
       >
         <component :is="menuFijado ? PinOff : Pin" class="size-4" />
       </button>
-      <button type="button" aria-label="Cerrar menú" class="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 lg:hidden" @click="emit('cerrar')">
+      <button type="button" aria-label="Cerrar menú" class="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 lg:hidden" @click="emit('cerrar')">
         <X class="size-5" />
       </button>
     </div>
@@ -170,7 +170,7 @@ function alternar(etiqueta) {
           <!-- Encabezado del grupo: se abre y se cierra. En la barra angosta es solo una línea separadora. -->
           <button
             type="button"
-            class="flex w-full items-center justify-between rounded-lg px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-slate-400 hover:text-slate-600"
+            class="flex w-full items-center justify-between rounded-lg px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500 hover:text-slate-600"
             :class="{ 'lg:hidden': !expandido }"
             @click="alternar(fila.etiqueta)"
           >
