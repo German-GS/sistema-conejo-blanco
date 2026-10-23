@@ -1,4 +1,5 @@
 <script setup>
+import ImagenConRespaldo from '../../components/ImagenConRespaldo.vue';
 import { confirmar } from '../../lib/confirmar.js';
 import Cargando from '../../components/Cargando.vue';
 import { computed, onMounted, reactive, ref } from 'vue';
@@ -235,7 +236,7 @@ async function subirFoto(producto, event) {
 }
 
 async function eliminarFoto(fotoId) {
-  if (!confirm('¿Eliminar esta foto?')) return;
+  if (!await confirmar('¿Eliminar esta foto? No se puede deshacer.')) return;
   errorFotos.value = '';
   try {
     await api.delete(`/catalogo/productos/fotos/${fotoId}`);
@@ -500,7 +501,7 @@ async function cargarEdiciones(productoId) {
             <button type="button" class="text-sm font-semibold text-teal-700 underline" @click="abrirFormVariante(producto)">
               + Agregar color
             </button>
-            <button v-if="auth.esAdministracion && (!producto.esPrueba || auth.esSistema)" type="button" class="flex items-center gap-1 text-sm font-semibold text-red-700 underline" @click="eliminarProducto(producto)">
+            <button v-if="auth.esAdministracion && (!producto.esPrueba || auth.esSistema)" type="button" class="ml-auto flex items-center gap-1 rounded-lg border border-red-300 px-2.5 py-1 text-sm font-semibold text-red-700 hover:bg-red-50" @click="eliminarProducto(producto)">
               <Trash2 class="size-4" />
               Eliminar
             </button>
@@ -511,7 +512,7 @@ async function cargarEdiciones(productoId) {
         <div v-if="fotosAbiertas === producto.id" class="mb-3 flex flex-col gap-3 rounded-xl border border-purple-200 bg-purple-50 p-4">
           <div v-if="producto.fotos?.length" class="flex flex-wrap gap-3">
             <div v-for="foto in producto.fotos" :key="foto.id" class="group relative">
-              <img :src="urlFoto(foto)" :alt="producto.nombre" class="size-24 rounded-lg border border-slate-200 bg-white object-cover" />
+              <ImagenConRespaldo :src="urlFoto(foto)" :alt="producto.nombre" texto="Foto no disponible" class="size-24 rounded-lg border border-slate-200 bg-white object-cover" />
               <button
                 type="button"
                 aria-label="Eliminar foto"

@@ -1,4 +1,5 @@
 <script setup>
+import { recordarFiltros } from '../../../lib/filtros.js';
 import { computed, onMounted, ref, watch } from 'vue';
 import { Download } from '@lucide/vue';
 import { api, ApiError } from '../../../lib/api.js';
@@ -73,6 +74,7 @@ async function cargar() {
     cargando.value = false;
   }
 }
+recordarFiltros('actividad-tienda', { desde, hasta, tienda, tipo, origen, texto });
 onMounted(cargar);
 watch([desde, hasta, tienda, tipo, origen], cargar);
 

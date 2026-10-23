@@ -1,4 +1,5 @@
 <script setup>
+import ImagenConRespaldo from '../../components/ImagenConRespaldo.vue';
 import { usarBorrador } from '../../lib/borrador.js';
 import BorradorAviso from '../../components/BorradorAviso.vue';
 import Cargando from '../../components/Cargando.vue';
@@ -296,7 +297,7 @@ const borrador = usarBorrador({
 
       <section class="card">
         <div class="flex flex-wrap items-center gap-6">
-          <img v-if="config.logoUrl" :src="`${API_URL}${config.logoUrl}`" alt="Logo" class="h-20 object-contain" />
+          <ImagenConRespaldo v-if="config.logoUrl" :src="`${API_URL}${config.logoUrl}`" alt="Logo" silencioso class="h-20 object-contain" />
           <div class="text-sm text-slate-700">
             <p class="text-base font-bold text-slate-900">{{ config.razonSocial || 'Razón social sin configurar' }}</p>
             <p v-if="config.cedulaJuridica">CJ: {{ config.cedulaJuridica }}</p>
@@ -409,11 +410,11 @@ const borrador = usarBorrador({
                   <input v-model="l.descripcion" class="input" placeholder="Descripción del producto o servicio" />
                   <p v-if="l.varianteId" class="mt-0.5 text-[11px] text-blue-700">Producto del catálogo · cantidad en pares</p>
                 </td>
-                <td class="px-1 py-1.5"><input v-model="l.cantidad" type="number" min="0.01" step="any" class="input" /></td>
-                <td class="px-1 py-1.5"><input v-model="l.precio" type="number" min="0" step="any" class="input" /></td>
-                <td class="px-1 py-1.5"><input v-model="l.descuento" type="number" min="0" max="100" step="any" class="input" /></td>
+                <td class="px-1 py-1.5"><input v-model="l.cantidad" type="number" min="0.01" step="any" class="input" aria-label="Cantidad" /></td>
+                <td class="px-1 py-1.5"><input v-model="l.precio" type="number" min="0" step="any" class="input" aria-label="Precio unitario" /></td>
+                <td class="px-1 py-1.5"><input v-model="l.descuento" type="number" min="0" max="100" step="any" class="input" aria-label="Descuento en porcentaje" /></td>
                 <td class="px-1 py-1.5">
-                  <select v-model="l.impuesto" class="input">
+                  <select v-model="l.impuesto" class="input" aria-label="Impuesto">
                     <option v-for="im in IMPUESTOS" :key="im.valor" :value="im.valor">{{ im.etiqueta }}</option>
                   </select>
                 </td>

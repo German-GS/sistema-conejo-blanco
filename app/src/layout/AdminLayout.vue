@@ -1,16 +1,22 @@
 <script setup>
-import { ref } from 'vue';
+import { onBeforeUnmount, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
-import { Menu, LogOut, KeyRound } from '@lucide/vue';
+import { Menu, LogOut, KeyRound, Search } from '@lucide/vue';
 import { useAuthStore } from '../stores/auth.js';
 import AdminSidebar from './AdminSidebar.vue';
 import CambiarVista from './CambiarVista.vue';
 import CambiarTema from './CambiarTema.vue';
+import Migas from '../components/Migas.vue';
+import { abrirPaleta } from '../lib/paleta.js';
+import { vigilarPendientes } from '../lib/pendientes.js';
 import { menuFijado } from '../lib/menuLateral.js';
 
 const auth = useAuthStore();
 const router = useRouter();
 const menuMovilAbierto = ref(false);
+let detenerPendientes = null;
+onMounted(() => (detenerPendientes = vigilarPendientes()));
+onBeforeUnmount(() => detenerPendientes?.());
 
 const ETIQUETAS_ROL = {
   sistema: 'Administrador del sistema',
@@ -44,7 +50,14 @@ function salir() {
           <Menu class="size-5" />
         </button>
 
+        <Migas class="hidden min-w-0 sm:flex" />
+
         <div class="ml-auto flex items-center gap-3">
+          <button type="button" class="flex items-center gap-2 rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm text-slate-500 hover:bg-slate-100 hover:text-slate-800" aria-label="Buscar una pantalla (Ctrl o Cmd + K)" title="Buscar una pantalla (Ctrl o Cmd + K)" @click="abrirPaleta">
+            <Search class="size-4" />
+            <span class="hidden xl:inline">Buscar</span>
+            <kbd class="hidden rounded border border-slate-300 px-1 text-xs font-semibold xl:inline">Ctrl K</kbd>
+          </button>
           <CambiarVista />
           <CambiarTema />
           <div class="text-right leading-tight">

@@ -1,4 +1,5 @@
 <script setup>
+import { recordarFiltros } from '../../../lib/filtros.js';
 import { confirmar } from '../../../lib/confirmar.js';
 import { computed, onMounted, ref, watch } from 'vue';
 import { api, ApiError } from '../../../lib/api.js';
@@ -44,6 +45,7 @@ async function cargar() {
     error.value = err instanceof ApiError ? err.message : 'No se pudieron leer las ventas.';
   }
 }
+recordarFiltros('ventas-tienda', { desde, hasta, tienda, pruebas });
 onMounted(cargar);
 watch([desde, hasta, tienda, pruebas], cargar);
 
@@ -155,6 +157,7 @@ async function anular() {
 
     <div class="card overflow-x-auto">
       <p class="mb-2 text-sm font-semibold text-slate-900">Tiquetes</p>
+      <div class="tabla-fija">
       <table class="w-full min-w-[40rem] text-sm">
         <thead><tr class="border-b border-slate-200 text-left text-xs text-slate-500"><th class="py-1 pr-2">Tiquete</th><th class="py-1 pr-2">Fecha</th><th class="py-1 pr-2">Cajero</th><th class="py-1 pr-2">Pago</th><th class="py-1 pr-2 text-right">Pares</th><th class="py-1 pr-2 text-right">Total</th><th class="py-1">Estado</th></tr></thead>
         <tbody>
@@ -166,6 +169,7 @@ async function anular() {
           <tr v-if="!ventas.length"><td colspan="7" class="py-3 text-slate-500">No hay tiquetes en este rango.</td></tr>
         </tbody>
       </table>
+      </div>
     </div>
 
     <div v-if="detalle" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-3" @click.self="detalle = null">

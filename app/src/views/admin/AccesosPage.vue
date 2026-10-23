@@ -229,7 +229,7 @@ const esFallo = (a) => ['login_fallido', 'login_bloqueado', 'cuenta_bloqueada', 
 <template>
   <div class="flex flex-col gap-5">
     <div class="flex flex-wrap items-center justify-between gap-2">
-      <div class="flex items-center gap-2"><ShieldCheck class="size-5 text-blue-600" /><h1 class="text-xl font-bold text-slate-900">Control de accesos</h1></div>
+      <div class="flex items-center gap-2"><ShieldCheck class="size-5 text-blue-600" /><h1 class="text-xl font-bold text-slate-900">Accesos y usuarios</h1></div>
       <button v-if="pestana === 'cuentas'" type="button" class="btn-primary min-h-11 px-4 text-base" @click="mostrarForm = !mostrarForm"><Plus class="size-5" /> Nuevo acceso</button>
     </div>
     <p class="text-sm text-slate-500">

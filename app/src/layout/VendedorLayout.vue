@@ -4,6 +4,8 @@ import { LogOut, KeyRound } from '@lucide/vue';
 import { useAuthStore } from '../stores/auth.js';
 import CambiarVista from './CambiarVista.vue';
 import CambiarTema from './CambiarTema.vue';
+import { onBeforeUnmount, ref } from 'vue';
+import { WifiOff } from '@lucide/vue';
 
 // A propósito NO tiene sidebar ni pestañas: el vendedor solo necesita
 // entrar y salir de "Nuevo pedido" / "Mis pedidos" rápido, sin tener que
@@ -11,6 +13,16 @@ import CambiarTema from './CambiarTema.vue';
 // alguien mayor usando el celular en la calle.
 const auth = useAuthStore();
 const router = useRouter();
+
+// El vendedor necesita internet para guardar pedidos: si se va la señal se le dice claro, en vez de dejar que los botones fallen.
+const sinInternet = ref(typeof navigator !== 'undefined' && !navigator.onLine);
+const marcar = () => (sinInternet.value = !navigator.onLine);
+window.addEventListener('online', marcar);
+window.addEventListener('offline', marcar);
+onBeforeUnmount(() => {
+  window.removeEventListener('online', marcar);
+  window.removeEventListener('offline', marcar);
+});
 
 function salir() {
   auth.logout();
@@ -40,6 +52,7 @@ function salir() {
       </div>
     </header>
 
+    <p v-if="sinInternet" class="flex items-center justify-center gap-2 bg-red-700 px-4 py-2 text-center text-base font-semibold text-white" role="status"><WifiOff class="size-5 shrink-0" aria-hidden="true" /> Sin conexión a internet. Lo que ya está en pantalla se puede ver, pero para guardar necesita señal.</p>
     <main class="mx-auto max-w-3xl px-4 py-6">
       <router-view />
     </main>

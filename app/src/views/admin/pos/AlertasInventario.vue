@@ -31,7 +31,7 @@ defineExpose({ cargar });
   <div>
     <p v-if="error" class="text-sm font-medium text-red-600">{{ error }}</p>
     <p v-else-if="cargado && !alertas.length" class="text-sm text-green-600">Todo en orden: ninguna existencia está en su mínimo.</p>
-    <div v-else-if="alertas.length" class="overflow-x-auto">
+    <div v-else-if="alertas.length" class="tabla-fija">
       <table class="w-full min-w-[28rem] text-sm">
         <thead><tr class="border-b border-slate-200 text-left text-xs text-slate-500"><th class="py-1 pr-2">Producto</th><th class="py-1 pr-2">Ubicación</th><th class="py-1 pr-2 text-right">Existencia</th><th class="py-1 pr-2 text-right">Mínimo</th><th class="py-1">Estado</th></tr></thead>
         <tbody>

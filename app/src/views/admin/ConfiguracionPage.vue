@@ -1,4 +1,5 @@
 <script setup>
+import ImagenConRespaldo from '../../components/ImagenConRespaldo.vue';
 import Cargando from '../../components/Cargando.vue';
 import { onMounted, ref } from 'vue';
 import { api, ApiError, API_URL, subirArchivo } from '../../lib/api.js';
@@ -199,7 +200,7 @@ async function guardar() {
 
       <div class="flex flex-wrap items-center gap-4">
         <div class="flex h-24 w-40 items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50">
-          <img v-if="factura.logoUrl" :src="`${API_URL}${factura.logoUrl}`" alt="Logo" class="max-h-full max-w-full object-contain" />
+          <ImagenConRespaldo v-if="factura.logoUrl" :src="`${API_URL}${factura.logoUrl}`" alt="Logo" texto="El logo guardado ya no está disponible: suba uno nuevo" class="max-h-full max-w-full object-contain" />
           <span v-else class="text-xs text-slate-500">Sin logo</span>
         </div>
         <div class="flex flex-col gap-2">

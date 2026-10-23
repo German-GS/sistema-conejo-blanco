@@ -27,7 +27,7 @@ onMounted(verificar);
   <div class="flex flex-col gap-4">
     <div class="flex items-center justify-between gap-3">
       <div>
-        <h1 class="text-xl font-bold text-slate-900">Verificación de cálculos</h1>
+        <h1 class="text-xl font-bold text-slate-900">Verificar cuadres</h1>
         <p class="text-sm text-slate-500">
           Revisa que los datos guardados cumplan siempre las reglas: asientos cuadrados, totales de pedidos y facturas,
           saldos por cobrar, inventario y planilla. Solo lee, no modifica nada.

@@ -3,6 +3,7 @@ import { ref, watch } from 'vue';
 import { useAuthStore } from '../../stores/auth.js';
 import ResumenEmpresa from './ResumenEmpresa.vue';
 import InicioSistema from './InicioSistema.vue';
+import BandejaPendientes from '../../components/BandejaPendientes.vue';
 
 // El inicio de cualquier cuenta es el resumen de la empresa. El administrador del sistema ve primero
 // las métricas del servidor y, en otra pestaña, la salud de la empresa (el mismo resumen).
@@ -12,8 +13,12 @@ watch(pestana, (p) => sessionStorage.setItem('cb-inicio-pestana', p));
 </script>
 
 <template>
-  <ResumenEmpresa v-if="!auth.esSistema" />
+  <div v-if="!auth.esSistema" class="flex flex-col gap-5">
+    <BandejaPendientes />
+    <ResumenEmpresa />
+  </div>
   <div v-else class="flex flex-col gap-5">
+    <BandejaPendientes />
     <div class="flex gap-2">
       <button
         v-for="p in [['sistema', 'Sistema'], ['empresa', 'Salud de la empresa']]"

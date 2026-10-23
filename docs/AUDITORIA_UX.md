@@ -66,9 +66,9 @@ Prioridad: **A** = hacer pronto (alto impacto), **M** = siguiente ola, **B** = p
 - 790 KB (227 KB comprimido) en un único archivo; **ninguna ruta se carga bajo demanda**. El vendedor, que solo usa 3 pantallas y trabaja con datos móviles, descarga también contabilidad, planilla, análisis, etc.
 - Recomendación: carga por ruta (`() => import(...)`) y separar por zonas (vendedor / panel / caja). Se espera bajar más de la mitad el arranque del vendedor. Es un cambio mecánico en el router.
 
-### A6 · Archivos subidos que pueden perderse — Impacto medio-alto · Esfuerzo M · **Verificar en producción**
-- En la factura nueva el logo aparece como imagen rota con el texto «Logo» en desarrollo. En producción las fotos de producto y el logo se guardan en disco de Cloud Run, que se **borra con cada despliegue** (ya anotado como pendiente en la guía de despliegue).
-- Recomendación: moverlos a almacenamiento persistente (Cloud Storage). Hasta entonces, mostrar un marcador elegante (iniciales o ícono) en vez de la imagen rota.
+### A6 · Imágenes subidas que no cargan — Impacto medio · Esfuerzo S · **Resuelto**
+- En desarrollo, el logo de la factura aparecía como imagen rota («Logo») porque la carpeta de archivos local está vacía. En **producción** los archivos ya se guardan de forma permanente: `uploads/` es un bucket de Cloud Storage montado en el servicio (`conejo-blanco-app-uploads`), así que no se pierden con los despliegues. *(El informe original suponía lo contrario por una nota desactualizada de la guía de despliegue; se verificó en el servicio.)*
+- Aun así una imagen puede fallar (archivo borrado, sin internet): ahora se muestra un marcador claro en lugar de la imagen rota.
 
 ### M1 · Navegación del panel — Impacto medio · Esfuerzo M
 - Barra lateral **de solo íconos** (≈20) que se expande al pasar el mouse: en pantallas táctiles o con el mouse en otro lado no se sabe qué es cada ícono. Dos ítems comparten el mismo ícono (Reportes de contabilidad e Informes de planilla).
@@ -126,6 +126,27 @@ Prioridad: **A** = hacer pronto (alto impacto), **M** = siguiente ola, **B** = p
 
 Pendiente de esta ola: mover «Eliminar» y «Anular» a una zona separada en las listas (se protegieron con la confirmación, pero siguen junto a las acciones frecuentes) y la opción «Deshacer» en acciones reversibles (requiere soporte en el servidor).
 
+## 5c. Estado de la ola 3 (estructura, aplicada en el código; versión 1.12.0)
+
+- **Etiquetas unidas a sus campos en todo el sistema:** una ayuda global une cada etiqueta con su campo y da nombre accesible a los campos que solo tenían texto de ayuda. En Factura nueva los controles sin nombre pasaron de 14 a 0 (se nombraron además las columnas de las líneas), y en Configuración, Sistema, Planillas y Pagos de 2–5 a 0. Los formularios nuevos usan el componente `Campo` (etiqueta, ayuda y error enlazados).
+- **Búsqueda rápida (Ctrl/Cmd + K, o el botón de la lupa):** escribir «planilla», «iva», «reloj»… lleva a la pantalla; muestra solo lo que el perfil puede ver, acciones como «Nueva factura» y recuerda las últimas elegidas. Funciona con teclado (flechas, Enter, Esc).
+- **Menú:** abierto por defecto desde 1280 px (con nombres), nombres más claros («Panel de tiendas», «Estado del sistema», «Verificar cuadres», «Accesos y usuarios», «Análisis de datos»), un ícono propio para Informes de planilla, la sección se resalta también en las pantallas de detalle, y **migas de pan** («Ingresos › Facturas › Nuevo») en el encabezado.
+- **«Para hacer hoy» en el inicio:** lista ordenada por urgencia de lo que necesita acción según el perfil (pedidos de tiendas por revisar o enviar, facturas vencidas o por vencer, planillas en borrador o sin pagar, inventario bajo, envíos de la caja rechazados, meses sin cerrar, pedidos sin facturar), con un clic a la pantalla correcta y contadores rojos en el menú. Se actualiza cada 2 minutos.
+- **Listas y filtros:** los filtros de Pedidos, Facturas, Pagos, Ventas de tienda y Actividad de tienda se recuerdan al abrir un detalle y volver (mientras la pestaña siga abierta); las listas largas muestran 50 y un botón «Mostrar más».
+
+Pendiente de esta ola: encabezados fijos en tablas largas y vistas guardadas de filtros.
+
+## 5d. Estado de la ola 4 (base, aplicada en el código; versión 1.12.0)
+
+- **Guía de diseño:** documento `docs/GUIA_DE_DISENO.md` (principios, tono, color, tipografía, componentes, reglas por situación y lista de comprobación) y una **página viva** en el panel del administrador del sistema (Guía de diseño) que muestra cada pieza en ambos temas. Quedan formalizados `Campo`, `Cargando`, avisos, confirmaciones, borradores, vistas guardadas, «Mostrar más» e `ImagenConRespaldo`.
+- **Imágenes que fallan:** logo y fotos usan un marcador claro («Foto no disponible», «El logo guardado ya no está disponible: suba uno nuevo») en lugar de la imagen rota; en facturas el logo que falla simplemente no se muestra.
+- **Archivos subidos:** se verificó que en producción ya viven en un bucket de Cloud Storage montado en `uploads/` (no se pierden al desplegar); `docs/ALMACENAMIENTO_ARCHIVOS.md` documenta cómo está armado.
+- **Acciones destructivas apartadas:** «Eliminar» producto y «Anular» pedido quedan separados a la derecha, con borde rojo, y las dos últimas confirmaciones del navegador pasaron a la confirmación propia.
+- **Pendientes de la ola 3 cerrados:** encabezados fijos en las tablas largas (alertas, productos de tienda, ventas, cajas, informes de planilla) y **vistas guardadas** de filtros en Pedidos y Facturas.
+- **Medir con datos:** nueva pestaña **Estado del sistema → Uso del sistema**: pantallas más visitadas, uso por perfil, búsquedas rápidas sin resultado y llamadas que fallan (sin guardar nada de lo que la gente escribe; se borra a los 180 días).
+- **Pruebas con usuarios:** guía práctica con tareas por perfil, formato de observación y cuestionario SUS en `docs/PRUEBAS_CON_USUARIOS.md`.
+- **Detalles:** íconos de aplicación 192 y 512 px, la aplicación instalada abre en la raíz (no solo la caja) y el vendedor ve un aviso fijo cuando no hay internet.
+
 ## 6. Plan sugerido por olas
 
 | Ola | Contenido | Esfuerzo | Efecto esperado |
@@ -133,7 +154,7 @@ Pendiente de esta ola: mover «Eliminar» y «Anular» a una zona separada en la
 | **1 · Rápidas** | A2 lenguaje unificado a «usted»; A5 carga por ruta; M5 objetivos táctiles; subir contraste del texto secundario; placeholders; anillo de foco | 1–2 días | Mejor arranque, lectura más fácil, tono profesional. Sin riesgo funcional. |
 | **2 · Protección** | A1 aviso de inactividad y borradores; A3 confirmaciones propias y zona de acciones destructivas; M3 avisos globales y mensajes de botón deshabilitado | 3–4 días | Menos errores y menos trabajo perdido. |
 | **3 · Estructura** | A4 componente `Campo` accesible; M1 búsqueda global y menú más claro; M4 tablas y filtros; M2 bandeja de pendientes | 1–2 semanas | El sistema se siente más rápido de usar a medida que crece. |
-| **4 · Base** | M6 guía de diseño y componentes; A6 almacenamiento persistente; pruebas con usuarios | continuo | Consistencia a largo plazo. |
+| **4 · Base** | M6 guía de diseño y componentes; A6 imágenes que fallan (el almacenamiento ya era persistente); pruebas con usuarios | continuo | Consistencia a largo plazo. |
 
 ## 7. Cómo validarlo con usuarios (recomendado antes de la ola 3)
 

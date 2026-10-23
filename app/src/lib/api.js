@@ -1,4 +1,5 @@
 import { empezarEspera } from './red.js';
+import { claveDeLlamada, registrarUso } from './uso.js';
 export const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3101';
 const TOKEN_KEY = 'conejo-blanco-token';
 
@@ -34,6 +35,12 @@ function avisarSiSesionInvalida(res) {
 async function manejarRespuesta(res) {
   avisarSiSesionInvalida(res);
   if (!res.ok) {
+    try {
+      const ruta = new URL(res.url).pathname;
+      if (!ruta.startsWith('/uso') && !(res.status === 401 && ruta.endsWith('/auth/login'))) registrarUso('error_api', claveDeLlamada(res.__metodo ?? 'API', ruta, res.status));
+    } catch {
+      /* la estadística nunca debe estorbar */
+    }
     const data = await res.json().catch(() => null);
     if (res.status === 503 && data?.code === 'MANTENIMIENTO') window.dispatchEvent(new CustomEvent('mantenimiento', { detail: data.message }));
     const message = Array.isArray(data?.message)
@@ -77,6 +84,7 @@ async function solicitar(path, { method = 'GET', body } = {}) {
     throw new ApiError('No se pudo conectar con el servidor. Revise su conexión e intente de nuevo.', 0);
   }
 
+  res.__metodo = method;
   return manejarRespuesta(res);
 }
 

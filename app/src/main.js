@@ -3,6 +3,7 @@ import { createPinia } from 'pinia';
 import App from './App.vue';
 import { router } from './router/index.js';
 import './index.css';
+import { iniciarAccesibilidad } from './lib/accesibilidad.js';
 
 const app = createApp(App);
 
@@ -16,6 +17,7 @@ app.config.errorHandler = (err, instance, info) => {
 app.use(createPinia());
 app.use(router);
 app.mount('#app');
+iniciarAccesibilidad();
 
 // Punto de venta sin internet: el service worker guarda la aplicación en la computadora de la tienda.
 // Solo en la versión publicada (en desarrollo no se usa para no confundir los cambios).

@@ -58,6 +58,9 @@ import { ConfiguracionFactura } from './configuracion/configuracion-factura.enti
 import { PagosModule } from './pagos/pagos.module.js';
 import { PlanillaModule } from './planilla/planilla.module.js';
 import { PosModule } from './pos/pos.module.js';
+import { PendientesModule } from './pendientes/pendientes.module.js';
+import { UsoModule } from './uso/uso.module.js';
+import { UsoEvento } from './uso/uso-evento.entity.js';
 import { PosVenta } from './pos/pos-venta.entity.js';
 import { PosVentaLinea } from './pos/pos-venta-linea.entity.js';
 import { PosPago } from './pos/pos-pago.entity.js';
@@ -150,6 +153,7 @@ import { PlanillaLinea } from './planilla/planilla-linea.entity.js';
           PosCaja,
           PosTiendaPerfil,
           PosActividad,
+          UsoEvento,
           PosConfiguracion,
           OrdenTienda,
           OrdenTiendaLinea,
@@ -178,6 +182,8 @@ import { PlanillaLinea } from './planilla/planilla-linea.entity.js';
     PlanillaModule,
     PagosModule,
     PosModule,
+    PendientesModule,
+    UsoModule,
   ],
   controllers: [AppController],
   providers: [AppService, { provide: APP_GUARD, useClass: ThrottlerGuard }],

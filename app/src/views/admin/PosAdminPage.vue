@@ -41,7 +41,7 @@ onMounted(async () => {
 <template>
   <div class="flex flex-col gap-4">
     <div>
-      <h1 class="text-xl font-bold text-slate-900">Tienda (punto de venta)</h1>
+      <h1 class="text-xl font-bold text-slate-900">Panel de tiendas</h1>
       <p class="text-sm text-slate-500">Lo vendido en caja, los turnos, el inventario de cada tienda y sus alertas. La caja se abre desde «Abrir caja (POS)».</p>
     </div>
     <div class="flex flex-wrap gap-2">

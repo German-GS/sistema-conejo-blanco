@@ -122,10 +122,29 @@ async function exportarTodo() {
   }
 }
 
+// ---- Uso del sistema (pantallas visitadas, búsquedas sin resultado, llamadas con error) ----
+const uso = ref(null);
+const diasUso = ref(30);
+const cargandoUso = ref(false);
+const ROL = { sistema: 'Administrador del sistema', gerente_general: 'Gerente general', administracion: 'Administración', contador: 'Contador', asistente: 'Asistente', vendedor: 'Vendedor', encargado_tienda: 'Encargado de tienda' };
+async function cargarUso() {
+  cargandoUso.value = true;
+  try {
+    uso.value = await api.get(`/uso/resumen?dias=${diasUso.value}`);
+    error.value = '';
+  } catch (err) {
+    error.value = err instanceof ApiError ? err.message : 'No se pudo leer el uso del sistema.';
+  } finally {
+    cargandoUso.value = false;
+  }
+}
+const maxVisitas = computed(() => Math.max(1, ...(uso.value?.pantallas ?? []).map((p) => p.visitas)));
+
 function ver(p) {
   pestana.value = p;
   error.value = aviso.value = '';
   if (p === 'actividad') cargarActividad();
+  if (p === 'uso') cargarUso();
   if (p === 'seguridad' || p === 'modulos') cargarConfig();
 }
 onMounted(() => {
@@ -136,12 +155,12 @@ onMounted(() => {
 
 <template>
   <div class="flex flex-col gap-5">
-    <div class="flex items-center gap-2"><Server class="size-5 text-blue-600" /><h1 class="text-xl font-bold text-slate-900">Sistema</h1></div>
+    <div class="flex items-center gap-2"><Server class="size-5 text-blue-600" /><h1 class="text-xl font-bold text-slate-900">Estado del sistema</h1></div>
     <p class="text-sm text-slate-500">Panel del administrador del sistema. Nadie más ve esta sección ni lo que se registra en ella.</p>
 
     <div class="flex flex-wrap gap-2">
       <button
-        v-for="p in [['actividad', 'Actividad y registros'], ['seguridad', 'Seguridad'], ['modulos', 'Módulos y mantenimiento'], ['datos', 'Datos']]"
+        v-for="p in [['actividad', 'Actividad y registros'], ['uso', 'Uso del sistema'], ['seguridad', 'Seguridad'], ['modulos', 'Módulos y mantenimiento'], ['datos', 'Datos']]"
         :key="p[0]"
         type="button"
         class="rounded-lg border px-3 py-1.5 text-sm font-semibold"
@@ -227,6 +246,52 @@ onMounted(() => {
     </template>
 
     <!-- SEGURIDAD -->
+    <template v-if="pestana === 'uso'">
+      <div class="card flex flex-col gap-3">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <p class="text-base font-semibold text-slate-900">Uso del sistema</p>
+            <p class="text-sm text-slate-500">Qué pantallas se abren, qué búsquedas no encuentran nada y qué llamadas fallan. No se guarda nada de lo que la gente escribe. Sirve para decidir qué simplificar o mejorar.</p>
+          </div>
+          <label class="flex items-center gap-2 text-sm text-slate-600">Últimos
+            <select v-model.number="diasUso" class="input !w-auto" @change="cargarUso"><option :value="7">7 días</option><option :value="30">30 días</option><option :value="90">90 días</option></select>
+          </label>
+        </div>
+        <Cargando v-if="cargandoUso && !uso" compacto texto="Leyendo el uso…" />
+        <p v-else-if="uso && !uso.eventos" class="text-sm text-slate-500">Todavía no hay datos: empiezan a juntarse desde que la gente use la versión nueva.</p>
+      </div>
+      <template v-if="uso?.eventos">
+        <div class="card">
+          <p class="mb-2 text-sm font-semibold text-slate-900">Pantallas más visitadas <span class="font-normal text-slate-500">({{ uso.eventos }} eventos)</span></p>
+          <ul class="flex flex-col gap-1.5">
+            <li v-for="p in uso.pantallas" :key="p.clave" class="grid grid-cols-[minmax(0,14rem)_1fr_auto] items-center gap-3 text-sm">
+              <span class="truncate font-mono text-xs text-slate-700">{{ p.clave }}</span>
+              <span class="h-2 rounded-full bg-slate-100"><span class="block h-2 rounded-full bg-blue-600" :style="{ width: `${(p.visitas / maxVisitas) * 100}%` }" /></span>
+              <span class="tabular-nums text-slate-600">{{ p.visitas }} <span class="text-xs text-slate-500">· {{ p.personas }} pers.</span></span>
+            </li>
+          </ul>
+        </div>
+        <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <div class="card">
+            <p class="mb-2 text-sm font-semibold text-slate-900">Por perfil</p>
+            <ul class="divide-y divide-slate-100 text-sm"><li v-for="r in uso.porRol" :key="r.rol" class="flex justify-between py-1.5"><span>{{ ROL[r.rol] ?? r.rol }}</span><span class="tabular-nums text-slate-600">{{ r.eventos }} pantallas · {{ r.personas }} pers.</span></li></ul>
+          </div>
+          <div class="card">
+            <p class="mb-1 text-sm font-semibold text-slate-900">Búsquedas rápidas sin resultado</p>
+            <p class="mb-2 text-xs text-slate-500">Lo que la gente buscó en Ctrl/Cmd + K y no existe: candidatos a nombre o sinónimo en el menú.</p>
+            <p v-if="!uso.busquedas.length" class="text-sm text-slate-500">Ninguna por ahora.</p>
+            <ul v-else class="divide-y divide-slate-100 text-sm"><li v-for="b in uso.busquedas" :key="b.clave" class="flex justify-between py-1.5"><span>«{{ b.clave }}»</span><span class="tabular-nums text-slate-600">{{ b.veces }}</span></li></ul>
+          </div>
+        </div>
+        <div class="card">
+          <p class="mb-1 text-sm font-semibold text-slate-900">Llamadas que fallan</p>
+          <p class="mb-2 text-xs text-slate-500">Respuestas con error (400 datos inválidos, 403 sin permiso, 404, 500…) agrupadas por operación: ahí es donde la gente se tropieza o hay un error del sistema.</p>
+          <p v-if="!uso.errores.length" class="text-sm font-medium text-green-700">Ninguna en este período.</p>
+          <ul v-else class="divide-y divide-slate-100 text-sm"><li v-for="e in uso.errores" :key="e.clave" class="flex justify-between gap-3 py-1.5"><span class="truncate font-mono text-xs text-slate-700">{{ e.clave }}</span><span class="shrink-0 tabular-nums text-slate-600">{{ e.veces }} <span class="text-xs text-slate-500">· {{ e.personas }} pers.</span></span></li></ul>
+        </div>
+      </template>
+    </template>
+
     <template v-if="pestana === 'seguridad' && cfg">
       <div class="card flex flex-col gap-3">
         <p class="text-base font-semibold text-slate-900">Políticas de contraseñas y sesiones</p>

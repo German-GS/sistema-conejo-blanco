@@ -1,4 +1,5 @@
 <script setup>
+import ImagenConRespaldo from './ImagenConRespaldo.vue';
 import { computed } from 'vue';
 import { API_URL } from '../lib/api.js';
 
@@ -24,7 +25,7 @@ const terminal = computed(() => (props.consecutivo.length === 20 ? props.consecu
 <template>
   <div class="grid grid-cols-[1fr_2fr_1fr] items-center gap-4">
     <div class="flex justify-start">
-      <img v-if="logo" :src="logo" alt="Logo" class="max-h-28 max-w-full object-contain" />
+      <ImagenConRespaldo v-if="logo" :src="logo" alt="Logo" silencioso class="max-h-28 max-w-full object-contain" />
     </div>
     <div class="text-center">
       <p class="text-lg font-bold text-slate-900">{{ encabezado.razonSocial || 'Razón social' }}</p>

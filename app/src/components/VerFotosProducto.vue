@@ -1,4 +1,5 @@
 <script setup>
+import ImagenConRespaldo from './ImagenConRespaldo.vue';
 import { ref } from 'vue';
 import { Eye, X, ChevronLeft, ChevronRight } from '@lucide/vue';
 import { API_URL } from '../lib/api.js';
@@ -71,10 +72,11 @@ function urlFoto(foto) {
           >
             <ChevronLeft class="size-5" />
           </button>
-          <img
+          <ImagenConRespaldo
             :src="urlFoto(producto.fotos[indice])"
             :alt="`${producto.codigo} — ${producto.nombre}`"
-            class="max-h-[65vh] w-full rounded-xl bg-slate-100 object-contain"
+            texto="Esta foto ya no está disponible"
+            class="max-h-[65vh] min-h-40 w-full rounded-xl bg-slate-100 object-contain"
           />
           <button
             v-if="producto.fotos.length > 1"

@@ -7,6 +7,17 @@ Versionado `MAYOR.MENOR.PARCHE`:
 
 La versión se cambia en `app/package.json` y `backend/package.json` (el pie de página y el panel del sistema la leen solos).
 
+## 1.12.0 — 23 oct 2026 — Estructura de uso: pendientes, búsqueda rápida y guía de diseño (auditoría UX, olas 3 y 4)
+- **«Para hacer hoy»** en el inicio: lo que necesita acción según el perfil (pedidos de tiendas por revisar o enviar, facturas vencidas o por vencer, planillas en borrador o sin pagar, inventario bajo, envíos de la caja rechazados, meses sin cerrar, pedidos sin facturar), con un clic a la pantalla correcta y contadores en el menú.
+- **Búsqueda rápida** con Ctrl/Cmd + K (o la lupa del encabezado), **migas de pan**, menú abierto por defecto en pantallas grandes y nombres de sección más claros.
+- **Formularios accesibles:** todas las etiquetas quedan unidas a su campo; componente `Campo` para pantallas nuevas.
+- **Listas:** los filtros se recuerdan al abrir un detalle y volver, «Mostrar más» en listas largas, encabezados fijos en tablas largas y **vistas guardadas** de filtros en Pedidos y Facturas.
+- **Acciones destructivas apartadas** («Eliminar» producto, «Anular» pedido) y confirmaciones propias en todos los casos.
+- **Imágenes que no cargan** (logo, fotos) muestran un marcador claro en lugar de la imagen rota.
+- **Uso del sistema** (Estado del sistema → Uso del sistema, solo administrador del sistema): pantallas más visitadas, uso por perfil, búsquedas sin resultado y llamadas que fallan, sin guardar lo que la gente escribe.
+- **Guía de diseño** (página en el panel del administrador del sistema y `docs/GUIA_DE_DISENO.md`) y guía de pruebas con usuarios (`docs/PRUEBAS_CON_USUARIOS.md`).
+- La aplicación instalada abre en la raíz y trae íconos de 192 y 512 px; el vendedor ve un aviso fijo cuando no hay internet.
+
 ## 1.11.0 — 23 oct 2026 — Mejoras de usabilidad (auditoría UX, olas 1 y 2)
 Resultado de la auditoría de usabilidad (ver `docs/AUDITORIA_UX.md`).
 - **Indicador de carga con red de seguridad:** barra fina arriba y anillo giratorio en las listas; si algo tarda más de 8 segundos avisa «Está tardando más de lo normal…» con botón para reintentar o recargar. Una pestaña que quedó vieja tras una actualización se recarga sola.

@@ -166,7 +166,7 @@ async function guardar() {
     <p v-if="error" class="text-sm font-medium text-red-600">{{ error }}</p>
     <p v-if="aviso" class="text-sm text-green-600">{{ aviso }}</p>
     <Cargando v-if="cargando" texto="Cargando…" compacto />
-    <div class="overflow-x-auto">
+    <div class="tabla-fija">
       <table class="w-full min-w-[56rem] text-sm">
         <thead><tr class="border-b border-slate-200 text-left text-xs text-slate-500"><th class="py-1 pr-2">Producto</th><th class="py-1 pr-2">Color</th><th class="py-1 pr-2 text-right">Mayoreo</th><th class="py-1 pr-2">Precio tienda</th><th class="py-1 pr-2">Código de barras</th><th class="py-1 pr-2 text-right">Existencia</th><th class="py-1">Mínimo</th></tr></thead>
         <tbody>

@@ -1,4 +1,8 @@
 <script setup>
+import VistasGuardadas from '../../components/VistasGuardadas.vue';
+import { confirmar } from '../../lib/confirmar.js';
+import { recordarFiltros, usarLimite } from '../../lib/filtros.js';
+import MostrarMas from '../../components/MostrarMas.vue';
 import Cargando from '../../components/Cargando.vue';
 import { onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
@@ -86,7 +90,7 @@ watch([filtroClienteId, filtroEstado, filtroProvincia, filtroDesde, filtroHasta]
 
 async function anular(pedido, event) {
   event.stopPropagation();
-  if (!confirm(`¿Anular la orden #${pedido.numeroOrden}? Esta acción no se puede deshacer.`)) return;
+  if (!await confirmar(`¿Anular la orden #${pedido.numeroOrden}? Esta acción no se puede deshacer.`, { aceptar: 'Sí, anular la orden' })) return;
   error.value = '';
   try {
     await api.patch(`/pedidos/${pedido.id}/anular`, {});
@@ -100,6 +104,11 @@ function irAHojaDeBodega(pedido, event) {
   event.stopPropagation();
   router.push({ name: 'pedido-alistamiento', params: { id: pedido.id } });
 }
+
+// Los filtros se recuerdan al entrar a un pedido y volver; la lista larga se muestra de a 50.
+recordarFiltros('pedidos', { cliente: filtroClienteId, estado: filtroEstado, provincia: filtroProvincia, desde: filtroDesde, hasta: filtroHasta });
+const { visibles: pedidosVisibles, restantes: pedidosRestantes, mostrarMas: mostrarMasPedidos, reiniciar: reiniciarPedidos, paso: pasoPedidos } = usarLimite(() => pedidos.value);
+watch([filtroClienteId, filtroEstado, filtroProvincia, filtroDesde, filtroHasta], reiniciarPedidos);
 </script>
 
 <template>
@@ -115,6 +124,11 @@ function irAHojaDeBodega(pedido, event) {
     <OrdenesTiendaTab v-if="pestana === 'tiendas'" :ubicaciones="tiendas" @cambio="cargarPendientesTiendas" />
 
     <template v-else>
+    <VistasGuardadas
+      clave="pedidos"
+      :actual="() => ({ cliente: filtroClienteId, estado: filtroEstado, provincia: filtroProvincia, desde: filtroDesde, hasta: filtroHasta })"
+      :aplicar="(v) => { filtroClienteId = v.cliente ?? ''; filtroEstado = v.estado ?? ''; filtroProvincia = v.provincia ?? ''; filtroDesde = v.desde ?? ''; filtroHasta = v.hasta ?? ''; }"
+    />
     <div class="card grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4">
       <div>
         <label class="label">Cliente</label>
@@ -151,7 +165,7 @@ function irAHojaDeBodega(pedido, event) {
     <p v-else-if="pedidos.length === 0" class="text-base text-slate-500">Ningún pedido coincide con estos filtros.</p>
 
     <ul v-else class="flex flex-col gap-3">
-      <li v-for="pedido in pedidos" :key="pedido.id">
+      <li v-for="pedido in pedidosVisibles" :key="pedido.id">
         <button
           type="button"
           class="card flex w-full items-center justify-between text-left"
@@ -199,7 +213,7 @@ function irAHojaDeBodega(pedido, event) {
             <button
               v-if="pedido.estado === 'activo' && !pedido.factura && puedeAnular"
               type="button"
-              class="text-sm font-semibold text-red-600 underline"
+              class="ml-2 rounded-lg border border-red-300 px-2.5 py-1 text-sm font-semibold text-red-700 hover:bg-red-50"
               @click="anular(pedido, $event)"
             >
               Anular
@@ -208,6 +222,7 @@ function irAHojaDeBodega(pedido, event) {
         </button>
       </li>
     </ul>
+    <MostrarMas :restantes="pedidosRestantes" :paso="pasoPedidos" @mas="mostrarMasPedidos" />
       </template>
   </div>
 </template>

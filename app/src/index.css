@@ -329,3 +329,16 @@ input[type='radio']:focus-visible {
     align-items: center;
   }
 }
+
+/* Tablas largas: el encabezado se queda fijo arriba mientras se desplaza la lista (la tabla desplaza dentro de su propio marco). */
+.tabla-fija {
+  max-height: 70vh;
+  overflow: auto;
+}
+.tabla-fija thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--color-white);
+  box-shadow: 0 1px 0 var(--color-slate-200);
+}

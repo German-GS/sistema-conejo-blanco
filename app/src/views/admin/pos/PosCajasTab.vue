@@ -46,6 +46,7 @@ watch([desde, hasta, tienda], cargar);
     <div class="card overflow-x-auto">
       <p class="mb-1 text-sm font-semibold text-slate-900">Turnos de caja</p>
       <p class="mb-2 text-xs text-slate-500">Esperado = fondo + efectivo cobrado en ventas vigentes. Una diferencia distinta de cero es un faltante (negativo) o sobrante.</p>
+      <div class="tabla-fija">
       <table class="w-full min-w-[44rem] text-sm">
         <thead><tr class="border-b border-slate-200 text-left text-xs text-slate-500"><th class="py-1 pr-2">Tienda</th><th class="py-1 pr-2">Cajero</th><th class="py-1 pr-2">Abrió</th><th class="py-1 pr-2">Cerró</th><th class="py-1 pr-2 text-right">Ventas</th><th class="py-1 pr-2 text-right">Esperado</th><th class="py-1 pr-2 text-right">Contado</th><th class="py-1 text-right">Diferencia</th></tr></thead>
         <tbody>
@@ -58,6 +59,7 @@ watch([desde, hasta, tienda], cargar);
           <tr v-if="!cajas.length"><td colspan="8" class="py-3 text-slate-500">No hay turnos en este rango.</td></tr>
         </tbody>
       </table>
+      </div>
     </div>
   </div>
 </template>

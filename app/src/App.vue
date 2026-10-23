@@ -9,6 +9,7 @@ import { red } from './lib/red.js';
 import AvisosGlobales from './components/AvisosGlobales.vue';
 import ConfirmarDialogo from './components/ConfirmarDialogo.vue';
 import AvisoInactividad from './components/AvisoInactividad.vue';
+import PaletaBusqueda from './components/PaletaBusqueda.vue';
 
 const auth = useAuthStore();
 const router = useRouter();
@@ -84,6 +85,7 @@ onBeforeUnmount(() => {
     <AppFooter />
   </div>
   <AvisosGlobales />
+  <PaletaBusqueda />
   <ConfirmarDialogo />
   <AvisoInactividad />
   <!-- Indicador de carga: barra fina arriba mientras algo espera respuesta y, si tarda, un aviso con salida. -->

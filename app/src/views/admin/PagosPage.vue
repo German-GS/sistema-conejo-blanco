@@ -1,6 +1,8 @@
 <script setup>
+import { recordarFiltros, usarLimite } from '../../lib/filtros.js';
+import MostrarMas from '../../components/MostrarMas.vue';
 import Cargando from '../../components/Cargando.vue';
-import { onMounted, reactive, ref } from 'vue';
+import { onMounted, reactive, ref, toRef, watch } from 'vue';
 import { HandCoins, Plus } from '@lucide/vue';
 import { api, ApiError } from '../../lib/api.js';
 import { formatearColones, formatearFecha } from '../../lib/format.js';
@@ -26,6 +28,11 @@ async function cargar() {
   }
 }
 onMounted(cargar);
+
+// Los filtros se recuerdan al abrir un pago y volver; la lista larga se muestra de a 50.
+recordarFiltros('pagos', { estado: toRef(filtro, 'estado'), desde: toRef(filtro, 'desde'), hasta: toRef(filtro, 'hasta') });
+const { visibles: pagosVisibles, restantes: pagosRestantes, mostrarMas: mostrarMasPagos, reiniciar: reiniciarPagos, paso: pasoPagos } = usarLimite(() => pagos.value);
+watch(filtro, reiniciarPagos);
 </script>
 
 <template>
@@ -57,7 +64,7 @@ onMounted(cargar);
       <p v-else-if="pagos.length === 0" class="text-sm text-slate-500">No hay pagos registrados con ese filtro.</p>
 
       <ul v-else class="flex flex-col gap-2">
-        <li v-for="p in pagos" :key="p.id" class="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 p-3">
+        <li v-for="p in pagosVisibles" :key="p.id" class="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 p-3">
           <div>
             <p class="text-base font-semibold text-slate-900">
               Recibo #{{ p.numero }} · {{ p.cliente?.nombre ?? p.concepto ?? 'Otros ingresos' }}
@@ -75,6 +82,7 @@ onMounted(cargar);
           </div>
         </li>
       </ul>
+      <MostrarMas :restantes="pagosRestantes" :paso="pasoPagos" @mas="mostrarMasPagos" />
     </div>
   </div>
 </template>

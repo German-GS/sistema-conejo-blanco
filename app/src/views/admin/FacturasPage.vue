@@ -1,4 +1,7 @@
 <script setup>
+import VistasGuardadas from '../../components/VistasGuardadas.vue';
+import { recordarFiltros, usarLimite } from '../../lib/filtros.js';
+import MostrarMas from '../../components/MostrarMas.vue';
 import Cargando from '../../components/Cargando.vue';
 import { computed, onMounted, ref, watch } from 'vue';
 import { FileText, Download, Plus, Undo2 } from '@lucide/vue';
@@ -131,6 +134,11 @@ async function confirmarAnular(factura) {
     anulando.value = false;
   }
 }
+
+// Los filtros se recuerdan al abrir una factura y volver; la lista larga se muestra de a 50.
+recordarFiltros('facturas', { cliente: filtroClienteId, provincia: filtroProvincia, vencimiento: filtroVencimiento });
+const { visibles: facturasVisibles, restantes: facturasRestantes, mostrarMas: mostrarMasFacturas, reiniciar: reiniciarFacturas, paso: pasoFacturas } = usarLimite(() => facturas.value);
+watch([filtroClienteId, filtroProvincia, filtroVencimiento], reiniciarFacturas);
 </script>
 
 <template>
@@ -164,6 +172,12 @@ async function confirmarAnular(factura) {
       </button>
     </div>
 
+    <VistasGuardadas
+      v-if="mostrarFiltrosPendientes"
+      clave="facturas"
+      :actual="() => ({ cliente: filtroClienteId, provincia: filtroProvincia, vencimiento: filtroVencimiento })"
+      :aplicar="(v) => { filtroClienteId = v.cliente ?? ''; filtroProvincia = v.provincia ?? ''; filtroVencimiento = v.vencimiento ?? ''; }"
+    />
     <div class="card flex flex-col gap-4">
       <div v-if="mostrarFiltrosPendientes" class="grid grid-cols-1 gap-2 sm:grid-cols-3">
         <div>
@@ -193,7 +207,7 @@ async function confirmarAnular(factura) {
       <p v-else-if="facturas.length === 0" class="text-sm text-slate-500">No hay facturas en esta categoría.</p>
 
       <ul v-else class="flex flex-col gap-2">
-        <li v-for="f in facturas" :key="f.id" class="rounded-xl border border-slate-200 p-3">
+        <li v-for="f in facturasVisibles" :key="f.id" class="rounded-xl border border-slate-200 p-3">
           <div class="flex items-center justify-between gap-3">
             <div>
               <p class="text-base font-semibold text-slate-900">
@@ -252,6 +266,7 @@ async function confirmarAnular(factura) {
           </div>
         </li>
       </ul>
+      <MostrarMas :restantes="facturasRestantes" :paso="pasoFacturas" @mas="mostrarMasFacturas" />
     </div>
   </div>
 </template>

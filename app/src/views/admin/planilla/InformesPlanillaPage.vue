@@ -134,7 +134,7 @@ const valor = (col, v) => {
       </div>
       <input v-if="informe.filas.length > 5" v-model="buscar" class="input max-w-sm print:hidden" placeholder="Filtrar (nombre, situación, motivo…)" />
       <p v-if="informe.filas.length === 0" class="text-sm text-slate-500">No hay datos para ese rango.</p>
-      <div v-else class="overflow-x-auto rounded-lg border border-slate-200">
+      <div v-else class="tabla-fija rounded-lg border border-slate-200">
         <table class="min-w-full text-sm">
           <thead class="bg-slate-50 text-left text-xs font-semibold text-slate-600">
             <tr>
