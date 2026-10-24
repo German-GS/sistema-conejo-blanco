@@ -1,6 +1,6 @@
 import { exentoDeReloj } from './exento-reloj.js';
 import { ESTADOS_VIGENTES } from './planilla.enums.js';
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException, type OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { existsSync } from 'node:fs';
 import type { HorarioSemanal } from './horario.js';
@@ -32,6 +32,9 @@ export interface FiltrosDias {
 
 // Carpeta de comprobantes de justificación (dentro de uploads, que en
 // producción es el bucket). No se sirve como archivo público: ver main.ts.
+// Las horas de tienda se digitan a mano: quien las registra las verifica.
+const SUPERVISOR_TIENDA = 'Registro de tienda';
+
 export const CARPETA_JUSTIFICANTES = './uploads/justificantes';
 
 // Al empleado se le aplica su horario por día; si no tiene uno propio ni un
@@ -61,11 +64,21 @@ function aCampos(r: ResultadoDia, tipoDia: TipoDia) {
     minutosFaltantes: r.minutosFaltantes,
     minutosDescontar: r.minutosDescontar,
     motivoRevision: r.motivoRevision,
+    verificado: r.verificado,
+    estimacion: r.estimacion,
+    supervisor: null as string | null,
   };
 }
 
 @Injectable()
-export class AsistenciaService {
+export class AsistenciaService implements OnModuleInit {
+  // Al arrancar se vuelven a leer los días que nadie resolvió, para que las
+  // reglas vigentes (tolerancia, almuerzo fijo, marcas estimadas) también
+  // alcancen lo importado antes. No toca días resueltos ni de planillas cerradas.
+  onModuleInit() {
+    void this.recalcularTodos().catch((err) => new Logger(AsistenciaService.name).warn(`No se pudo recalcular la asistencia: ${err instanceof Error ? err.message : err}`));
+  }
+
   constructor(
     @InjectRepository(DiaAsistencia)
     private readonly diaRepo: Repository<DiaAsistencia>,
@@ -395,7 +408,8 @@ export class AsistenciaService {
       }
       let resultado: ResultadoDia;
       try {
-        resultado = aplicarResolucion(tipo, { entrada: d.entrada, salida: d.salida, almuerzoMinutos: d.almuerzoMinutos ?? undefined }, d.fecha, tipoDia, empleadoEf, p);
+        // Quien digita las horas de tienda es quien las verifica.
+        resultado = aplicarResolucion(tipo, { entrada: d.entrada, salida: d.salida, almuerzoMinutos: d.almuerzoMinutos ?? undefined, supervisor: SUPERVISOR_TIENDA }, d.fecha, tipoDia, empleadoEf, p);
       } catch (err) {
         throw new BadRequestException(`${d.fecha}: ${err instanceof Error ? err.message : 'las horas no son válidas.'}`);
       }
@@ -414,6 +428,7 @@ export class AsistenciaService {
           resolucionTipo: x.tipo,
           resolucionMotivo: x.motivo,
           justificante: null,
+          supervisor: x.tipo === TipoResolucionDia.HORA_MANUAL ? SUPERVISOR_TIENDA : null,
         });
         const salvado = await manager.save(DiaAsistencia, dia);
         await manager.save(
@@ -423,6 +438,7 @@ export class AsistenciaService {
             tipo: x.tipo,
             motivo: x.motivo,
             usuarioId,
+            supervisor: x.tipo === TipoResolucionDia.HORA_MANUAL ? SUPERVISOR_TIENDA : null,
             detalle: { origen: 'horas_manuales', antes, datos: x.datos, despues: { minutosNetos: x.resultado.minutosNetos, minutosExtra: x.resultado.minutosExtra, descuenta: x.resultado.descuenta } },
           }),
         );
@@ -455,6 +471,7 @@ export class AsistenciaService {
         dto.tipo,
         {
           ...dto,
+          supervisor: dto.supervisor?.trim() || undefined,
           marcas: dia.marcas,
           almuerzoMinutos:
             dto.tipo === TipoResolucionDia.ALMUERZO_MANUAL
@@ -478,6 +495,10 @@ export class AsistenciaService {
       minutosDescontar: dia.minutosDescontar,
       resolucionTipo: dia.resolucionTipo,
       resolucionMotivo: dia.resolucionMotivo,
+      marcas: dia.marcas,
+      verificado: dia.verificado,
+      estimacion: dia.estimacion,
+      supervisor: dia.supervisor,
     };
 
     await this.dataSource.transaction(async (manager) => {
@@ -487,6 +508,7 @@ export class AsistenciaService {
         resolucionTipo: dto.tipo,
         resolucionMotivo: dto.motivo.trim(),
         justificante: dto.justificante ?? null,
+        supervisor: dto.supervisor?.trim() || null,
       });
       await manager.save(DiaAsistencia, dia);
       await manager.save(
@@ -496,10 +518,11 @@ export class AsistenciaService {
           tipo: dto.tipo,
           motivo: dto.motivo.trim(),
           usuarioId,
+          supervisor: dto.supervisor?.trim() || null,
           detalle: {
             antes,
-            datos: { entrada: dto.entrada, salida: dto.salida, almuerzoMinutos: dto.almuerzoMinutos, justificarHoras: dto.justificarHoras, justificante: dto.justificante },
-            despues: { minutosNetos: resultado.minutosNetos, minutosExtra: resultado.minutosExtra, descuenta: resultado.descuenta, minutosDescontar: resultado.minutosDescontar },
+            datos: { entrada: dto.entrada, salida: dto.salida, almuerzoMinutos: dto.almuerzoMinutos, justificarHoras: dto.justificarHoras, justificante: dto.justificante, supervisor: dto.supervisor?.trim() || undefined },
+            despues: { estado: resultado.estado, minutosNetos: resultado.minutosNetos, minutosExtra: resultado.minutosExtra, descuenta: resultado.descuenta, minutosDescontar: resultado.minutosDescontar, verificado: resultado.verificado },
           },
         }),
       );
@@ -565,13 +588,43 @@ export class AsistenciaService {
       const tipoDia = dia.tipoDia as TipoDia;
       const r = clasificarDia(dia.marcas, tipoDia, p, undefined, esperadoMinutos(dia.fecha, emp, p), opcionesEmpleado(emp, p, dia.fecha));
       const nuevo = aCampos(r, tipoDia);
-      const igual = (Object.keys(nuevo) as Array<keyof typeof nuevo>).every((k) => dia[k as keyof DiaAsistencia] === nuevo[k]);
+      const igual = (Object.keys(nuevo) as Array<keyof typeof nuevo>).every(
+        (k) => JSON.stringify(dia[k as keyof DiaAsistencia] ?? null) === JSON.stringify(nuevo[k] ?? null),
+      );
       if (igual) continue;
       Object.assign(dia, nuevo);
       await this.diaRepo.save(dia);
       cambiados++;
     }
     return cambiados;
+  }
+
+  // Bitácora de auditoría de correcciones: quién cambió qué día, cuándo, con
+  // qué motivo y qué había antes. Nunca se edita ni se borra.
+  async bitacora(f: { desde?: string; hasta?: string; empleadoId?: string }) {
+    const qb = this.resolucionRepo
+      .createQueryBuilder('r')
+      .innerJoinAndSelect('r.dia', 'dia')
+      .innerJoinAndSelect('dia.empleado', 'empleado')
+      .innerJoinAndSelect('r.usuario', 'usuario')
+      .orderBy('r.creadoEn', 'DESC')
+      .take(500);
+    if (f.desde) qb.andWhere('dia.fecha >= :desde', { desde: f.desde });
+    if (f.hasta) qb.andWhere('dia.fecha <= :hasta', { hasta: f.hasta });
+    if (f.empleadoId) qb.andWhere('dia.empleadoId = :empleadoId', { empleadoId: f.empleadoId });
+    const filas = await qb.getMany();
+    return filas.map((r) => ({
+      id: r.id,
+      creadoEn: r.creadoEn,
+      tipo: r.tipo,
+      motivo: r.motivo,
+      supervisor: r.supervisor,
+      usuario: { id: r.usuario.id, nombre: r.usuario.nombre },
+      empleado: { id: r.dia.empleado.id, nombre: r.dia.empleado.nombre },
+      fecha: r.dia.fecha,
+      marcas: r.dia.marcas,
+      detalle: r.detalle,
+    }));
   }
 
   listarResoluciones(diaId: string): Promise<ResolucionDia[]> {

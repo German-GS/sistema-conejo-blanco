@@ -24,6 +24,10 @@ export class ResolucionDia {
   @Column({ type: 'varchar', length: 255 })
   motivo: string;
 
+  // Supervisor que confirmó las horas, si lo hubo.
+  @Column({ type: 'varchar', length: 120, nullable: true })
+  supervisor: string | null;
+
   // Datos usados (ej. entrada/salida manual) y cómo estaba el día antes.
   @Column({ type: 'jsonb' })
   detalle: Record<string, unknown>;

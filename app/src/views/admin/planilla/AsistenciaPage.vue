@@ -10,9 +10,9 @@ import { formatearFecha, formatearFechaHora } from '../../../lib/format.js';
 const DIAS = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
 const ESTADOS = {
   ok: { texto: 'Correcto', clase: 'bg-green-100 text-green-700' },
-  ok_faltante: { texto: 'Horas faltantes', clase: 'bg-orange-100 text-orange-800' },
+  ok_faltante: { texto: 'Horas no trabajadas', clase: 'bg-orange-100 text-orange-800' },
   ausencia: { texto: 'Ausencia', clase: 'bg-red-100 text-red-700' },
-  marca_faltante: { texto: 'Marca faltante', clase: 'bg-amber-100 text-amber-800' },
+  marca_faltante: { texto: 'Marca faltante (estimado)', clase: 'bg-amber-100 text-amber-800' },
   marcas_ambiguas: { texto: 'Marcas ambiguas', clase: 'bg-amber-100 text-amber-800' },
   feriado: { texto: 'Feriado', clase: 'bg-blue-100 text-blue-700' },
 };
@@ -215,20 +215,24 @@ async function guardarRevision() {
 }
 
 const abierto = ref(null);
-const decision = reactive({ tipo: 'horario_estandar', justificarHoras: false, archivo: null, motivo: '', entrada: '', salida: '', almuerzoMinutos: 60 });
+const decision = reactive({ tipo: 'horario_estandar', justificarHoras: false, archivo: null, motivo: '', entrada: '', salida: '', almuerzoMinutos: 60, supervisor: '' });
 const historial = ref([]);
 
 async function abrir(d) {
   abierto.value = d.id;
   error.value = '';
+  // Con una marca estimada se propone «hora manual» con la marca real y la hora del horario.
+  const est = d.estimacion;
+  const real = d.marcas ?? [];
   Object.assign(decision, {
-    tipo: d.estado === 'ausencia' ? 'ausencia_justificada' : sePuedeAjustarAlmuerzo(d) ? 'almuerzo_manual' : tieneFaltante(d) ? 'horas_justificadas' : 'horario_estandar',
+    tipo: d.estado === 'ausencia' ? 'ausencia_justificada' : est ? 'hora_manual' : sePuedeAjustarAlmuerzo(d) ? 'almuerzo_manual' : tieneFaltante(d) ? 'horas_justificadas' : 'horario_estandar',
     justificarHoras: false,
     archivo: null,
     motivo: '',
-    entrada: '',
-    salida: '',
+    entrada: est ? (est.faltante === 'entrada' ? est.hora : (real[0] ?? '')) : '',
+    salida: est ? (est.faltante === 'salida' ? est.hora : (real[real.length - 1] ?? '')) : '',
     almuerzoMinutos: sePuedeAjustarAlmuerzo(d) ? 30 : 60,
+    supervisor: '',
   });
   historial.value = await api.get(`/planilla/asistencia/dias/${d.id}/resoluciones`);
 }
@@ -240,6 +244,9 @@ async function resolver(d) {
     if (decision.archivo) cuerpo.justificante = await subirComprobante(decision.archivo);
     if (decision.tipo === 'almuerzo_manual') {
       cuerpo.almuerzoMinutos = Number(decision.almuerzoMinutos);
+    }
+    if (decision.tipo === 'hora_manual' || decision.tipo === 'horario_estandar') {
+      if (decision.supervisor.trim()) cuerpo.supervisor = decision.supervisor.trim();
     }
     if (decision.tipo === 'hora_manual') {
       cuerpo.entrada = decision.entrada;
@@ -289,9 +296,9 @@ const grupos = computed(() => {
 });
 
 // Resolver de una vez todos los días pendientes de un empleado.
-const masivo = reactive({ abierto: null, tipo: 'ausencia_justificada', motivo: '', archivo: null, trabajando: false });
+const masivo = reactive({ abierto: null, tipo: 'ausencia_justificada', motivo: '', archivo: null, trabajando: false, supervisor: '' });
 function abrirMasivo(g) {
-  Object.assign(masivo, { abierto: g.id, tipo: g.pendientes.every((d) => d.estado === 'ausencia') ? 'ausencia_justificada' : 'horario_estandar', motivo: '', archivo: null });
+  Object.assign(masivo, { abierto: g.id, tipo: g.pendientes.every((d) => d.estado === 'ausencia') ? 'ausencia_justificada' : 'horario_estandar', motivo: '', archivo: null, supervisor: '' });
 }
 async function resolverMasivo(g) {
   error.value = '';
@@ -302,7 +309,7 @@ async function resolverMasivo(g) {
     // El mismo comprobante (ej. una incapacidad) sirve para todos los días.
     const justificante = masivo.archivo ? await subirComprobante(masivo.archivo) : undefined;
     for (const d of g.pendientes) {
-      await api.post(`/planilla/asistencia/dias/${d.id}/resolver`, { tipo: masivo.tipo, motivo: masivo.motivo.trim(), justificante });
+      await api.post(`/planilla/asistencia/dias/${d.id}/resolver`, { tipo: masivo.tipo, motivo: masivo.motivo.trim(), justificante, supervisor: masivo.tipo === 'horario_estandar' && masivo.supervisor.trim() ? masivo.supervisor.trim() : undefined });
       hechos++;
     }
     exito(`${g.nombre}: ${hechos} día(s) resueltos.`);
@@ -314,6 +321,44 @@ async function resolverMasivo(g) {
     await cargarDias();
   }
 }
+// ---- 4. Bitácora de correcciones ----
+const bitacora = reactive({ abierta: false, cargando: false, filas: [], desde: '', hasta: '' });
+async function cargarBitacora() {
+  bitacora.cargando = true;
+  try {
+    const q = new URLSearchParams();
+    if (bitacora.desde) q.set('desde', bitacora.desde);
+    if (bitacora.hasta) q.set('hasta', bitacora.hasta);
+    bitacora.filas = await api.get(`/planilla/asistencia/bitacora?${q}`);
+  } catch (err) {
+    error.value = err instanceof ApiError ? err.message : 'No se pudo cargar la bitácora.';
+  } finally {
+    bitacora.cargando = false;
+  }
+}
+function alternarBitacora() {
+  bitacora.abierta = !bitacora.abierta;
+  if (bitacora.abierta) {
+    bitacora.desde ||= filtro.desde;
+    bitacora.hasta ||= filtro.hasta;
+    cargarBitacora();
+  }
+}
+const resumenAntes = (f) => {
+  const a = f.detalle?.antes;
+  if (!a) return 'Sin registro previo';
+  const marcas = a.marcas ?? f.marcas;
+  return `${marcas?.length ? marcas.join(' · ') : 'sin marcas'} → ${a.estado ?? ''}${a.estimacion ? ` (estimado ${a.estimacion.hora})` : ''}`;
+};
+const resumenDespues = (f) => {
+  const d = f.detalle?.despues;
+  if (!d) return '';
+  const partes = [`${hhmm(d.minutosNetos ?? 0)} h`];
+  if (d.minutosDescontar) partes.push(`rebajo ${hhmm(d.minutosDescontar)} h`);
+  if (d.descuenta) partes.push('día descontado');
+  if (d.verificado === false) partes.push('sin verificar');
+  return partes.join(' · ');
+};
 const nombreDia = (f) => DIAS[new Date(`${f}T12:00:00`).getDay()];
 const hhmm = (min) => `${Math.floor(min / 60)}:${String(min % 60).padStart(2, '0')}`;
 </script>
@@ -523,6 +568,11 @@ const hhmm = (min) => `${Math.floor(min / 60)}:${String(min % 60).padStart(2, '0
             </label>
           </div>
           <div><label class="label">Motivo *</label><input v-model="masivo.motivo" class="input" placeholder="Ej. vacaciones, incapacidad con comprobante…" /></div>
+          <div v-if="masivo.tipo === 'horario_estandar'">
+            <label class="label">Supervisor que confirma (opcional)</label>
+            <input v-model="masivo.supervisor" class="input" placeholder="Nombre de quien confirma que cumplió el horario" />
+            <p class="mt-1 text-xs text-slate-500">Se paga el horario completo en ambos casos. El supervisor solo deja constancia de que las horas son verificadas.</p>
+          </div>
           <div v-if="masivo.tipo === 'ausencia_justificada'">
             <label class="label">Comprobante (opcional): foto o PDF, se adjunta a todos los días</label>
             <input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" class="text-sm" @change="elegirComprobante($event, masivo)" />
@@ -543,9 +593,17 @@ const hhmm = (min) => `${Math.floor(min / 60)}:${String(min % 60).padStart(2, '0
               <p class="text-xs text-slate-500">
                 Marcas: {{ d.marcas.length ? d.marcas.join(' · ') : 'ninguna' }}
                 <template v-if="d.estado === 'ok'"> · trabajó {{ hhmm(d.minutosNetos) }}<template v-if="d.minutosExtra"> (+{{ hhmm(d.minutosExtra) }} extra)</template><template v-if="d.almuerzoEstimado"> · almuerzo estimado</template></template>
-                <template v-if="tieneFaltante(d)"> · <strong class="text-orange-800">faltaron {{ hhmm(d.minutosFaltantes) }} h<template v-if="d.minutosDescontar === 0"> ({{ d.resolucionTipo ? 'justificadas' : 'dentro de la tolerancia' }})</template><template v-else> (se descuentan)</template></strong></template>
+                <template v-if="tieneFaltante(d)"> · <strong class="text-orange-800">no trabajadas {{ hhmm(d.minutosFaltantes) }} h<template v-if="d.minutosDescontar === 0"> ({{ !d.verificado ? 'sin verificar' : d.resolucionTipo ? 'justificadas' : 'dentro de la tolerancia' }})</template><template v-else> (se descuentan)</template></strong></template>
               </p>
               <p v-if="d.motivoRevision" class="text-xs text-amber-800">{{ d.motivoRevision }}</p>
+              <p v-if="d.estimacion" class="text-xs text-amber-800">
+                Sin confirmar: se estimó {{ d.estimacion.faltante === 'entrada' ? 'la entrada' : 'la salida' }} a las {{ d.estimacion.hora }}
+                (≈ {{ hhmm(d.minutosNetos) }} h). No se rebaja ni se pagan extras hasta que se resuelva; es una marca faltante del reloj, no horas no trabajadas.
+              </p>
+              <p v-else-if="d.estado === 'ok' && !d.verificado && d.minutosFaltantes > 0" class="text-xs text-amber-800">
+                Horas sin verificar (no vienen del reloj): no se rebaja nada. Para rebajar, el supervisor debe confirmar las horas.
+              </p>
+              <p v-if="d.supervisor" class="text-xs text-teal-700">Confirmado por el supervisor: {{ d.supervisor }}</p>
               <p v-if="d.resolucionTipo" class="text-xs text-slate-600">
                 {{ RESOLUCIONES[d.resolucionTipo] }} — «{{ d.resolucionMotivo }}»
                 <button v-if="d.justificante" type="button" class="ml-1 font-semibold text-blue-700 underline" @click="verComprobante(d.justificante)">Ver comprobante</button>
@@ -585,6 +643,13 @@ const hhmm = (min) => `${Math.floor(min / 60)}:${String(min % 60).padStart(2, '0
                 <input v-model="decision.justificarHoras" type="checkbox" class="size-4" /> Si faltan horas para completar la jornada, no descontarlas (justificadas)
               </label>
             </div>
+            <div v-if="decision.tipo === 'hora_manual' || decision.tipo === 'horario_estandar'">
+              <label class="label">Supervisor que confirma las horas (opcional)</label>
+              <input v-model="decision.supervisor" class="input" placeholder="Nombre de quien vio al empleado trabajar esas horas" />
+              <p class="mt-1 text-xs text-slate-500">
+                Estas horas no vienen del reloj. Se pagan, pero solo se rebajan las horas faltantes si un supervisor las confirma; sin supervisor no se descuenta nada.
+              </p>
+            </div>
             <div>
               <label class="label">{{ decision.tipo === 'ausencia_justificada' ? 'Razón de la justificación *' : 'Motivo de la decisión *' }}</label>
               <input v-model="decision.motivo" class="input" :placeholder="decision.tipo === 'ausencia_justificada' ? 'Ej. cita médica con comprobante' : 'Ej. el reloj no tomó la salida'" />
@@ -596,7 +661,7 @@ const hhmm = (min) => `${Math.floor(min / 60)}:${String(min % 60).padStart(2, '0
             </div>
             <div v-if="historial.length" class="text-xs text-slate-500">
               Decisiones anteriores:
-              <span v-for="h in historial" :key="h.id" class="block">{{ formatearFechaHora(h.creadoEn) }} — {{ RESOLUCIONES[h.tipo] }}: «{{ h.motivo }}»</span>
+              <span v-for="h in historial" :key="h.id" class="block">{{ formatearFechaHora(h.creadoEn) }} — {{ RESOLUCIONES[h.tipo] }}: «{{ h.motivo }}»<template v-if="h.supervisor"> · supervisor: {{ h.supervisor }}</template></span>
             </div>
             <div class="flex gap-2">
               <button type="button" class="btn-secondary" @click="abierto = null">Cancelar</button>
@@ -629,6 +694,41 @@ const hhmm = (min) => `${Math.floor(min / 60)}:${String(min % 60).padStart(2, '0
         </p>
         <router-link v-if="!revision.resultado.sinResolver" :to="{ name: 'planilla-planillas' }" class="mt-1 inline-block font-semibold underline">Seguir a Planillas →</router-link>
       </div>
+    </div>
+
+    <div class="card flex flex-col gap-3">
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <p class="text-base font-semibold text-slate-900">4. Bitácora de correcciones</p>
+          <p class="text-sm text-slate-500">Quién cambió cada día, cuándo, por qué y cómo estaba antes. No se puede editar ni borrar.</p>
+        </div>
+        <button type="button" class="btn-secondary" @click="alternarBitacora">{{ bitacora.abierta ? 'Cerrar' : 'Ver bitácora' }}</button>
+      </div>
+      <template v-if="bitacora.abierta">
+        <div class="flex flex-wrap items-end gap-2">
+          <div><label class="label">Desde</label><input v-model="bitacora.desde" type="date" class="input" @change="cargarBitacora" /></div>
+          <div><label class="label">Hasta</label><input v-model="bitacora.hasta" type="date" class="input" @change="cargarBitacora" /></div>
+        </div>
+        <p v-if="bitacora.cargando" class="text-sm text-slate-500">Cargando…</p>
+        <p v-else-if="!bitacora.filas.length" class="text-sm text-slate-500">No hay correcciones en ese período.</p>
+        <div v-else class="overflow-x-auto rounded-lg border border-slate-200">
+          <table class="tabla-fija min-w-full text-sm">
+            <thead class="bg-slate-50 text-left text-xs font-semibold text-slate-600">
+              <tr><th class="px-3 py-2">Cuándo</th><th class="px-3">Empleado y día</th><th class="px-3">Antes</th><th class="px-3">Decisión</th><th class="px-3">Quedó</th><th class="px-3">Por</th></tr>
+            </thead>
+            <tbody>
+              <tr v-for="f in bitacora.filas" :key="f.id" class="border-t border-slate-100 align-top">
+                <td class="px-3 py-1.5 text-xs text-slate-500">{{ formatearFechaHora(f.creadoEn) }}</td>
+                <td class="px-3">{{ f.empleado.nombre }}<span class="block text-xs text-slate-500">{{ nombreDia(f.fecha) }} {{ formatearFecha(f.fecha) }}</span></td>
+                <td class="px-3 text-xs text-slate-600">{{ resumenAntes(f) }}</td>
+                <td class="px-3 text-xs">{{ RESOLUCIONES[f.tipo] }}<span class="block text-slate-500">«{{ f.motivo }}»</span><span v-if="f.supervisor" class="block text-teal-700">Supervisor: {{ f.supervisor }}</span></td>
+                <td class="px-3 text-xs text-slate-600">{{ resumenDespues(f) }}</td>
+                <td class="px-3 text-xs">{{ f.usuario.nombre }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </template>
     </div>
 
     <div v-if="importaciones.length" class="card">

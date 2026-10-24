@@ -47,7 +47,7 @@ import { RegistrarHorasManualesDto } from './dto/horas-manuales.dto.js';
 import { CrearEmpleadoDto, ActualizarEmpleadoDto, CesarEmpleadoDto, CrearDeudaDto } from './dto/empleado.dto.js';
 import { ActualizarParametroDto, CrearFeriadoDto, ResolverDiaDto, CrearPlanillaDto, AprobarPlanillaDto, PagarPlanillaDto, MotivoPlanillaDto } from './dto/otros.dto.js';
 import type { Mapeo } from './lector-excel.js';
-import type { EstadoDia } from './planilla.enums.js';
+import { TipoParametroPlanilla, type EstadoDia } from './planilla.enums.js';
 
 const TAMANO_MAXIMO_ARCHIVO = 10 * 1024 * 1024;
 
@@ -91,8 +91,11 @@ export class PlanillaController {
   }
 
   @Patch('parametros/:id')
-  actualizarParametro(@Param('id', ParseUUIDPipe) id: string, @Body() dto: ActualizarParametroDto, @CurrentUser() usuario: UsuarioAutenticado) {
-    return this.parametros.actualizar(id, dto.valor, usuario.rol === Rol.GERENTE_GENERAL || usuario.rol === Rol.SISTEMA);
+  async actualizarParametro(@Param('id', ParseUUIDPipe) id: string, @Body() dto: ActualizarParametroDto, @CurrentUser() usuario: UsuarioAutenticado) {
+    const parametro = await this.parametros.actualizar(id, dto.valor, usuario.rol === Rol.GERENTE_GENERAL || usuario.rol === Rol.SISTEMA);
+    // Las reglas de jornada cambian cómo se leen las marcas: los días que nadie resolvió se vuelven a calcular.
+    if (parametro.tipo === TipoParametroPlanilla.JORNADA) await this.asistencia.recalcularTodos();
+    return parametro;
   }
 
   @Get('feriados')
@@ -307,6 +310,14 @@ export class PlanillaController {
       throw new BadRequestException('Indique las fechas desde y hasta (YYYY-MM-DD).');
     }
     return this.asistencia.resumenPeriodo(desde, hasta);
+  }
+
+  @Get('asistencia/bitacora')
+  bitacora(@Query('desde') desde = '', @Query('hasta') hasta = '', @Query('empleadoId') empleadoId = '') {
+    const fecha = /^\d{4}-\d{2}-\d{2}$/;
+    if ((desde && !fecha.test(desde)) || (hasta && !fecha.test(hasta))) throw new BadRequestException('Las fechas deben ser YYYY-MM-DD.');
+    if (empleadoId && !/^[0-9a-f-]{36}$/i.test(empleadoId)) throw new BadRequestException('El empleado no es válido.');
+    return this.asistencia.bitacora({ desde: desde || undefined, hasta: hasta || undefined, empleadoId: empleadoId || undefined });
   }
 
   @Get('asistencia/dias/:id/resoluciones')

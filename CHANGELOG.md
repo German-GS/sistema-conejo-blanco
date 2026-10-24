@@ -7,6 +7,16 @@ Versionado `MAYOR.MENOR.PARCHE`:
 
 La versión se cambia en `app/package.json` y `backend/package.json` (el pie de página y el panel del sistema la leen solos).
 
+## 1.14.0 — 23 oct 2026 — Reglas de asistencia más justas: tolerancia, almuerzo fijo y marcas estimadas
+- **Tolerancia ±10 min en la entrada y en la salida** (parámetro `TOLERANCIA_MARCA_MINUTOS`): dentro de ella la marca cuenta como la hora del horario, sin tardanza ni extra; fuera, cuenta la hora real (08:57 con entrada a las 8 = 57 min).
+- **Almuerzo como bloque fijo** (`ALMUERZO_BLOQUE_FIJO`): siempre se descuenta el almuerzo del empleado y se ignoran las marcas del medio, así que 3 o 5 marcas ya no son «ambiguas».
+- **Marcas faltantes estimadas** (`MARCA_SOSPECHOSA_MINUTOS`): una marca sola, o una primera marca 2 h tarde (ej. 11:12 y 17:00), se estima con el horario y queda en «Resolver» con la hora propuesta. No se rebaja nada ni se pagan extras hasta que se confirme.
+- **Marca faltante ≠ horas no trabajadas:** la primera es un olvido del reloj (sin rebajo); la segunda es tiempo real faltante verificado (se rebaja). La pantalla las muestra con nombres distintos.
+- **Supervisor como verificación secundaria:** al pagar con hora manual u horario estándar se anota el supervisor que lo confirma. Sin supervisor las horas se pagan pero **no se rebaja** (`REBAJO_SOLO_VERIFICADO`); las horas de tienda digitadas cuentan como verificadas.
+- **Bitácora de correcciones** (Asistencia → sección 4): quién, cuándo, motivo, supervisor, cómo estaba antes y cómo quedó. No se edita ni se borra.
+- Al cambiar un parámetro de jornada, y al arrancar el servidor, se vuelven a leer los días sin resolver (no toca los resueltos ni los de planillas cerradas).
+- Las reglas deben revisarse con el reglamento interno y un abogado laboral antes de aplicarlas con plata real.
+
 ## 1.13.0 — 23 oct 2026 — Los puestos de confianza quedan fuera del control del reloj
 - Quien tenga **«Puesto de confianza»** (o no use el reloj) ya no aparece en Asistencia ni en sus resúmenes, se omite si sale en el archivo del reloj, no figura como «sin marcas» y sus días nunca bloquean la aprobación de una planilla. En la planilla se le paga siempre la jornada completa.
 - El formulario del empleado explica esta regla y desactiva la casilla del reloj cuando el puesto es de confianza.

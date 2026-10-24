@@ -60,6 +60,14 @@ export class ResolverDiaDto {
   @IsOptional()
   @IsBoolean()
   justificarHoras?: boolean;
+
+  // Supervisor que confirma las horas (hora manual u horario estándar). Sin
+  // él las horas no cuentan como verificadas y no se rebaja nada por ellas.
+  @IsOptional()
+  @IsString()
+  @MinLength(2, { message: 'Anote el nombre del supervisor.' })
+  @MaxLength(120)
+  supervisor?: string;
 }
 
 export class CrearPlanillaDto {

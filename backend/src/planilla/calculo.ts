@@ -45,6 +45,17 @@ export interface ResultadoDia {
   minutosFaltantes: number;
   minutosDescontar: number;
   motivoRevision: string | null;
+  // true = el tiempo sale de marcas reales del reloj (o de un supervisor que lo
+  // confirmó). false = hay horas estimadas: no se usan para rebajar salario.
+  verificado: boolean;
+  // Cuando falta una marca y el sistema propone la hora según el horario.
+  estimacion: Estimacion | null;
+}
+
+export interface Estimacion {
+  faltante: 'entrada' | 'salida';
+  hora: string; // HH:mm propuesta (la del horario)
+  causa: 'marca_unica' | 'marca_tardia' | 'salida_temprana';
 }
 
 function vacio(estado: EstadoDia, marcas: string[], motivo: string | null, descuenta = false): ResultadoDia {
@@ -61,6 +72,8 @@ function vacio(estado: EstadoDia, marcas: string[], motivo: string | null, descu
     minutosFaltantes: 0,
     minutosDescontar: 0,
     motivoRevision: motivo,
+    verificado: true,
+    estimacion: null,
   };
 }
 
@@ -85,6 +98,15 @@ export interface OpcionesDia {
   // Puesto de confianza: sin jornada fija. Las marcas son informativas: no hay
   // horas extra ni descuento por horas faltantes, y no se piden decisiones por marcas sueltas.
   sinJornada?: boolean;
+  // Entrada y salida programadas de ese día. Con esto se aplica la tolerancia
+  // por marca y se estima la marca que falte. Sin esto se lee como antes.
+  tramo?: { entrada: string; salida: string } | null;
+  // false = las horas no están verificadas (hora manual o horario estándar sin
+  // confirmación del supervisor): no se rebaja nada por horas faltantes.
+  verificado?: boolean;
+  // true = las horas las decidió una persona (hora manual / horario estándar):
+  // no se sospecha de marcas faltantes.
+  decidido?: boolean;
 }
 
 export interface DatosJornadaEmpleado {
@@ -122,7 +144,10 @@ function netosDelHorario(e: HorarioEmpleado, fecha: string, p: Parametros): numb
 export function opcionesEmpleado(e: DatosJornadaEmpleado & Partial<HorarioEmpleado>, p: Parametros, fecha?: string): OpcionesDia {
   const horas = e.horasSemana != null ? Number(e.horasSemana) : 0;
   const delHorario = fecha && e.horarioSemanal && e.horarioEntrada !== undefined ? netosDelHorario(e as HorarioEmpleado, fecha, p) : null;
+  const clave = fecha ? claveDeFecha(fecha) : null;
+  const tramo = clave && e.horarioSemanal ? (e.horarioSemanal[clave] ?? null) : null;
   return {
+    tramo,
     horasDiaMin: delHorario ?? (horas > 0 ? Math.round((horas / 6) * 60) : p.HORAS_DIA_ORDINARIA * 60),
     almuerzoMin: e.almuerzoMinutos ?? p.ALMUERZO_MINUTOS,
     marcaAlmuerzo: e.almuerzoMarca ?? true,
@@ -168,52 +193,126 @@ export function clasificarDia(
       minutosFaltantes: 0,
       minutosDescontar: 0,
       motivoRevision: null,
+      verificado: true,
+      estimacion: null,
     };
   }
+
+  const tramo = tipoDia === 'ordinario' ? (op.tramo ?? null) : null;
+  const tolMarca = p.TOLERANCIA_MARCA_MINUTOS ?? 10;
+  const fijo = (p.ALMUERZO_BLOQUE_FIJO ?? 1) === 1;
+  const sospecha = p.MARCA_SOSPECHOSA_MINUTOS ?? 120;
+
   if (m.length === 1) {
-    return vacio(
-      EstadoDia.MARCA_FALTANTE,
+    if (!tramo) {
+      return vacio(EstadoDia.MARCA_FALTANTE, marcas, `Una sola marca (${marcas[0]}): falta la entrada o la salida.`);
+    }
+    // Una marca sola: la mitad temprana de la jornada es entrada, la otra salida.
+    const mitad = (aMinutos(tramo.entrada) + aMinutos(tramo.salida)) / 2;
+    const esEntrada = m[0] < mitad;
+    return estimarDia(
+      esEntrada ? m[0] : null,
+      esEntrada ? null : m[0],
+      tramo,
       marcas,
-      `Una sola marca (${marcas[0]}): falta la entrada o la salida.`,
+      'marca_unica',
+      `Una sola marca (${marcas[0]}): se estimó la ${esEntrada ? 'salida' : 'entrada'} con el horario. Confirme la hora real.`,
+      p,
+      op,
+      tipoDia,
+      almuerzoManual,
     );
   }
 
-  let entrada = m[0];
-  let salida = m[m.length - 1];
-  let almuerzo = 0;
-  let estimado = false;
+  if (m.length === 2 && m[1] - m[0] < 30) {
+    return vacio(EstadoDia.MARCAS_AMBIGUAS, marcas, `Dos marcas casi seguidas (${marcas.join(' y ')}): parece una doble marca.`);
+  }
 
-  if (m.length === 2) {
-    if (salida - entrada < 30) {
-      return vacio(EstadoDia.MARCAS_AMBIGUAS, marcas, `Dos marcas casi seguidas (${marcas.join(' y ')}): parece una doble marca.`);
+  // Una primera marca muy tarde o una última muy temprano respecto del horario
+  // casi siempre es una marca que se olvidó (ej. 11:12 y 17:00): se estima y
+  // se manda a «Resolver», sin rebajar nada.
+  if (tramo && sospecha > 0 && !op.decidido) {
+    const tardia = m[0] - aMinutos(tramo.entrada) >= sospecha;
+    const temprana = aMinutos(tramo.salida) - m[m.length - 1] >= sospecha;
+    if (tardia && temprana) {
+      return vacio(EstadoDia.MARCAS_AMBIGUAS, marcas, `Las marcas (${marcas.join(', ')}) no coinciden con el horario: no se sabe cuáles faltan.`);
     }
-  } else if (m.length === 4) {
-    almuerzo = m[2] - m[1];
-    if (almuerzo < 0 || almuerzo > 240) {
-      return vacio(EstadoDia.MARCAS_AMBIGUAS, marcas, `El almuerzo (${marcas[1]} a ${marcas[2]}) no tiene sentido.`);
+    if (tardia || temprana) {
+      return estimarDia(
+        tardia ? null : m[0],
+        temprana ? null : m[m.length - 1],
+        tramo,
+        marcas,
+        tardia ? 'marca_tardia' : 'salida_temprana',
+        tardia
+          ? `La primera marca es ${marcas[0]}: parece que falta la entrada (se estimó ${tramo.entrada}). Confirme la hora real.`
+          : `La última marca es ${marcas[marcas.length - 1]}: parece que falta la salida (se estimó ${tramo.salida}). Confirme la hora real.`,
+        p,
+        op,
+        tipoDia,
+        almuerzoManual,
+      );
     }
-  } else {
+  }
+
+  if (!fijo && m.length !== 2 && m.length !== 4) {
     return vacio(
       EstadoDia.MARCAS_AMBIGUAS,
       marcas,
       `${m.length} marcas (${marcas.join(', ')}): no se sabe cuáles son entradas y cuáles salidas.`,
     );
   }
+  let almuerzo = 0;
+  let estimado = false;
+  if (!fijo && m.length === 4) {
+    almuerzo = m[2] - m[1];
+    if (almuerzo < 0 || almuerzo > 240) {
+      return vacio(EstadoDia.MARCAS_AMBIGUAS, marcas, `El almuerzo (${marcas[1]} a ${marcas[2]}) no tiene sentido.`);
+    }
+  }
 
-  const brutos = salida - entrada;
-  if (m.length === 2) {
+  const entrada = redondearMarca(m[0], tramo?.entrada, tolMarca);
+  const salida = redondearMarca(m[m.length - 1], tramo?.salida, tolMarca);
+  const brutos = Math.max(0, salida - entrada);
+  // Con bloque fijo el almuerzo siempre es el mismo; las marcas del medio no cuentan.
+  if (fijo || m.length === 2) {
     if (almuerzoManual !== undefined) {
       almuerzo = almuerzoManual;
     } else if (brutos > p.ALMUERZO_UMBRAL_HORAS * 60) {
       almuerzo = op.almuerzoMin ?? p.ALMUERZO_MINUTOS;
-      estimado = op.marcaAlmuerzo !== false;
+      estimado = !fijo && op.marcaAlmuerzo !== false;
     }
   }
+  return armarDia(marcas, brutos, almuerzo, estimado, tipoDia, p, op, esperadoMinutos, !!tramo && fijo);
+}
+
+// Dentro de la tolerancia (±) la marca cuenta como la hora del horario: ni
+// tardanza ni extra. Fuera de ella cuenta la hora real.
+function redondearMarca(marca: number, programada: string | undefined, tolerancia: number): number {
+  if (!programada) return marca;
+  const objetivo = aMinutos(programada);
+  return Math.abs(marca - objetivo) <= tolerancia ? objetivo : marca;
+}
+
+function armarDia(
+  marcas: string[],
+  brutos: number,
+  almuerzo: number,
+  estimado: boolean,
+  tipoDia: TipoDia,
+  p: Parametros,
+  op: OpcionesDia,
+  esperado: number,
+  sinToleranciaExtra: boolean,
+): ResultadoDia {
   const netos = Math.max(0, brutos - almuerzo);
   const { extra, especiales } = repartir(netos, tipoDia, p, op.horasDiaMin);
-  const faltantes = tipoDia === 'ordinario' && esperadoMinutos > 0 ? Math.max(0, esperadoMinutos - netos) : 0;
-  const descontar = faltantes > (p.TOLERANCIA_FALTANTE_MINUTOS ?? 10) ? faltantes : 0;
-
+  const faltantes = tipoDia === 'ordinario' && esperado > 0 ? Math.max(0, esperado - netos) : 0;
+  const umbral = sinToleranciaExtra ? 0 : (p.TOLERANCIA_FALTANTE_MINUTOS ?? 10);
+  const verificado = op.verificado !== false;
+  // Solo se rebaja tiempo verificado (marcas reales o confirmado por supervisor).
+  const rebajable = verificado || (p.REBAJO_SOLO_VERIFICADO ?? 1) !== 1;
+  const descontar = rebajable && faltantes > umbral ? faltantes : 0;
   return {
     estado: EstadoDia.OK,
     marcas,
@@ -227,6 +326,50 @@ export function clasificarDia(
     minutosFaltantes: faltantes,
     minutosDescontar: descontar,
     motivoRevision: null,
+    verificado,
+    estimacion: null,
+  };
+}
+
+// Día al que le falta una marca: se propone la hora del horario para mostrar
+// una cifra aproximada, pero el día queda pendiente en «Resolver», sin rebajos
+// ni horas extra, hasta que alguien confirme la hora real.
+function estimarDia(
+  // Exactamente una de las dos es null: la marca que falta.
+  entradaReal: number | null,
+  salidaReal: number | null,
+  tramo: { entrada: string; salida: string },
+  marcas: string[],
+  causa: Estimacion['causa'],
+  motivo: string,
+  p: Parametros,
+  op: OpcionesDia,
+  tipoDia: TipoDia,
+  almuerzoManual?: number,
+): ResultadoDia {
+  const tol = p.TOLERANCIA_MARCA_MINUTOS ?? 10;
+  const faltaEntrada = entradaReal === null;
+  const entrada = entradaReal === null ? aMinutos(tramo.entrada) : redondearMarca(entradaReal, tramo.entrada, tol);
+  const salida = salidaReal === null ? aMinutos(tramo.salida) : redondearMarca(salidaReal, tramo.salida, tol);
+  const brutos = Math.max(0, salida - entrada);
+  let almuerzo = 0;
+  if (almuerzoManual !== undefined) almuerzo = almuerzoManual;
+  else if (brutos > p.ALMUERZO_UMBRAL_HORAS * 60) almuerzo = op.almuerzoMin ?? p.ALMUERZO_MINUTOS;
+  return {
+    estado: EstadoDia.MARCA_FALTANTE,
+    marcas,
+    minutosBrutos: brutos,
+    minutosAlmuerzo: almuerzo,
+    almuerzoEstimado: false,
+    minutosNetos: Math.max(0, brutos - almuerzo),
+    minutosExtra: 0,
+    minutosEspeciales: 0,
+    descuenta: false,
+    minutosFaltantes: 0,
+    minutosDescontar: 0,
+    motivoRevision: motivo,
+    verificado: false,
+    estimacion: { faltante: faltaEntrada ? 'entrada' : 'salida', hora: faltaEntrada ? tramo.entrada : tramo.salida, causa },
   };
 }
 
@@ -238,6 +381,9 @@ export interface DatosResolucion {
   marcas?: string[];
   // En hora manual / horario estándar: no descontar las horas faltantes.
   justificarHoras?: boolean;
+  // Supervisor que confirmó las horas (única verificación aparte del reloj).
+  // Sin él, una hora manual o el horario estándar no son tiempo verificado.
+  supervisor?: string;
 }
 
 export interface HorarioEmpleado extends DatosJornadaEmpleado {
@@ -277,7 +423,7 @@ export function aplicarResolucion(
     const tramo = horarioDelDia(horario, fecha);
     if (!tramo) throw new Error('Ese día no tiene horario: elija otra opción (hora manual o ausencia).');
     const marcas = [tramo.entrada, tramo.salida];
-    return clasificarDia(marcas, tipoDia, p, undefined, esperadoMinutos(fecha, horario, p), opcionesEmpleado(horario, p, fecha));
+    return clasificarDia(marcas, tipoDia, p, undefined, esperadoMinutos(fecha, horario, p), { ...opcionesEmpleado(horario, p, fecha), verificado: !!datos.supervisor, decidido: true });
   }
   if (tipo === TipoResolucionDia.ALMUERZO_MANUAL) {
     // El día trae entrada y salida: administración dice cuánto almorzó.
@@ -299,7 +445,7 @@ export function aplicarResolucion(
   // HORA_MANUAL
   if (!datos.entrada || !datos.salida) throw new Error('Falta la hora de entrada y de salida.');
   if (aMinutos(datos.salida) <= aMinutos(datos.entrada)) throw new Error('La salida debe ser después de la entrada.');
-  const r = clasificarDia([datos.entrada, datos.salida], tipoDia, p, datos.almuerzoMinutos, esperadoMinutos(fecha, horario, p), opcionesEmpleado(horario, p, fecha));
+  const r = clasificarDia([datos.entrada, datos.salida], tipoDia, p, datos.almuerzoMinutos, esperadoMinutos(fecha, horario, p), { ...opcionesEmpleado(horario, p, fecha), verificado: !!datos.supervisor, decidido: true });
   if (r.estado !== EstadoDia.OK) throw new Error('Las horas indicadas no son válidas (la salida debe ser al menos 30 minutos después de la entrada).');
   if (datos.justificarHoras) r.minutosDescontar = 0;
   return r;

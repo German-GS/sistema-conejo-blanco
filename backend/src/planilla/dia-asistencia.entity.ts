@@ -12,6 +12,7 @@ import {
 import { Empleado } from './empleado.entity.js';
 import { ImportacionMarcas } from './importacion-marcas.entity.js';
 import { EstadoDia, TipoResolucionDia } from './planilla.enums.js';
+import type { Estimacion } from './calculo.js';
 
 // Un día de un empleado, ya interpretado a partir de las marcas crudas.
 // Las marcas originales quedan guardadas tal cual vinieron del reloj
@@ -97,6 +98,19 @@ export class DiaAsistencia {
 
   @Column({ type: 'varchar', length: 255, name: 'resolucion_motivo', nullable: true })
   resolucionMotivo: string | null;
+
+  // true = el tiempo sale de marcas reales (o lo confirmó un supervisor). Solo
+  // el tiempo verificado se rebaja del salario.
+  @Column({ type: 'boolean', default: true })
+  verificado: boolean;
+
+  // Marca que falta y la hora que el sistema propuso según el horario.
+  @Column({ type: 'jsonb', nullable: true })
+  estimacion: Estimacion | null;
+
+  // Supervisor que confirmó las horas (única verificación aparte del reloj).
+  @Column({ type: 'varchar', length: 120, nullable: true })
+  supervisor: string | null;
 
   @CreateDateColumn({ name: 'creado_en' })
   creadoEn: Date;

@@ -5,6 +5,8 @@ import { HORARIO_BASE_POR_DEFECTO, validarHorarioSemanal } from './horario.js';
 import { EstadoDia, FrecuenciaPago, TipoResolucionDia, TipoSalario } from './planilla.enums.js';
 
 const p = Object.fromEntries(PARAMETROS_POR_DEFECTO.map((x) => [x.nombre, x.valor]));
+// Reglas anteriores: almuerzo según las marcas, sin bloque fijo.
+const pLegado = { ...p, ALMUERZO_BLOQUE_FIJO: 0 };
 const horario = { horarioEntrada: '08:00', horarioSalida: '17:00', horarioSalidaSabado: '13:00' };
 
 describe('normalizarNumeroReloj', () => {
@@ -37,13 +39,24 @@ describe('clasificarDia — casos reales de la tarjeta de tiempo', () => {
     expect(r.descuenta).toBe(false);
   });
 
-  it('tres marcas = ambiguas (lunes)', () => {
-    const r = clasificarDia(['08:11', '17:01', '13:00'], 'ordinario', p);
+  it('tres marcas = ambiguas con las marcas de almuerzo en uso (lunes)', () => {
+    const r = clasificarDia(['08:11', '17:01', '13:00'], 'ordinario', pLegado);
     expect(r.estado).toBe(EstadoDia.MARCAS_AMBIGUAS);
   });
 
+  it('con almuerzo fijo, las marcas de almuerzo se ignoran: 3 o 5 marcas ya no son ambiguas', () => {
+    const tres = clasificarDia(['08:11', '13:00', '17:01'], 'ordinario', p);
+    expect(tres.estado).toBe(EstadoDia.OK);
+    expect(tres.minutosAlmuerzo).toBe(60);
+    // almuerzo largo marcado (90 min): igual se descuenta el bloque fijo
+    const largo = clasificarDia(['08:00', '12:00', '13:30', '17:00'], 'ordinario', p);
+    expect(largo.minutosAlmuerzo).toBe(60);
+    expect(largo.minutosNetos).toBe(480);
+    expect(clasificarDia(['08:00', '10:00', '12:00', '13:00', '17:00'], 'ordinario', p).estado).toBe(EstadoDia.OK);
+  });
+
   it('sin marcas de almuerzo y jornada larga: se descuenta la hora de almuerzo (Santiago, lunes)', () => {
-    const r = clasificarDia(['07:53', '17:21'], 'ordinario', p);
+    const r = clasificarDia(['07:53', '17:21'], 'ordinario', pLegado);
     expect(r.almuerzoEstimado).toBe(true);
     expect(r.minutosNetos).toBe(9 * 60 + 28 - 60);
     expect(r.minutosExtra).toBe(28);
@@ -226,7 +239,7 @@ describe('jornada y almuerzo por empleado', () => {
     expect(r.minutosAlmuerzo).toBe(60);
     expect(r.almuerzoEstimado).toBe(false);
     // los que sí marcan, sí lo ven como estimado
-    expect(clasificarDia(['07:30', '17:30'], 'ordinario', p, undefined, 0, opcionesEmpleado({}, p)).almuerzoEstimado).toBe(true);
+    expect(clasificarDia(['07:30', '17:30'], 'ordinario', pLegado, undefined, 0, opcionesEmpleado({}, p)).almuerzoEstimado).toBe(true);
   });
 
   it('almuerzo de 0 min: no se descuenta nada', () => {
@@ -338,12 +351,12 @@ describe('horario por día de la semana', () => {
   it('el martes la hora extra empieza a las 9 h netas, no a las 8', () => {
     const op = opcionesEmpleado(emp, p, '2026-10-06');
     expect(op.horasDiaMin).toBe(540);
-    const r = clasificarDia(['07:55', '18:10'], 'ordinario', p, undefined, esperadoMinutos('2026-10-06', emp, p), op); // 10 h 15 − 60 almuerzo = 9 h 15
-    expect(r.minutosNetos).toBe(555);
-    expect(r.minutosExtra).toBe(15);
-    // el lunes esas mismas 9 h 15 netas serían 75 minutos de extra
-    const lunes = clasificarDia(['07:55', '18:10'], 'ordinario', p, undefined, 480, opcionesEmpleado(emp, p, '2026-10-05'));
-    expect(lunes.minutosExtra).toBe(75);
+    const r = clasificarDia(['07:55', '18:25'], 'ordinario', p, undefined, esperadoMinutos('2026-10-06', emp, p), op); // 08:00 (tolerancia) a 18:25 − 60 almuerzo = 9 h 25
+    expect(r.minutosNetos).toBe(565);
+    expect(r.minutosExtra).toBe(25);
+    // el lunes esas mismas 9 h 25 netas serían 85 minutos de extra
+    const lunes = clasificarDia(['07:55', '18:25'], 'ordinario', p, undefined, 480, opcionesEmpleado(emp, p, '2026-10-05'));
+    expect(lunes.minutosExtra).toBe(85);
   });
 
   it('salir a las 5 un martes es una falta de 1 hora respecto de su horario', () => {
