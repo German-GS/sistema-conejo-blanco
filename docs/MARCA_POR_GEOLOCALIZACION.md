@@ -62,3 +62,11 @@ Que cada empleado marque entrada y salida desde una interfaz del sistema (en su 
 
 ## Estimación gruesa
 Fase 1: la pieza más grande es unir empleados con usuarios y la mezcla con las marcas del reloj; el resto es sencillo. Fase 2 depende de qué verificación elijan.
+
+## Decisiones y respuestas (26-oct-2026)
+- **Punto de reunión:** siempre la empresa. Excepción: el personal de **tienda**, cuyo punto es su tienda (un punto de marca por tienda).
+- **Vendedores en ruta:** no están en un punto fijo (tampoco a la hora de almuerzo); la empresa quiere validar sus rutas por GPS. Es otro caso que el de marcar: ver abajo.
+  - Recomendado: **visitas con llegada** («Llegué donde el cliente X», con ubicación) en vez de rastreo continuo. Valida la ruta, es mucho menos intrusivo y se liga a clientes y pedidos que ya existen.
+  - El rastreo continuo en segundo plano **no es confiable desde una página web** (el celular lo detiene al bloquear la pantalla, sobre todo iPhone); exigiría una app nativa. Si se quiere, que sea solo mientras la «jornada de ruta» esté activa (botón de iniciar/terminar visible para el vendedor), con aviso y consentimiento escritos, y revisión legal.
+  - Los clientes hoy no tienen coordenadas: se guardarían la primera vez que se visitan.
+- **Tablet con reconocimiento facial:** no sirve cualquier tablet ni es la única vía; ver la respuesta en la conversación (terminal comercial vs. desarrollo propio vs. foto de evidencia sin reconocimiento).
