@@ -7,6 +7,10 @@ Versionado `MAYOR.MENOR.PARCHE`:
 
 La versión se cambia en `app/package.json` y `backend/package.json` (el pie de página y el panel del sistema la leen solos).
 
+## 1.17.2 — 26 oct 2026 — Tope semanal de 48 horas ordinarias
+- Si en una semana (lunes a domingo) se superan las **48 horas ordinarias**, lo que pasa se paga como **hora extra desde el primer minuto**, aunque ningún día haya pasado de su límite diario (ej. quien trabaja 7 días de 8 horas). Se cuentan solo los días ordinarios con marcas confirmadas, y la extra que ya salió por día no se paga dos veces; cada semana se cuenta aparte.
+- El tope es el parámetro **TOPE_ORDINARIAS_SEMANA_HORAS** (48), en Planilla → Parámetros.
+
 ## 1.17.1 — 26 oct 2026 — Se quita el «contrato especial de horas» de la ficha del empleado
 - Ya no aparece el campo «Contrato especial: horas ordinarias por semana»: podía dar a malos entendidos. En comercio la semana se paga sobre 56 horas por el sector «comercio», sin necesidad de ese campo.
 - A los empleados de comercio que tenían «56» escrito ahí se les quita al arrancar el servidor (el valor de la hora no cambia: salario ÷ 56; solo vuelve el día ordinario a 8 horas, que es lo correcto).

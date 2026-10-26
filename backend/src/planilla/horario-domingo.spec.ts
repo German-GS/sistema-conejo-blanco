@@ -73,3 +73,49 @@ describe('domingo en el horario por día', () => {
     expect(esperadoMinutos(SABADO, simple, p)).toBe(300);
   });
 });
+
+describe('tope semanal de 48 horas ordinarias', () => {
+  const entrada = (dias: ReturnType<typeof dia>[]) => ({
+    empleado: { tipoSalario: TipoSalario.SEMANAL, montoSalario: 112000, frecuenciaPago: FrecuenciaPago.SEMANAL, sector: 'comercio' as const, tieneConyuge: false, cantidadHijos: 0 },
+    dias, desde: '2026-10-05', hasta: '2026-10-11', p, brutoPrevioMes: 0, rentaPrevioMes: 0, deudas: [],
+  });
+  const dia = (fecha: string, netos: number, extra = 0, estado: EstadoDia = EstadoDia.OK) => ({
+    fecha, tipoDia: 'ordinario' as const, estado, descuenta: false, minutosNetos: netos, minutosExtra: extra, minutosEspeciales: 0, feriadoPagoObligatorio: true,
+  });
+  const fechas = ['2026-10-05', '2026-10-06', '2026-10-07', '2026-10-08', '2026-10-09', '2026-10-10', '2026-10-11'];
+
+  it('seis días de 8 horas son 48: no hay extra', () => {
+    expect(calcularLinea(entrada(fechas.slice(0, 6).map((f) => dia(f, 480)))).horasExtra).toBe(0);
+  });
+
+  it('siete días de 8 horas son 56: las 8 horas que pasan de 48 se pagan como extra, aunque ningún día pasó de 8', () => {
+    const r = calcularLinea(entrada(fechas.map((f) => dia(f, 480))));
+    expect(r.horasExtra).toBe(8);
+    expect(r.montoExtra).toBe(8 * 2000 * 1.5); // hora de comercio: 112.000 ÷ 56
+  });
+
+  it('desde el primer minuto: 48 h y 1 min en la semana = 1 min de extra', () => {
+    const dias = fechas.slice(0, 6).map((f) => dia(f, 480));
+    dias.push(dia(fechas[6], 1));
+    expect(calcularLinea(entrada(dias)).horasExtra).toBeCloseTo(1 / 60, 2);
+  });
+
+  it('no paga dos veces: la extra que ya salió por día no cuenta para el tope', () => {
+    // lunes con 8 h 30 (30 min de extra diaria) y el resto de la semana en 8 h: ordinarias = 48 h, extra total = 30 min
+    const dias = fechas.slice(0, 6).map((f, i) => (i === 0 ? dia(f, 510, 30) : dia(f, 480)));
+    expect(calcularLinea(entrada(dias)).horasExtra).toBe(0.5);
+  });
+
+  it('un día con marca faltante (estimado) no suma al tope', () => {
+    const dias = fechas.slice(0, 6).map((f) => dia(f, 480));
+    dias.push(dia(fechas[6], 480, 0, EstadoDia.MARCA_FALTANTE));
+    expect(calcularLinea(entrada(dias)).horasExtra).toBe(0);
+  });
+
+  it('cada semana se cuenta aparte', () => {
+    // dos semanas incompletas (4 días de 8 h cada una) no se juntan
+    const semana1 = fechas.slice(0, 4).map((f) => dia(f, 480));
+    const semana2 = ['2026-10-12', '2026-10-13', '2026-10-14', '2026-10-15'].map((f) => dia(f, 480));
+    expect(calcularLinea({ ...entrada([...semana1, ...semana2]), hasta: '2026-10-18' }).horasExtra).toBe(0);
+  });
+});

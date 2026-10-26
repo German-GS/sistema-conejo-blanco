@@ -547,6 +547,13 @@ export interface ResultadoLinea {
   desgloseProvisiones: Record<string, number>;
 }
 
+// Lunes de la semana (lunes a domingo) a la que pertenece una fecha.
+export function lunesDeSemana(fechaISO: string): string {
+  const d = new Date(`${fechaISO}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7));
+  return d.toISOString().slice(0, 10);
+}
+
 export function diasLaborables(desde: string, hasta: string): string[] {
   const resultado: string[] = [];
   for (let f = desde; f <= hasta; f = siguiente(f)) {
@@ -629,6 +636,18 @@ export function calcularLinea(e: EntradaLinea): ResultadoLinea {
       montoEspeciales += (d.minutosEspeciales / 60) * tarifaHora * multiplicador;
     }
   }
+
+  // La jornada ordinaria es de 48 horas por semana (lunes a domingo): lo que pase de ahí en la semana se paga como extra, desde
+  // el primer minuto, aunque ningún día solo haya pasado de su límite diario (ej. quien trabaja 7 días). Se cuentan solo los días
+  // ordinarios con marcas confirmadas, sin la extra que ya salió por día, para no pagarla dos veces.
+  const ordinariosPorSemana = new Map<string, number>();
+  for (const d of dias) {
+    if (d.tipoDia !== 'ordinario' || d.estado !== EstadoDia.OK) continue;
+    const lunes = lunesDeSemana(d.fecha);
+    ordinariosPorSemana.set(lunes, (ordinariosPorSemana.get(lunes) ?? 0) + Math.max(0, d.minutosNetos - d.minutosExtra));
+  }
+  const topeSemanaMin = (p.TOPE_ORDINARIAS_SEMANA_HORAS ?? 48) * 60;
+  for (const ordinarios of ordinariosPorSemana.values()) minutosExtra += Math.max(0, ordinarios - topeSemanaMin);
 
   const descuentoAusencias = redondear(diasAusencia * horasDia * tarifaHora);
   const horasAusentes = redondear(minutosAusentes / 60);
