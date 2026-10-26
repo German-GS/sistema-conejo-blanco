@@ -97,3 +97,11 @@ Tres grupos, cuatro marcas con tipo explícito cada día: **entrada · salida a 
 3. **Almuerzo:** hoy el sistema descuenta un **bloque fijo** e ignora las marcas del medio (1.14.0). Con marcas de almuerzo explícitas y con tipo ya no hay ambigüedad, así que hay que elegir: (a) seguir con bloque fijo y usar las marcas solo para detectar almuerzos muy largos, o (b) descontar el almuerzo real marcado para quienes usan la app (requiere ajuste por empleado, hoy el parámetro es global).
 4. **Rastreo de vendedores de ruta:** el rastreo continuo exige la **app nativa** (Capacitor); desde la página web se corta al bloquear la pantalla. Es la única pieza del plan que no se puede resolver solo con la web.
 5. **Si falla algo** (sin internet en la empresa, pantalla apagada, celular sin batería): la marca se guarda como «sin verificar» y el supervisor la confirma, como ya funciona con el reloj; nadie pierde pago por una falla técnica.
+
+## Regla del almuerzo (26-oct-2026, la define la empresa)
+- El almuerzo es **1 hora fija y no se paga**. Algún empleado tiene una excepción (otra duración) y se configura en su ficha.
+- Con marcas de almuerzo (reloj o app): si el almuerzo real es de **30 minutos o más → se descuenta la hora fija**. Si es de **menos de 30 minutos → queda en «Resolver» para gerencia**, que decide (por ejemplo, si le pidieron trabajar de más): descontar la hora fija o descontar el almuerzo real.
+- **Vendedores de ruta:** no marcan almuerzo (están en la calle); siempre se descuenta 1 hora. En la app solo marcan entrada y salida de jornada (QR en la empresa); el GPS sirve para validar la ruta, no para el almuerzo.
+- Aplica igual a las marcas del reloj actual, no depende de la app.
+- **Por definir:** un almuerzo de más de 1 hora (ej. 90 min): ¿se descuenta lo real (90) o solo la hora fija?
+- Hoy (1.14.0) con 4 marcas el sistema descuenta siempre la hora fija sin mirar cuánto duró el almuerzo marcado: un almuerzo de 10 minutos pasa sin que nadie lo revise.
