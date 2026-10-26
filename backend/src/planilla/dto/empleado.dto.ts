@@ -44,6 +44,11 @@ export class CrearEmpleadoDto {
   puesto?: string;
 
   @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  departamento?: string;
+
+  @IsOptional()
   @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'La fecha de ingreso debe ser YYYY-MM-DD.' })
   fechaIngreso?: string;
 
@@ -160,6 +165,11 @@ export class ActualizarEmpleadoDto {
   @IsString()
   @MaxLength(80)
   puesto?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  departamento?: string;
 
   @IsOptional()
   @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'La fecha de ingreso debe ser YYYY-MM-DD.' })

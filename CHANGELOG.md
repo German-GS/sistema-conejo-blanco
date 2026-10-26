@@ -7,6 +7,10 @@ Versionado `MAYOR.MENOR.PARCHE`:
 
 La versión se cambia en `app/package.json` y `backend/package.json` (el pie de página y el panel del sistema la leen solos).
 
+## 1.16.1 — 26 oct 2026 — Departamento del empleado, separado del puesto
+- Nuevo campo **«Departamento o lugar de trabajo»** (oficina central, bodega, acabado, una tienda…), distinto del **puesto** (gerente comercial, bodeguero…). Se llena en la ficha, en la importación desde Excel y sale en el informe «Empleados y salarios».
+- La importación ya no pisa el puesto con el departamento.
+
 ## 1.16.0 — 26 oct 2026 — Importar empleados desde Excel y informe de salarios
 - **Importar empleados desde Excel** (Planilla → Empleados → «Importar desde Excel»): se sube el archivo, se ve una **vista previa** (quién se crea, quién cambia y qué, qué está mal) y solo entonces se guarda. Reconoce a quien ya existe por cédula o por nombre; una celda vacía **nunca borra** lo que ya está; a los nuevos sin número de reloj se les pone uno provisional que se reemplaza al vincularlos con el archivo del reloj.
 - **Quien está en el sistema y no en el archivo** se muestra aparte y no se toca si no se decide: **eliminar** (si no tiene nada registrado), **dar de baja** (cese, conserva el historial y quita el acceso) o, solo el **administrador del sistema**, **eliminar con todo su historial** (datos de prueba): borra su asistencia, sus líneas en planillas en borrador o anuladas y sus deudas (cerrando bien los asientos), y recalcula los totales de esas planillas. Si sale en una planilla aprobada o pagada no se borra hasta anularla. También hay un botón «Eliminar» en cada empleado (solo administrador del sistema). Todo queda en la bitácora.

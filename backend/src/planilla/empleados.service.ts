@@ -177,6 +177,7 @@ export class EmpleadosService {
           nombre: f.nombre,
           cedula: f.cedula ?? undefined,
           puesto: f.puesto ?? undefined,
+          departamento: f.departamento ?? undefined,
           fechaIngreso: f.fechaIngreso ?? undefined,
           tipoSalario: f.tipoSalario as TipoSalario,
           montoSalario: f.monto as number,
@@ -265,6 +266,7 @@ export class EmpleadosService {
         montoSalario: dto.montoSalario.toFixed(2),
         cedula: dto.cedula?.trim() || null,
         puesto: puestoElegido?.nombre ?? (dto.puesto?.trim() || null),
+        departamento: dto.departamento?.trim() || null,
         esConfianza: dto.esConfianza ?? puestoElegido?.esConfianza ?? false,
         // El personal de tienda es de comercio, salvo que se indique otra cosa.
         sector: dto.sector ?? (dto.esDeTienda ? 'comercio' : (puestoElegido?.sector ?? 'industria')),
@@ -303,6 +305,7 @@ export class EmpleadosService {
     if (cedula !== undefined) empleado.cedula = cedula.trim() || null;
     if (dto.esDeTienda === true && !eraDeTienda && dto.sector === undefined && !dto.puestoId) empleado.sector = 'comercio';
     if (puestoManual !== undefined && !dto.puestoId) empleado.puesto = puestoManual.trim() || null;
+    if (dto.departamento !== undefined) empleado.departamento = dto.departamento.trim() || null;
     if (iban !== undefined) empleado.iban = iban.replace(/\s+/g, '') || null;
     if (horasSemana !== undefined) empleado.horasSemana = horasSemana != null ? horasSemana.toFixed(2) : null;
     if (dto.almuerzoMinutos === null) empleado.almuerzoMinutos = null;

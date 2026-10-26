@@ -120,6 +120,7 @@ function formVacio() {
     cedula: '',
     puesto: '',
     puestoId: '',
+    departamento: '',
     esConfianza: false,
     horarioSemanal: horarioBaseCopia(),
     sector: 'industria',
@@ -154,7 +155,7 @@ const soloDigitos = (t) => String(t ?? '').replace(/\D/g, '');
 function coincide(e, texto) {
   const palabras = limpiar(texto).split(/\s+/).filter(Boolean);
   const heno = limpiar(
-    [e.nombre, e.puesto, e.cedula, e.numeroReloj, e.iban, e.identificadorBp, e.esDeTienda ? 'tienda' : '', e.fechaCese ? 'cesado' : ''].join(' '),
+    [e.nombre, e.puesto, e.departamento, e.cedula, e.numeroReloj, e.iban, e.identificadorBp, e.esDeTienda ? 'tienda' : '', e.fechaCese ? 'cesado' : ''].join(' '),
   );
   const cedula = soloDigitos(e.cedula);
   return palabras.every((p) => {
@@ -218,6 +219,7 @@ function editar(e) {
     ...e,
     cedula: e.cedula ?? '',
     puesto: e.puesto ?? '',
+    departamento: e.departamento ?? '',
     puestoId: e.puestoId ?? '',
     esConfianza: e.esConfianza === true,
     horarioSemanal: e.horarioSemanal ? { lun: null, mar: null, mie: null, jue: null, vie: null, sab: null, ...e.horarioSemanal } : horarioBaseCopia(),
@@ -246,6 +248,7 @@ async function guardar() {
       cedula: form.cedula.trim() || undefined,
       // Puesto de la lista (el servidor copia su nombre) o, si es otro, el texto escrito.
       ...(form.puestoId ? { puestoId: form.puestoId } : { puesto: form.puesto.trim() || undefined }),
+      departamento: form.departamento.trim(),
       esConfianza: form.esConfianza,
       sector: form.sector,
       // null = sigue el horario de la fábrica (si no se tocó la tabla)
@@ -389,7 +392,7 @@ const etiqueta = (lista, v) => lista.find((x) => x.valor === v)?.etiqueta ?? v;
     <div v-if="importacion.abierta" class="card flex flex-col gap-3">
       <p class="text-base font-semibold text-slate-900">Importar empleados desde Excel</p>
       <p class="text-sm text-slate-600">
-        El archivo debe tener una fila de encabezados con al menos <strong>Nombre</strong>. Columnas que se entienden: Cédula, N.º de reloj, Puesto,
+        El archivo debe tener una fila de encabezados con al menos <strong>Nombre</strong>. Columnas que se entienden: Cédula, N.º de reloj, Puesto, Departamento,
         Fecha de ingreso, Tipo de salario (por hora / semanal / mensual), Monto, Se paga (semanal / quincenal / mensual), Horas por semana, Sector,
         Es de tienda, Puesto de confianza, Marca en reloj, Forma de pago, IBAN e Identificador Banco Popular. Si un empleado ya existe (por cédula o por nombre)
         solo se cambia lo que traiga el archivo; <strong>una celda vacía nunca borra</strong> lo que ya está. Antes de guardar ve una vista previa.
@@ -489,6 +492,8 @@ const etiqueta = (lista, v) => lista.find((x) => x.valor === v)?.etiqueta ?? v;
             <option v-for="p in puestos.filter((x) => x.activo)" :key="p.id" :value="p.id">{{ p.nombre }}{{ p.esConfianza ? ' (de confianza)' : '' }}</option>
           </select>
           <input v-if="!form.puestoId" v-model="form.puesto" type="text" class="input mt-1" placeholder="O escriba otro puesto" />
+          <label class="label mt-2">Departamento o lugar de trabajo</label>
+          <input v-model="form.departamento" type="text" class="input" placeholder="Ej. Oficina central, Bodega, Acabado, Tienda SOX#8" />
         </div>
         <div>
           <label class="label">¿Dónde trabaja?</label>
@@ -679,7 +684,7 @@ const etiqueta = (lista, v) => lista.find((x) => x.valor === v)?.etiqueta ?? v;
               <span v-if="e.activo && !e.marcaReloj && !e.esConfianza" class="ml-2 rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">No usa el reloj</span>
             </p>
             <p class="text-sm text-slate-500">
-              {{ e.puesto || 'Sin puesto' }} · {{ etiqueta(TIPOS, e.tipoSalario) }}
+              {{ e.puesto || 'Sin puesto' }}<template v-if="e.departamento"> · {{ e.departamento }}</template> · {{ etiqueta(TIPOS, e.tipoSalario) }}
               {{ formatearColones(e.montoSalario) }} bruto · pago {{ etiqueta(FRECUENCIAS, e.frecuenciaPago).toLowerCase() }}
             </p>
           </div>

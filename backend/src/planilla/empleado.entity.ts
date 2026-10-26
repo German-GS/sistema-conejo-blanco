@@ -24,6 +24,10 @@ export class Empleado {
   @Column({ type: 'varchar', length: 80, nullable: true })
   puesto: string | null;
 
+  // Dónde trabaja (oficina central, bodega, acabado, una tienda…): no es lo mismo que el puesto (gerente comercial, bodeguero…).
+  @Column({ type: 'varchar', length: 80, nullable: true })
+  departamento: string | null;
+
   @Column({ type: 'date', name: 'fecha_ingreso', nullable: true })
   fechaIngreso: string | null;
 

@@ -9,6 +9,7 @@ export interface FilaEmpleado {
   cedula: string | null;
   numeroReloj: string | null;
   puesto: string | null;
+  departamento: string | null;
   fechaIngreso: string | null;
   tipoSalario: 'mensual' | 'semanal' | 'por_hora' | null;
   monto: number | null;
@@ -33,6 +34,7 @@ const ALIAS: Record<string, string> = {
   cedula: 'cedula', identificacion: 'cedula',
   'numero de reloj': 'numeroReloj', 'n reloj': 'numeroReloj', reloj: 'numeroReloj',
   puesto: 'puesto',
+  departamento: 'departamento', 'lugar de trabajo': 'departamento', area: 'departamento',
   'fecha de ingreso': 'fechaIngreso', ingreso: 'fechaIngreso',
   'tipo de salario': 'tipoSalario', 'tipo salario': 'tipoSalario',
   monto: 'monto', 'monto del salario': 'monto', salario: 'monto', 'salario por hora': 'monto', tarifa: 'monto',
@@ -129,6 +131,7 @@ export async function leerEmpleadosExcel(buffer: Buffer): Promise<FilaEmpleado[]
       cedula: soloDigitos(crudo.cedula) || null,
       numeroReloj: String(crudo.numeroReloj ?? '').trim() || null,
       puesto: String(crudo.puesto ?? '').trim() || null,
+      departamento: String(crudo.departamento ?? '').trim() || null,
       fechaIngreso: ingreso,
       tipoSalario,
       monto,
@@ -157,6 +160,7 @@ export interface EmpleadoExistente {
   nombre: string;
   cedula: string | null;
   puesto: string | null;
+  departamento?: string | null;
   fechaIngreso: string | null;
   tipoSalario: string;
   montoSalario: string;
@@ -209,7 +213,7 @@ export function buscarExistente(f: FilaEmpleado, existentes: EmpleadoExistente[]
 }
 
 const ETIQUETAS: Record<string, string> = {
-  cedula: 'Cédula', numeroReloj: 'N.º de reloj', puesto: 'Puesto', fechaIngreso: 'Fecha de ingreso', tipoSalario: 'Tipo de salario',
+  cedula: 'Cédula', numeroReloj: 'N.º de reloj', puesto: 'Puesto', departamento: 'Departamento', fechaIngreso: 'Fecha de ingreso', tipoSalario: 'Tipo de salario',
   monto: 'Monto', frecuenciaPago: 'Se paga', horasSemana: 'Horas por semana', sector: 'Sector', esDeTienda: 'De tienda',
   esConfianza: 'Puesto de confianza', marcaReloj: 'Marca en reloj', formaPago: 'Forma de pago', iban: 'IBAN', identificadorBp: 'Identificador B. Popular',
 };
@@ -223,6 +227,7 @@ export function compararFila(f: FilaEmpleado, e: EmpleadoExistente): Cambio[] {
   poner('cedula', soloDigitos(e.cedula), f.cedula);
   poner('numeroReloj', e.numeroReloj, f.numeroReloj);
   poner('puesto', e.puesto ?? '', f.puesto);
+  poner('departamento', e.departamento ?? '', f.departamento);
   poner('fechaIngreso', e.fechaIngreso ?? '', f.fechaIngreso);
   poner('tipoSalario', e.tipoSalario, f.tipoSalario);
   if (f.monto !== null && Number(e.montoSalario) !== f.monto) c.push({ campo: 'monto', etiqueta: ETIQUETAS.monto, antes: String(Number(e.montoSalario)), despues: String(f.monto) });
