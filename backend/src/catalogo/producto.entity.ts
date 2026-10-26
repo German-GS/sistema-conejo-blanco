@@ -26,6 +26,10 @@ export class Producto {
   @Column({ type: 'varchar', length: 255, nullable: true })
   descripcion: string | null;
 
+  // Código CABYS (13 dígitos) que Hacienda exige en cada línea de la factura electrónica.
+  @Column({ type: 'varchar', length: 13, nullable: true })
+  cabys: string | null;
+
   @Column({ type: 'boolean', default: true })
   activo: boolean;
 

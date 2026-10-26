@@ -138,6 +138,37 @@ export class Factura {
   @Column({ type: 'text', name: 'mensaje_hacienda', nullable: true })
   mensajeHacienda: string | null;
 
+  // --- Seguimiento del envío a Hacienda ---
+  // XML firmado tal como se envió, y mensaje de respuesta de Hacienda (XML).
+  @Column({ type: 'text', name: 'xml_enviado', nullable: true })
+  xmlEnviado: string | null;
+
+  @Column({ type: 'text', name: 'xml_respuesta', nullable: true })
+  xmlRespuesta: string | null;
+
+  @Column({ type: 'timestamptz', name: 'enviada_en', nullable: true })
+  enviadaEn: Date | null;
+
+  @Column({ type: 'timestamptz', name: 'resuelta_en', nullable: true })
+  resueltaEn: Date | null;
+
+  @Column({ type: 'integer', name: 'intentos_envio', default: 0 })
+  intentosEnvio: number;
+
+  @Column({ type: 'integer', name: 'intentos_consulta', default: 0 })
+  intentosConsulta: number;
+
+  // Se mandó por correo al cliente el XML firmado + la respuesta de Hacienda.
+  @Column({ type: 'boolean', name: 'entregado_cliente', default: false })
+  entregadoCliente: boolean;
+
+  @Column({ type: 'timestamptz', name: 'fecha_entrega', nullable: true })
+  fechaEntrega: Date | null;
+
+  // Si esta factura sustituye a una rechazada por Hacienda (consecutivo nuevo).
+  @Column({ type: 'uuid', name: 'reemplaza_a_id', nullable: true })
+  reemplazaAId: string | null;
+
   // Nula mientras la factura sigue vigente — ver FacturacionService.anularFactura.
   @OneToOne(() => NotaCredito, (nota) => nota.factura)
   notaCredito: Relation<NotaCredito> | null;

@@ -1,4 +1,4 @@
-import { Home, ClipboardList, Users, Package, Warehouse, UserCog, Settings, Receipt, Undo2, HandCoins, BookOpen, NotebookText, Wallet, Fingerprint, SlidersHorizontal, BadgeDollarSign, FileBarChart, ShieldCheck, BookMarked, Lock, Landmark, Server, ChartColumnBig, Store, ScanBarcode, FileSpreadsheet, Palette } from '@lucide/vue';
+import { Home, ClipboardList, Users, Package, Warehouse, UserCog, Settings, Receipt, Undo2, HandCoins, BookOpen, NotebookText, Wallet, Fingerprint, SlidersHorizontal, BadgeDollarSign, FileBarChart, ShieldCheck, BookMarked, Lock, Landmark, Server, ChartColumnBig, Store, ScanBarcode, FileSpreadsheet, Palette, FileCheck2 } from '@lucide/vue';
 
 // Secciones del panel de administración, en un solo lugar: las usan el menú lateral, la búsqueda rápida (Ctrl/Cmd+K) y las migas de pan.
 // permiso/soloSistema/puedePOS es lo mismo que exige la ruta (ver router/index.js), así el menú y el bloqueo real nunca se desalinean.
@@ -26,6 +26,7 @@ export const NAV = [
     grupo: 'Ingresos',
     items: [
       { to: { name: 'admin-facturas' }, etiqueta: 'Facturas', icono: Receipt, palabras: 'factura electronica emitir iva hacienda cobrar', hijas: ['admin-factura-nueva', 'admin-factura-detalle'], permiso: 'facturacion.gestionar', modulo: 'facturacion' },
+      { to: { name: 'admin-facturacion-electronica' }, etiqueta: 'Facturación electrónica', icono: FileCheck2, palabras: 'hacienda llave p12 cabys emisor enviar emitir pruebas certificado atv', permiso: 'facturacion.gestionar', modulo: 'facturacion' },
       { to: { name: 'admin-pagos' }, etiqueta: 'Pagos recibidos', icono: HandCoins, palabras: 'cobros abonos cuentas por cobrar transferencia sinpe', hijas: ['admin-pago-nuevo', 'admin-pago-detalle'], permiso: 'cuentas_por_cobrar.gestionar', modulo: 'pagos' },
       {
         to: { name: 'admin-notas-credito' },

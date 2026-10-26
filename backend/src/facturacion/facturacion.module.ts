@@ -12,6 +12,15 @@ import { FacturasController } from './facturas.controller.js';
 import { NotasCreditoController } from './notas-credito.controller.js';
 import { HACIENDA_CLIENT } from './hacienda-client.interface.js';
 import { NoOpHaciendaClient } from './noop-hacienda.client.js';
+import { HaciendaClientReal } from './hacienda-client.real.js';
+import { EmisionService, modoHacienda } from './emision.service.js';
+import { EmisionCron } from './emision.cron.js';
+import { EmisionController } from './emision.controller.js';
+import { EmisorConfig } from './emisor-config.entity.js';
+import { EmisorConfigService } from './emisor-config.service.js';
+import { SecretosService } from './secretos.service.js';
+import { CorreoService } from './correo.service.js';
+import { ConfigService } from '@nestjs/config';
 import { PedidosModule } from '../pedidos/pedidos.module.js';
 import { InventarioModule } from '../inventario/inventario.module.js';
 import { ContabilidadModule } from '../contabilidad/contabilidad.module.js';
@@ -23,7 +32,7 @@ import { ConfiguracionModule } from '../configuracion/configuracion.module.js';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Factura, FacturaLinea, FacturaContador, NotaCredito]),
+    TypeOrmModule.forFeature([Factura, FacturaLinea, FacturaContador, NotaCredito, EmisorConfig]),
     PedidosModule,
     InventarioModule,
     ContabilidadModule,
@@ -37,12 +46,24 @@ import { ConfiguracionModule } from '../configuracion/configuracion.module.js';
     NumeracionService,
     FacturacionService,
     FacturaManualService,
-    // Único lugar a tocar para conectar Hacienda de verdad: cambiar esta
-    // línea de NoOpHaciendaClient a la implementación real. Ver
-    // hacienda-client.interface.ts.
-    { provide: HACIENDA_CLIENT, useClass: NoOpHaciendaClient },
+    EmisionService,
+    EmisionCron,
+    EmisorConfigService,
+    SecretosService,
+    CorreoService,
+    // Quién habla con Hacienda lo decide HACIENDA_MODO: «noop» (hoy: sin llaves,
+    // no envía nada), «pruebas» (ambiente de pruebas de Hacienda) o «produccion».
+    // Ver hacienda-client.interface.ts y docs/FACTURACION_ELECTRONICA.md.
+    {
+      provide: HACIENDA_CLIENT,
+      inject: [ConfigService, SecretosService, EmisorConfigService],
+      useFactory: (config: ConfigService, secretos: SecretosService, emisor: EmisorConfigService) => {
+        const modo = modoHacienda(config);
+        return modo === 'noop' ? new NoOpHaciendaClient() : new HaciendaClientReal(modo, secretos, emisor);
+      },
+    },
   ],
-  controllers: [FacturacionController, FacturasController, NotasCreditoController],
-  exports: [FacturacionService],
+  controllers: [FacturacionController, FacturasController, NotasCreditoController, EmisionController],
+  exports: [FacturacionService, EmisionService],
 })
 export class FacturacionModule {}

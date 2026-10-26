@@ -39,8 +39,16 @@ export class FacturasController {
     @Query('clienteId') clienteId?: string,
     @Query('provincia') provincia?: Provincia,
     @Query('vencimiento') vencimiento?: Vencimiento,
+    @Query('emision') emision?: string,
   ) {
-    return this.facturacionService.listarFacturas({ estado, clienteId, provincia, vencimiento });
+    return this.facturacionService.listarFacturas({ estado, clienteId, provincia, vencimiento, emision });
+  }
+
+  // Estado de emisión ante Hacienda: cuántas facturas hay en cada estado y
+  // qué falta para poder emitir de verdad.
+  @Get('estado-emision')
+  estadoEmision() {
+    return this.facturacionService.resumenEmision();
   }
 
   // Ventas facturadas por mes (últimos `meses`, contado vs crédito) —
@@ -79,8 +87,9 @@ export class FacturasController {
     @Query('clienteId') clienteId?: string,
     @Query('provincia') provincia?: Provincia,
     @Query('vencimiento') vencimiento?: Vencimiento,
+    @Query('emision') emision?: string,
   ) {
-    const buffer = await this.facturacionService.generarExcelFacturas({ estado, clienteId, provincia, vencimiento });
+    const buffer = await this.facturacionService.generarExcelFacturas({ estado, clienteId, provincia, vencimiento, emision });
     res.set({
       'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       'Content-Disposition': 'attachment; filename="facturas.xlsx"',

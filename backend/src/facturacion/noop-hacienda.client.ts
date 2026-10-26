@@ -1,18 +1,30 @@
 import { Injectable } from '@nestjs/common';
-import { EstadoFactura } from '../common/enums/estado-factura.enum.js';
-import type { Factura } from './factura.entity.js';
-import type { HaciendaClient, ResultadoEnvioHacienda } from './hacienda-client.interface.js';
+import type { EstadoConexionHacienda, HaciendaClient, ResultadoConsultaHacienda, ResultadoEnvioHacienda } from './hacienda-client.interface.js';
 
-// Implementación interina: no firma ni envía nada de verdad. Deja la
-// factura en PENDIENTE_ENVIO con un mensaje explicando por qué, en vez
-// de fingir un envío exitoso — mismo criterio que el firmador/cliente
-// NoOp que usó Conejo Motors mientras tramitaba sus llaves.
+// Implementación mientras no hay llaves: no firma ni envía nada de verdad y lo
+// dice, en vez de fingir un envío exitoso. La factura queda «Pendiente de envío».
 @Injectable()
 export class NoOpHaciendaClient implements HaciendaClient {
-  async enviar(_factura: Factura): Promise<ResultadoEnvioHacienda> {
+  async enviar(): Promise<ResultadoEnvioHacienda> {
     return {
-      estado: EstadoFactura.PENDIENTE_ENVIO,
-      mensaje: 'Envío a Hacienda no configurado todavía: falta la llave criptográfica (.p12) y la conexión al API de Hacienda.',
+      estado: 'pendiente_envio',
+      mensaje: 'Envío a Hacienda no configurado todavía: falta la llave criptográfica (.p12) y las credenciales del API de Hacienda.',
+    };
+  }
+
+  async consultar(): Promise<ResultadoConsultaHacienda> {
+    return { estado: 'enviada', mensaje: 'Hacienda no está conectado: no hay nada que consultar.' };
+  }
+
+  async estadoConexion(): Promise<EstadoConexionHacienda> {
+    return {
+      conectado: false,
+      modo: 'sin_conectar',
+      faltantes: [
+        'Llave criptográfica (.p12) y su PIN, descargadas de la Oficina Virtual de Hacienda',
+        'Usuario y contraseña de la API de Hacienda (credenciales del ATV)',
+        'Poner el sistema en modo «pruebas» (HACIENDA_MODO) para empezar con el ambiente de pruebas de Hacienda',
+      ],
     };
   }
 }

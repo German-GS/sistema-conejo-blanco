@@ -1,24 +1,38 @@
-import type { Factura } from './factura.entity.js';
-import type { EstadoFactura } from '../common/enums/estado-factura.enum.js';
-
-export interface ResultadoEnvioHacienda {
-  estado: EstadoFactura;
-  mensaje: string;
-}
-
-// Punto de conexión con Hacienda. Firmar (XAdES, con la llave .p12 de
-// Conejo Blanco) y enviar el XML v4.4 del comprobante requiere esa
-// llave real y los códigos CABYS por variante de producto (que el
-// catálogo todavía no captura) — ninguna de las dos cosas existe en
-// este sistema todavía.
-//
-// Para conectar de verdad: implementar esta interfaz (firmar + POST al
-// API de Hacienda + interpretar la aceptación/rechazo) y cambiar el
-// provider 'HACIENDA_CLIENT' en facturacion.module.ts de
-// NoOpHaciendaClient a la implementación real. Nada más en el sistema
-// necesita cambiar.
+// Punto de conexión con Hacienda: firma y transmisión del comprobante ya armado
+// (el XML lo arma xml-factura.ts). Hay dos implementaciones:
+//  - NoOpHaciendaClient: no firma ni envía nada y lo dice (sin llaves todavía).
+//  - HaciendaClientReal: firma XAdES con la llave .p12 y envía/consulta contra el
+//    API de Hacienda (ambiente de pruebas o producción, según HACIENDA_MODO).
+// FacturacionModule elige una u otra; nada más en el sistema cambia.
 export const HACIENDA_CLIENT = 'HACIENDA_CLIENT';
 
+export type ModoHacienda = 'noop' | 'pruebas' | 'produccion';
+
+export interface ResultadoEnvioHacienda {
+  // enviada = Hacienda la recibió (falta que la acepte); pendiente_envio = no se pudo enviar (se reintenta).
+  estado: 'enviada' | 'pendiente_envio';
+  mensaje: string;
+  // XML firmado tal como salió (para guardarlo y entregarlo al cliente).
+  xmlFirmado?: string;
+}
+
+export interface ResultadoConsultaHacienda {
+  estado: 'aceptada' | 'rechazada' | 'enviada';
+  mensaje?: string;
+  xmlRespuesta?: string;
+}
+
+// Qué tan lista está la conexión: lo que se muestra en el panel de facturación electrónica.
+export interface EstadoConexionHacienda {
+  conectado: boolean;
+  // 'sin_conectar' (hoy), 'pruebas' (ambiente de pruebas de Hacienda) o 'produccion'.
+  modo: 'sin_conectar' | 'pruebas' | 'produccion';
+  // Lo que falta del lado de las llaves y credenciales (los datos del emisor se revisan aparte).
+  faltantes: string[];
+}
+
 export interface HaciendaClient {
-  enviar(factura: Factura): Promise<ResultadoEnvioHacienda>;
+  enviar(claveNumerica: string, xmlSinFirmar: string): Promise<ResultadoEnvioHacienda>;
+  consultar(claveNumerica: string): Promise<ResultadoConsultaHacienda>;
+  estadoConexion(): Promise<EstadoConexionHacienda>;
 }

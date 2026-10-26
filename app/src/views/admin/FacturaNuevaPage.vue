@@ -11,6 +11,7 @@ import { fechaHoyISO, formatearColones } from '../../lib/format.js';
 import { redondear } from '../../lib/dinero.js';
 import { useAuthStore } from '../../stores/auth.js';
 import FacturaDocumento from '../../components/FacturaDocumento.vue';
+import { avisarEmision } from '../../lib/emision.js';
 
 // Factura hecha a mano, con el mismo orden que Alegra: encabezado,
 // ajustes, información de la factura, ítems, totales, notas, términos,
@@ -254,6 +255,7 @@ async function emitir() {
       })),
     });
     borrador.limpiar();
+    avisarEmision(factura);
     router.push({ name: 'admin-factura-detalle', params: { id: factura.id } });
   } catch (err) {
     error.value = err instanceof ApiError ? err.message : 'No se pudo emitir la factura.';

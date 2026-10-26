@@ -3,8 +3,10 @@ import VistasGuardadas from '../../components/VistasGuardadas.vue';
 import { recordarFiltros, usarLimite } from '../../lib/filtros.js';
 import MostrarMas from '../../components/MostrarMas.vue';
 import Cargando from '../../components/Cargando.vue';
+import EstadoEmision from '../../components/EstadoEmision.vue';
+import { ESTADOS_EMISION } from '../../lib/emision.js';
 import { computed, onMounted, ref, watch } from 'vue';
-import { FileText, Download, Plus, Undo2 } from '@lucide/vue';
+import { FileText, Download, Plus, Undo2, ShieldAlert } from '@lucide/vue';
 import { api, ApiError, descargarArchivo } from '../../lib/api.js';
 import { formatearColones, formatearFecha } from '../../lib/format.js';
 import { PROVINCIAS, etiquetaProvincia } from '../../lib/provincias.js';
@@ -36,6 +38,7 @@ const clientesFiltro = ref([]);
 const filtroClienteId = ref('');
 const filtroProvincia = ref('');
 const filtroVencimiento = ref('');
+const filtroEmision = ref('');
 const exportando = ref(false);
 
 // El filtro por cliente/provincia/tiempo a vencer solo aplica dentro de
@@ -46,6 +49,7 @@ const mostrarFiltrosPendientes = computed(() => tabActiva.value === 'pendiente')
 function paramsActuales() {
   const params = new URLSearchParams();
   params.set('estado', tabActiva.value);
+  if (filtroEmision.value) params.set('emision', filtroEmision.value);
   if (mostrarFiltrosPendientes.value) {
     if (filtroClienteId.value) params.set('clienteId', filtroClienteId.value);
     if (filtroProvincia.value) params.set('provincia', filtroProvincia.value);
@@ -66,7 +70,19 @@ async function cargar() {
   }
 }
 
+// Cuántas facturas hay en cada estado de emisión y qué falta para conectar con Hacienda.
+const emision = ref(null);
+const verFaltantes = ref(false);
+async function cargarEmision() {
+  try {
+    emision.value = await api.get('/facturas/estado-emision');
+  } catch {
+    emision.value = null; // informativo: la lista funciona igual
+  }
+}
+
 onMounted(async () => {
+  cargarEmision();
   try {
     clientesFiltro.value = await api.get('/clientes');
   } catch {
@@ -75,7 +91,7 @@ onMounted(async () => {
   await cargar();
 });
 
-watch([tabActiva, filtroClienteId, filtroProvincia, filtroVencimiento], cargar);
+watch([tabActiva, filtroClienteId, filtroProvincia, filtroVencimiento, filtroEmision], cargar);
 
 async function exportar() {
   error.value = '';
@@ -136,9 +152,9 @@ async function confirmarAnular(factura) {
 }
 
 // Los filtros se recuerdan al abrir una factura y volver; la lista larga se muestra de a 50.
-recordarFiltros('facturas', { cliente: filtroClienteId, provincia: filtroProvincia, vencimiento: filtroVencimiento });
+recordarFiltros('facturas', { cliente: filtroClienteId, provincia: filtroProvincia, vencimiento: filtroVencimiento, emision: filtroEmision });
 const { visibles: facturasVisibles, restantes: facturasRestantes, mostrarMas: mostrarMasFacturas, reiniciar: reiniciarFacturas, paso: pasoFacturas } = usarLimite(() => facturas.value);
-watch([filtroClienteId, filtroProvincia, filtroVencimiento], reiniciarFacturas);
+watch([filtroClienteId, filtroProvincia, filtroVencimiento, filtroEmision], reiniciarFacturas);
 </script>
 
 <template>
@@ -172,6 +188,31 @@ watch([filtroClienteId, filtroProvincia, filtroVencimiento], reiniciarFacturas);
       </button>
     </div>
 
+    <div
+      v-if="emision"
+      class="rounded-xl border p-3 text-sm"
+      :class="emision.cantidades.rechazada ? 'border-red-300 bg-red-50 text-red-900' : emision.conexion.conectado ? 'border-slate-200 bg-slate-50 text-slate-700' : 'border-amber-300 bg-amber-50 text-amber-900'"
+    >
+      <div class="flex flex-wrap items-center gap-x-4 gap-y-1">
+        <span class="flex items-center gap-1.5 font-semibold">
+          <ShieldAlert class="size-4" />
+          Emisión a Hacienda:
+          {{ emision.conexion.conectado ? (emision.conexion.modo === 'pruebas' ? 'conectada (ambiente de pruebas)' : 'conectada') : 'todavía no conectada' }}
+        </span>
+        <span v-for="(info, clave) in ESTADOS_EMISION" :key="clave" class="flex items-center gap-1">
+          <EstadoEmision :estado="clave" /> <strong>{{ emision.cantidades[clave] ?? 0 }}</strong>
+        </span>
+      </div>
+      <p v-if="!emision.conexion.conectado" class="mt-1">
+        Las facturas se crean y quedan <strong>pendientes de envío</strong>: no son válidas ante Hacienda hasta que se conecte y se emitan.
+        <button type="button" class="font-semibold underline" @click="verFaltantes = !verFaltantes">{{ verFaltantes ? 'Ocultar' : 'Ver qué falta' }}</button>
+      </p>
+      <ul v-if="verFaltantes && emision.conexion.faltantes.length" class="mt-1 list-inside list-disc">
+        <li v-for="f in emision.conexion.faltantes" :key="f">{{ f }}</li>
+      </ul>
+      <p v-if="emision.cantidades.rechazada" class="mt-1 font-semibold">Hay facturas rechazadas por Hacienda: no son válidas hasta corregirlas y emitirlas de nuevo.</p>
+    </div>
+
     <VistasGuardadas
       v-if="mostrarFiltrosPendientes"
       clave="facturas"
@@ -179,6 +220,13 @@ watch([filtroClienteId, filtroProvincia, filtroVencimiento], reiniciarFacturas);
       :aplicar="(v) => { filtroClienteId = v.cliente ?? ''; filtroProvincia = v.provincia ?? ''; filtroVencimiento = v.vencimiento ?? ''; }"
     />
     <div class="card flex flex-col gap-4">
+      <div class="max-w-xs">
+        <label class="label">Estado de emisión</label>
+        <select v-model="filtroEmision" class="input">
+          <option value="">Todos</option>
+          <option v-for="(info, clave) in ESTADOS_EMISION" :key="clave" :value="clave">{{ info.texto }}</option>
+        </select>
+      </div>
       <div v-if="mostrarFiltrosPendientes" class="grid grid-cols-1 gap-2 sm:grid-cols-3">
         <div>
           <label class="label">Cliente</label>
@@ -218,6 +266,11 @@ watch([filtroClienteId, filtroProvincia, filtroVencimiento], reiniciarFacturas);
                 {{ f.numeroOrden ? `Orden #${f.numeroOrden}` : 'Factura manual' }} · {{ f.consecutivo }} · Facturada {{ formatearFecha(f.fecha) }} ·
                 {{ f.tipoPago === 'credito' ? 'Crédito' : 'Contado' }}
               </p>
+              <p class="mt-1 flex flex-wrap items-center gap-2">
+                <span class="text-xs text-slate-500">Estado de emisión</span>
+                <EstadoEmision :estado="f.estadoHacienda" :mensaje="f.mensajeHacienda" />
+              </p>
+              <p v-if="f.estadoHacienda === 'rechazada' && f.mensajeHacienda" class="text-xs font-medium text-red-600">{{ f.mensajeHacienda }}</p>
               <p v-if="f.notaCredito" class="text-sm font-medium text-red-600">
                 Nota de crédito {{ f.notaCredito.consecutivo }} · {{ formatearFecha(f.notaCredito.fecha) }}
               </p>

@@ -1,11 +1,11 @@
-import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { Factura } from './factura.entity.js';
 import { FacturaLinea } from './factura-linea.entity.js';
 import { NumeracionService } from './numeracion.service.js';
-import { HACIENDA_CLIENT, type HaciendaClient } from './hacienda-client.interface.js';
+import { EmisionService } from './emision.service.js';
 import type { CrearFacturaManualDto } from './dto/crear-factura-manual.dto.js';
 import { ClientesService } from '../clientes/clientes.service.js';
 import { UbicacionesService } from '../ubicaciones/ubicaciones.service.js';
@@ -35,6 +35,11 @@ export interface DocumentoFactura {
   vendedor: string | null;
   anulada: boolean;
   estadoHacienda: string;
+  mensajeHacienda: string | null;
+  claveNumerica: string;
+  enviadaEn: string | null;
+  resueltaEn: string | null;
+  entregadoCliente: boolean;
   encabezado: Record<string, string | null>;
   cliente: { nombre: string; cedula: string; telefono: string; email: string; direccion: string | null };
   lineas: Array<{
@@ -77,7 +82,7 @@ export class FacturaManualService {
     private readonly contabilidadService: ContabilidadService,
     private readonly config: ConfigService,
     private readonly dataSource: DataSource,
-    @Inject(HACIENDA_CLIENT) private readonly haciendaClient: HaciendaClient,
+    private readonly emision: EmisionService,
   ) {}
 
   async crear(dto: CrearFacturaManualDto, usuarioId: string): Promise<Factura> {
@@ -250,12 +255,7 @@ export class FacturaManualService {
       return guardada.id;
     });
 
-    const guardada = await this.facturaRepo.findOneOrFail({ where: { id: facturaId }, relations: { cliente: true } });
-    const resultado = await this.haciendaClient.enviar(guardada);
-    guardada.estado = resultado.estado;
-    guardada.mensajeHacienda = resultado.mensaje;
-    await this.facturaRepo.save(guardada);
-    return guardada;
+    return this.emision.enviar(facturaId);
   }
 
   // Todo lo que hace falta para mostrar/imprimir una factura (de pedido o
@@ -321,6 +321,11 @@ export class FacturaManualService {
       vendedor: manual ? f.vendedor : (f.pedido!.vendedor?.nombre ?? null),
       anulada: anulada || Boolean(f.notaCredito),
       estadoHacienda: f.estado,
+      mensajeHacienda: f.mensajeHacienda,
+      claveNumerica: f.claveNumerica,
+      enviadaEn: f.enviadaEn?.toISOString() ?? null,
+      resueltaEn: f.resueltaEn?.toISOString() ?? null,
+      entregadoCliente: f.entregadoCliente,
       encabezado,
       cliente: {
         nombre: f.cliente.nombre,

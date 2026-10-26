@@ -64,6 +64,18 @@ export class PendientesService {
         if (proximas.length) out.push({ clave: 'facturas-por-vencer', titulo: 'Facturas que vencen en 7 días o menos', detalle: `${colones(proximas.reduce((a, f) => a + Number(f.saldo), 0))} por cobrar pronto.`, cantidad: proximas.length, gravedad: 'atencion', ruta: 'admin-facturas' });
         return out;
       });
+      intentar('facturas-emision', async () => {
+        const r = await this.facturacion.resumenEmision();
+        const out: Pendiente[] = [];
+        const rechazadas = r.cantidades.rechazada ?? 0;
+        const sinEnviar = r.cantidades.pendiente_envio ?? 0;
+        const enProceso = r.cantidades.enviada ?? 0;
+        if (rechazadas) out.push({ clave: 'facturas-rechazadas', titulo: 'Facturas rechazadas por Hacienda', detalle: 'Hay que corregirlas y volver a emitirlas: no son válidas todavía.', cantidad: rechazadas, gravedad: 'urgente', ruta: 'admin-facturas' });
+        // Mientras no haya conexión, todas quedan sin enviar: solo es informativo. Con conexión, es un atraso real.
+        if (sinEnviar) out.push({ clave: 'facturas-sin-emitir', titulo: 'Facturas sin enviar a Hacienda', detalle: r.conexion.conectado ? 'Se generaron pero no se han enviado: revise el motivo.' : 'Hacienda todavía no está conectado: quedan listas para emitir cuando se conecte.', cantidad: sinEnviar, gravedad: r.conexion.conectado ? 'atencion' : 'info', ruta: 'admin-facturas' });
+        if (enProceso) out.push({ clave: 'facturas-en-proceso', titulo: 'Facturas en proceso en Hacienda', detalle: 'Enviadas, esperando la aceptación de Hacienda.', cantidad: enProceso, gravedad: 'info', ruta: 'admin-facturas' });
+        return out;
+      });
       intentar('pedidos-sin-facturar', async () => {
         const [r] = await this.dataSource.query(`SELECT COUNT(*)::int AS n FROM pedidos p WHERE p.estado = 'activo' AND NOT EXISTS (SELECT 1 FROM facturas f WHERE f.pedido_id = p.id)`);
         return r.n > 0 ? { clave: 'pedidos-sin-facturar', titulo: 'Pedidos de vendedores sin facturar', detalle: 'Pedidos activos que todavía no tienen su factura.', cantidad: r.n, gravedad: 'info', ruta: 'admin-pedidos' } : null;

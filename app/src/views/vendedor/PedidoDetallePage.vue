@@ -8,6 +8,8 @@ import { formatearColones, formatearFecha, formatearFechaHora } from '../../lib/
 import { useAuthStore } from '../../stores/auth.js';
 import { TIPOS_IDENTIFICACION } from '../../lib/clientes.js';
 import VerFotosProducto from '../../components/VerFotosProducto.vue';
+import EstadoEmision from '../../components/EstadoEmision.vue';
+import { avisarEmision, estadoEmision } from '../../lib/emision.js';
 
 const props = defineProps({ id: { type: String, required: true } });
 const router = useRouter();
@@ -155,30 +157,14 @@ async function facturar() {
   errorFacturar.value = '';
   facturando.value = true;
   try {
-    await api.post(`/pedidos/${props.id}/facturar`);
+    const factura = await api.post(`/pedidos/${props.id}/facturar`);
+    avisarEmision(factura);
     await cargarPedido();
   } catch (err) {
     errorFacturar.value = err instanceof ApiError ? err.message : 'No se pudo facturar el pedido.';
   } finally {
     facturando.value = false;
   }
-}
-
-const ETIQUETAS_ESTADO_FACTURA = {
-  pendiente_envio: 'Pendiente de envío a Hacienda',
-  enviada: 'Enviada',
-  aceptada: 'Aceptada',
-  rechazada: 'Rechazada',
-};
-
-function etiquetaEstadoFactura(estado) {
-  return ETIQUETAS_ESTADO_FACTURA[estado] ?? estado;
-}
-
-function claseEstadoFactura(estado) {
-  if (estado === 'aceptada') return 'bg-green-100 text-green-700';
-  if (estado === 'rechazada') return 'bg-red-100 text-red-700';
-  return 'bg-amber-100 text-amber-700';
 }
 
 // --- Editar líneas (solo quien puede gestionar pedidos) -----------------
@@ -657,21 +643,20 @@ function imprimir() {
         <p class="label">Factura</p>
         <p class="text-base font-semibold text-slate-900">Consecutivo: {{ pedido.factura.consecutivo }}</p>
         <p class="break-all text-sm text-slate-500">Clave numérica: {{ pedido.factura.claveNumerica }}</p>
-        <span
-          class="mt-2 inline-block rounded-full px-2.5 py-1 text-xs font-semibold"
-          :class="claseEstadoFactura(pedido.factura.estado)"
-        >
-          {{ etiquetaEstadoFactura(pedido.factura.estado) }}
-        </span>
-        <p v-if="pedido.factura.mensajeHacienda" class="mt-2 text-sm text-slate-500 print:hidden">
-          {{ pedido.factura.mensajeHacienda }}
+        <p class="mt-2 flex flex-wrap items-center gap-2 print:hidden">
+          <span class="text-sm text-slate-600">Estado de emisión:</span>
+          <EstadoEmision :estado="pedido.factura.estado" :mensaje="pedido.factura.mensajeHacienda" />
+        </p>
+        <p class="mt-1 text-sm text-slate-500 print:hidden">
+          {{ estadoEmision(pedido.factura.estado).ayuda }}
+          <template v-if="pedido.factura.mensajeHacienda && pedido.factura.estado !== 'aceptada'"> {{ pedido.factura.mensajeHacienda }}</template>
         </p>
       </div>
 
       <div v-else-if="mostrarFacturar" class="mt-6 border-t border-slate-200 pt-4 print:hidden">
         <p class="mb-2 text-sm text-slate-600">
           El pedido tiene cliente registrado y está listo para facturar. Esto arma el consecutivo y la clave
-          numérica oficiales — el envío a Hacienda queda pendiente hasta que se conecte la llave criptográfica.
+          numérica oficiales y los envía a Hacienda; la factura solo queda «Emitida» cuando Hacienda la acepta.
         </p>
         <p v-if="errorFacturar" class="mb-2 text-sm font-medium text-red-600">{{ errorFacturar }}</p>
         <button type="button" class="btn-primary" :disabled="facturando" @click="facturar">

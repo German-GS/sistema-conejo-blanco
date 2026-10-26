@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
@@ -37,6 +38,7 @@ import { PedidoEdicion } from './pedidos/pedido-edicion.entity.js';
 import { Factura } from './facturacion/factura.entity.js';
 import { FacturaLinea } from './facturacion/factura-linea.entity.js';
 import { FacturaContador } from './facturacion/factura-contador.entity.js';
+import { EmisorConfig } from './facturacion/emisor-config.entity.js';
 import { NotaCredito } from './facturacion/nota-credito.entity.js';
 import { Ubicacion } from './ubicaciones/ubicacion.entity.js';
 import { StockUbicacion } from './inventario/stock-ubicacion.entity.js';
@@ -86,6 +88,7 @@ import { PlanillaLinea } from './planilla/planilla-linea.entity.js';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    ScheduleModule.forRoot(),
     ThrottlerModule.forRoot({
       throttlers: [{ ttl: 60_000, limit: 300 }],
     }),
@@ -117,6 +120,7 @@ import { PlanillaLinea } from './planilla/planilla-linea.entity.js';
           Factura,
           FacturaLinea,
           FacturaContador,
+          EmisorConfig,
           NotaCredito,
           Ubicacion,
           StockUbicacion,

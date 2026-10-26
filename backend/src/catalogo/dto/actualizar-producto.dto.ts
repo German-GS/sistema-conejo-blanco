@@ -24,6 +24,11 @@ export class ActualizarProductoDto {
   @MaxLength(255)
   descripcion?: string;
 
+  // Código CABYS de Hacienda (13 dígitos); vacío lo quita.
+  @IsOptional()
+  @Matches(/^(\d{13})?$/, { message: 'El CABYS tiene 13 dígitos.' })
+  cabys?: string;
+
   @IsOptional()
   @IsBoolean()
   activo?: boolean;

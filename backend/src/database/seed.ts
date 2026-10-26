@@ -22,6 +22,7 @@ import { TraspasoLinea } from '../traspasos/traspaso-linea.entity.js';
 import { Factura } from '../facturacion/factura.entity.js';
 import { FacturaLinea } from '../facturacion/factura-linea.entity.js';
 import { FacturaContador } from '../facturacion/factura-contador.entity.js';
+import { EmisorConfig } from '../facturacion/emisor-config.entity.js';
 import { NotaCredito } from '../facturacion/nota-credito.entity.js';
 import { CuentaContable } from '../contabilidad/cuenta-contable.entity.js';
 import { AsientoContable } from '../contabilidad/asiento-contable.entity.js';
@@ -80,6 +81,7 @@ async function seed() {
       Factura,
       FacturaLinea,
       FacturaContador,
+      EmisorConfig,
       NotaCredito,
       Ubicacion,
       StockUbicacion,

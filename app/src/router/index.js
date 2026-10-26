@@ -25,6 +25,7 @@ const AccesosPage = () => import('../views/admin/AccesosPage.vue');
 const PedidosPage = () => import('../views/admin/PedidosPage.vue');
 const ConfiguracionPage = () => import('../views/admin/ConfiguracionPage.vue');
 const FacturasPage = () => import('../views/admin/FacturasPage.vue');
+const FacturacionElectronicaPage = () => import('../views/admin/FacturacionElectronicaPage.vue');
 const FacturaNuevaPage = () => import('../views/admin/FacturaNuevaPage.vue');
 const FacturaDetallePage = () => import('../views/admin/FacturaDetallePage.vue');
 const PagosPage = () => import('../views/admin/PagosPage.vue');
@@ -86,6 +87,7 @@ const routes = [
       { path: 'clientes', name: 'admin-clientes', component: ClientesPage, meta: { permiso: 'clientes.gestionar' } },
       { path: 'inventario', name: 'admin-inventario', component: InventarioPage, meta: { permiso: 'catalogo.gestionar' } },
       { path: 'bodega', name: 'admin-bodega', component: BodegaPage, meta: { permiso: 'inventario.ver' } },
+      { path: 'facturacion-electronica', name: 'admin-facturacion-electronica', component: FacturacionElectronicaPage, meta: { permiso: 'facturacion.gestionar' } },
       { path: 'facturas', name: 'admin-facturas', component: FacturasPage, meta: { permiso: 'facturacion.gestionar' } },
       { path: 'facturas/nueva', name: 'admin-factura-nueva', component: FacturaNuevaPage, meta: { permiso: 'facturacion.gestionar' } },
       {

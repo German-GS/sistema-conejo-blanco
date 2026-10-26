@@ -1,4 +1,4 @@
-import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
@@ -8,7 +8,7 @@ import { NotaCredito } from './nota-credito.entity.js';
 import { FacturaLinea } from './factura-linea.entity.js';
 import { pagadoPorFactura } from '../pagos/pagos.service.js';
 import { NumeracionService } from './numeracion.service.js';
-import { HACIENDA_CLIENT, type HaciendaClient } from './hacienda-client.interface.js';
+import { EmisionService } from './emision.service.js';
 import { PedidosService } from '../pedidos/pedidos.service.js';
 import { InventarioService } from '../inventario/inventario.service.js';
 import { CatalogoService } from '../catalogo/catalogo.service.js';
@@ -22,6 +22,8 @@ import type { Provincia } from '../common/enums/provincia.enum.js';
 import { CategoriaFactura } from '../common/enums/categoria-factura.enum.js';
 import { sumarDias, diferenciaEnDias, hoyISO } from '../common/utils/fecha.util.js';
 import { redondear } from '../common/utils/dinero.util.js';
+import { ESTADOS_EMISION, etiquetaEmision } from './estado-emision.js';
+import type { EstadoConexionHacienda } from './hacienda-client.interface.js';
 
 export interface ResumenMensual {
   mes: string;
@@ -49,6 +51,7 @@ export interface FacturaListado {
   ivaMonto: string;
   total: string;
   estadoHacienda: string;
+  mensajeHacienda: string | null;
   notaCredito: { id: string; consecutivo: string; fecha: string } | null;
 }
 
@@ -100,7 +103,7 @@ export class FacturacionService {
     private readonly contabilidadService: ContabilidadService,
     private readonly config: ConfigService,
     private readonly dataSource: DataSource,
-    @Inject(HACIENDA_CLIENT) private readonly haciendaClient: HaciendaClient,
+    private readonly emision: EmisionService,
   ) {}
 
   buscarPorPedidoId(pedidoId: string): Promise<Factura | null> {
@@ -123,7 +126,7 @@ export class FacturacionService {
   // venta (ingreso + IVA + cuenta por cobrar/caja) y el costo de lo
   // vendido (gasto contra el inventario que bodega ya había descontado).
   // Todo en una sola transacción. El envío a Hacienda queda en manos del
-  // HaciendaClient inyectado (NoOp por ahora, ver noop-hacienda.client.ts).
+  // EmisionService (ver emision.service.ts).
   async facturarPedido(pedidoId: string): Promise<Factura> {
     const pedido = await this.pedidosService.buscarPorIdOFallar(pedidoId);
 
@@ -222,13 +225,33 @@ export class FacturacionService {
     // El envío a Hacienda va fuera de la transacción de datos: es una
     // llamada de red (cuando exista de verdad), no debe mantener la
     // transacción de Postgres abierta esperándola.
-    const factura = await this.buscarPorIdOFallar(facturaId);
-    const resultadoEnvio = await this.haciendaClient.enviar(factura);
-    factura.estado = resultadoEnvio.estado;
-    factura.mensajeHacienda = resultadoEnvio.mensaje;
-    await this.facturaRepo.save(factura);
+    await this.emision.enviar(facturaId);
+    return this.buscarPorIdOFallar(facturaId);
+  }
 
-    return this.buscarPorIdOFallar(factura.id);
+  // Cuántas facturas hay en cada estado de emisión y qué tan lista está la
+  // conexión con Hacienda — para el panel y la bandeja «Para hacer hoy». Las
+  // facturas anuladas (con nota de crédito) no cuentan: ya no hay nada que emitir.
+  async resumenEmision(): Promise<{
+    conexion: EstadoConexionHacienda;
+    cantidades: Record<string, number>;
+    total: number;
+  }> {
+    const filas = await this.facturaRepo
+      .createQueryBuilder('f')
+      .leftJoin('f.notaCredito', 'nc')
+      .select('f.estado', 'estado')
+      .addSelect('COUNT(*)::int', 'cantidad')
+      .where('nc.id IS NULL')
+      .groupBy('f.estado')
+      .getRawMany<{ estado: string; cantidad: number }>();
+    const cantidades = Object.fromEntries(ESTADOS_EMISION.map((e) => [e, 0])) as Record<string, number>;
+    for (const fila of filas) cantidades[fila.estado] = Number(fila.cantidad);
+    return {
+      conexion: (await this.emision.preparacion()).conexion,
+      cantidades,
+      total: Object.values(cantidades).reduce((a, b) => a + b, 0),
+    };
   }
 
   // Anula una factura ya emitida generando su Nota de Crédito — Hacienda
@@ -511,6 +534,8 @@ export class FacturacionService {
   // el orden por días para vencer).
   async listarFacturas(filtros: {
     estado?: CategoriaFactura;
+    // Estado de emisión ante Hacienda (pendiente_envio, enviada, aceptada, rechazada).
+    emision?: string;
     clienteId?: string;
     provincia?: Provincia;
     vencimiento?: 'vencidas' | 'proximos_7' | 'proximos_30';
@@ -518,6 +543,7 @@ export class FacturacionService {
     const facturas = await this.facturaRepo.find({
       where: {
         ...(filtros.clienteId ? { clienteId: filtros.clienteId } : {}),
+        ...(filtros.emision && ESTADOS_EMISION.includes(filtros.emision) ? { estado: filtros.emision as Factura['estado'] } : {}),
         ...(filtros.provincia ? { cliente: { provincia: filtros.provincia } } : {}),
       },
       relations: { cliente: true, pedido: true, notaCredito: true },
@@ -557,6 +583,7 @@ export class FacturacionService {
         ivaMonto: f.ivaMonto,
         total: f.total,
         estadoHacienda: f.estado,
+        mensajeHacienda: f.mensajeHacienda,
         notaCredito: f.notaCredito
           ? { id: f.notaCredito.id, consecutivo: f.notaCredito.consecutivo, fecha: f.notaCredito.fecha }
           : null,
@@ -588,6 +615,7 @@ export class FacturacionService {
   // contador externo sin tener que copiar la tabla a mano.
   async generarExcelFacturas(filtros: {
     estado?: CategoriaFactura;
+    emision?: string;
     clienteId?: string;
     provincia?: Provincia;
     vencimiento?: 'vencidas' | 'proximos_7' | 'proximos_30';
@@ -612,7 +640,7 @@ export class FacturacionService {
       { header: 'Subtotal', key: 'subtotal', width: 14 },
       { header: 'IVA', key: 'ivaMonto', width: 12 },
       { header: 'Total', key: 'total', width: 14 },
-      { header: 'Estado Hacienda', key: 'estadoHacienda', width: 20 },
+      { header: 'Estado de emisión', key: 'estadoHacienda', width: 20 },
       { header: 'Nota de crédito', key: 'notaCredito', width: 24 },
     ];
     hoja.getRow(1).font = { bold: true };
@@ -631,7 +659,7 @@ export class FacturacionService {
         subtotal: Number(f.subtotal),
         ivaMonto: Number(f.ivaMonto),
         total: Number(f.total),
-        estadoHacienda: f.estadoHacienda,
+        estadoHacienda: etiquetaEmision(f.estadoHacienda),
         notaCredito: f.notaCredito?.consecutivo ?? '',
       });
     }

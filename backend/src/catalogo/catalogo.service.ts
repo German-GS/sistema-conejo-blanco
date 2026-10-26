@@ -223,6 +223,10 @@ export class CatalogoService {
     if (dto.descripcion !== undefined && dto.descripcion !== (producto.descripcion ?? '')) {
       cambios.push('Descripción actualizada');
     }
+    if (dto.cabys !== undefined) {
+      if ((dto.cabys || null) !== producto.cabys) cambios.push(`CABYS: ${producto.cabys ?? '—'} → ${dto.cabys || '—'}`);
+      dto.cabys = dto.cabys || (null as never); // vacío = quitarlo
+    }
     if (dto.activo !== undefined && dto.activo !== producto.activo) {
       cambios.push(dto.activo ? 'Producto activado' : 'Producto desactivado');
     }

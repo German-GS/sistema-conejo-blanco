@@ -57,7 +57,9 @@ function colorCoincide(color) {
 
 const mostrarFormProducto = ref(false);
 const guardandoProducto = ref(false);
-const nuevoProducto = reactive({ codigo: '', nombre: '', descripcion: '', esPrueba: false });
+// CABYS: opcional, pero si se escribe son 13 dígitos (Hacienda lo pide en cada línea de la factura electrónica).
+const cabysValido = (v) => !v.trim() || /^\d{13}$/.test(v.trim());
+const nuevoProducto = reactive({ codigo: '', nombre: '', descripcion: '', cabys: '', esPrueba: false });
 
 // Colores del producto nuevo, capturados junto con el producto en el mismo
 // formulario — el color es texto libre, así que sirve igual para un color
@@ -80,7 +82,7 @@ const variantesNuevasValidas = computed(() =>
 );
 
 const productoNuevoValido = computed(
-  () => codigoProductoValido(nuevoProducto.codigo) && nuevoProducto.nombre.trim() && variantesNuevasValidas.value.length > 0,
+  () => codigoProductoValido(nuevoProducto.codigo) && nuevoProducto.nombre.trim() && cabysValido(nuevoProducto.cabys) && variantesNuevasValidas.value.length > 0,
 );
 
 const productoParaVariante = ref(null);
@@ -133,6 +135,7 @@ async function crearProducto() {
       codigo: normalizarCodigoProducto(nuevoProducto.codigo),
       nombre: nuevoProducto.nombre.trim(),
       descripcion: nuevoProducto.descripcion.trim() || undefined,
+      cabys: nuevoProducto.cabys.trim() || undefined,
       ...(auth.esSistema && nuevoProducto.esPrueba ? { esPrueba: true } : {}),
     });
 
@@ -150,7 +153,7 @@ async function crearProducto() {
       });
     }
 
-    Object.assign(nuevoProducto, { codigo: '', nombre: '', descripcion: '', esPrueba: false });
+    Object.assign(nuevoProducto, { codigo: '', nombre: '', descripcion: '', cabys: '', esPrueba: false });
     variantesNuevas.value = [{ color: '', precioPorPar: '', costo: '' }];
     mostrarFormProducto.value = false;
     await cargar();
@@ -253,7 +256,7 @@ async function eliminarFoto(fotoId) {
 // de las burbujas de abajo; acá solo se corrige texto/precio o se agregan
 // colores nuevos.
 const productoEnEdicion = ref(null);
-const formularioEdicion = reactive({ codigo: '', nombre: '', descripcion: '' });
+const formularioEdicion = reactive({ codigo: '', nombre: '', descripcion: '', cabys: '' });
 const variantesEdicion = ref([]);
 const guardandoEdicion = ref(false);
 const errorEdicion = ref('');
@@ -271,6 +274,7 @@ function abrirEdicion(producto) {
     codigo: producto.codigo,
     nombre: producto.nombre,
     descripcion: producto.descripcion ?? '',
+    cabys: producto.cabys ?? '',
   });
   variantesEdicion.value = producto.variantes.map((v) => ({
     id: v.id,
@@ -300,7 +304,7 @@ function quitarFilaVarianteEdicion(index) {
 }
 
 const edicionValida = computed(() => {
-  if (!codigoProductoValido(formularioEdicion.codigo) || !formularioEdicion.nombre.trim()) return false;
+  if (!codigoProductoValido(formularioEdicion.codigo) || !formularioEdicion.nombre.trim() || !cabysValido(formularioEdicion.cabys)) return false;
   return variantesEdicion.value.every((v) => {
     if (!v.id && !v.color.trim() && !v.precioPorPar) return true; // fila nueva vacía, se ignora
     return v.color.trim() && Number(v.precioPorPar) > 0;
@@ -315,8 +319,9 @@ async function guardarEdicion(producto) {
     const codigo = normalizarCodigoProducto(formularioEdicion.codigo);
     const nombre = formularioEdicion.nombre.trim();
     const descripcion = formularioEdicion.descripcion.trim();
-    if (codigo !== producto.codigo || nombre !== producto.nombre || descripcion !== (producto.descripcion ?? '')) {
-      await api.patch(`/catalogo/productos/${producto.id}`, { codigo, nombre, descripcion: descripcion || undefined });
+    const cabys = formularioEdicion.cabys.trim();
+    if (codigo !== producto.codigo || nombre !== producto.nombre || descripcion !== (producto.descripcion ?? '') || cabys !== (producto.cabys ?? '')) {
+      await api.patch(`/catalogo/productos/${producto.id}`, { codigo, nombre, descripcion: descripcion || undefined, cabys });
     }
 
     for (const v of variantesEdicion.value) {
@@ -413,6 +418,11 @@ async function cargarEdiciones(productoId) {
       <div>
         <label class="label">Descripción</label>
         <input v-model="nuevoProducto.descripcion" type="text" class="input" />
+      </div>
+      <div>
+        <label class="label">CABYS (13 dígitos)</label>
+        <input v-model="nuevoProducto.cabys" type="text" inputmode="numeric" maxlength="13" class="input" placeholder="Opcional por ahora; Hacienda lo exige al facturar" />
+        <p v-if="!cabysValido(nuevoProducto.cabys)" class="mt-1 text-xs font-medium text-red-600">El CABYS tiene 13 dígitos.</p>
       </div>
       <label v-if="auth.esSistema" class="flex items-start gap-3 rounded-xl border-2 border-dashed border-amber-400 bg-amber-50 p-3 text-sm text-amber-900">
         <input v-model="nuevoProducto.esPrueba" type="checkbox" class="mt-0.5 size-5" />
@@ -558,6 +568,11 @@ async function cargarEdiciones(productoId) {
           <div>
             <label class="label">Descripción</label>
             <input v-model="formularioEdicion.descripcion" type="text" class="input bg-white" />
+          </div>
+          <div>
+            <label class="label">CABYS (13 dígitos)</label>
+            <input v-model="formularioEdicion.cabys" type="text" inputmode="numeric" maxlength="13" class="input bg-white" placeholder="Código de Hacienda para la factura electrónica" />
+            <p v-if="!cabysValido(formularioEdicion.cabys)" class="mt-1 text-xs font-medium text-red-600">El CABYS tiene 13 dígitos.</p>
           </div>
           <div>
             <label class="label">Colores</label>

@@ -7,6 +7,15 @@ Versionado `MAYOR.MENOR.PARCHE`:
 
 La versión se cambia en `app/package.json` y `backend/package.json` (el pie de página y el panel del sistema la leen solos).
 
+## 1.15.0 — 26 oct 2026 — Estado de emisión de las facturas y preparación para emitir ante Hacienda
+- **Estado de emisión** en Facturas, en el detalle y en el pedido, como en Alegra: **Emitida** (verde, Hacienda la aceptó), **En proceso** (gris), **Pendiente de envío** (ámbar) y **Rechazada** (rojo, con el motivo). Filtro por estado, resumen arriba y columna en el Excel.
+- **Aviso al facturar:** dice con claridad si la factura quedó emitida o no (hoy: «todavía NO está emitida»), en vez de dar por hecho que crear = emitir.
+- **Facturación electrónica** (nueva pantalla): datos del emisor, lista de lo que falta (llave y credenciales, CABYS, correo) y envío de pendientes.
+- **Todo el camino hasta Hacienda está construido** y se activa con las llaves (`HACIENDA_MODO`): arma el XML v4.4, lo firma (XAdES) y lo envía; cada 10 minutos consulta si Hacienda aceptó o rechazó; al aceptar, entrega al cliente el XML y la respuesta por correo; una factura rechazada se corrige y se emite de nuevo con consecutivo nuevo. Hoy sigue sin conectar: nada se envía.
+- **CABYS por producto** (Inventario → crear/editar) y CABYS predeterminado.
+- «Para hacer hoy» avisa de facturas rechazadas y sin enviar.
+- Guía de activación: `docs/FACTURACION_ELECTRONICA.md`. Pendiente antes de producción: nota de crédito electrónica.
+
 ## 1.14.0 — 23 oct 2026 — Reglas de asistencia más justas: tolerancia, almuerzo fijo y marcas estimadas
 - **Tolerancia ±10 min en la entrada y en la salida** (parámetro `TOLERANCIA_MARCA_MINUTOS`): dentro de ella la marca cuenta como la hora del horario, sin tardanza ni extra; fuera, cuenta la hora real (08:57 con entrada a las 8 = 57 min).
 - **Almuerzo como bloque fijo** (`ALMUERZO_BLOQUE_FIJO`): siempre se descuenta el almuerzo del empleado y se ignoran las marcas del medio, así que 3 o 5 marcas ya no son «ambiguas».
