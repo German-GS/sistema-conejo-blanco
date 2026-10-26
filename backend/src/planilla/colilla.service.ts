@@ -142,8 +142,12 @@ export class ColillaService {
     this.fila(doc, 'Total ingresos (bruto)', n(l.bruto), xIzq, yTotales + 4, mitad, true);
     this.fila(doc, 'Total deducciones', n(l.totalDeducciones), xDer, yTotales + 4, mitad, true);
 
+    // Viáticos: van aparte, fuera del bruto y de las deducciones, y se suman al neto.
+    const viaticos = n(l.viaticos);
+    if (viaticos > 0) this.fila(doc, 'Viáticos (no afectos a cargas)', viaticos, xIzq, yTotales + 20, mitad, false);
+
     // --- Neto ---
-    const yNeto = yTotales + 26;
+    const yNeto = yTotales + (viaticos > 0 ? 40 : 26);
     doc.roundedRect(MARGEN, yNeto, ancho, 30, 4).fillAndStroke('#F2F2F2', LINEA);
     doc.fillColor('#000').font(FUENTE_NEGRITA).fontSize(11).text('NETO A PAGAR', MARGEN + 12, yNeto + 9, { lineBreak: false });
     doc.fontSize(15).text(formatoColones(l.neto), MARGEN + 12, yNeto + 6, { width: ancho - 24, align: 'right', lineBreak: false });

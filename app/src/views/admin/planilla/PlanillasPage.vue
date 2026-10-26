@@ -75,6 +75,17 @@ async function abrir(id) {
   lineaAbierta.value = null;
   detalle.value = await api.get(`/planilla/planillas/${id}`);
 }
+// Viáticos de un empleado en este borrador: fuera de los cálculos de planilla (sin CCSS ni renta), solo se suman al neto.
+const viaticosEdicion = reactive({});
+const viaticosDe = (l) => (viaticosEdicion[l.id] ?? (Number(l.viaticos) > 0 ? String(Number(l.viaticos)) : ''));
+const guardarViaticos = (l) =>
+  ejecutar(async () => {
+    const texto = String(viaticosEdicion[l.id] ?? '').replace(/[^\d.]/g, '');
+    const monto = texto === '' ? 0 : Number(texto);
+    if (monto === Number(l.viaticos)) return;
+    detalle.value = await api.patch(`/planilla/planillas/${detalle.value.planilla.id}/viaticos`, { empleadoId: l.empleadoId, monto }).then(() => api.get(`/planilla/planillas/${detalle.value.planilla.id}`));
+    delete viaticosEdicion[l.id];
+  }, 'No se pudieron guardar los viáticos.');
 const recalcular = () =>
   ejecutar(async () => {
     await api.post(`/planilla/planillas/${detalle.value.planilla.id}/recalcular`, {});
@@ -402,6 +413,23 @@ const fechaCorta = (f) => formatearFecha(f).slice(0, 5);
             <span class="text-base font-semibold text-slate-900">{{ l.empleadoNombre }}</span>
             <span class="text-sm text-slate-600">Bruto {{ m(l.bruto) }} · Deducciones {{ m(l.totalDeducciones) }} · <strong>Neto {{ m(l.neto) }}</strong></span>
           </button>
+          <div v-if="detalle.planilla.estado === 'borrador'" class="mt-2 flex flex-wrap items-center gap-2 text-sm">
+            <label class="font-semibold text-slate-700" :for="`via-${l.id}`">Viáticos ₡</label>
+            <input
+              :id="`via-${l.id}`"
+              :value="viaticosDe(l)"
+              type="text"
+              inputmode="decimal"
+              placeholder="0"
+              class="input w-36"
+              :disabled="trabajando"
+              @input="viaticosEdicion[l.id] = $event.target.value"
+              @blur="guardarViaticos(l)"
+              @keydown.enter.prevent="$event.target.blur()"
+            />
+            <span class="text-xs text-slate-500">Se suman al neto; no llevan CCSS ni renta.</span>
+          </div>
+          <p v-else-if="Number(l.viaticos) > 0" class="mt-2 text-sm text-slate-700">Viáticos incluidos en el neto: <strong>{{ m(l.viaticos) }}</strong></p>
           <div class="mt-2 flex flex-wrap gap-2">
             <button type="button" class="text-sm font-semibold text-blue-700 underline" :disabled="trabajando" @click="colilla(l)">Colilla PDF</button>
             <button type="button" class="text-sm font-semibold text-green-700 underline" :disabled="trabajando" @click="compartirColilla(l)">Compartir (WhatsApp)</button>
@@ -416,6 +444,7 @@ const fechaCorta = (f) => formatearFecha(f).slice(0, 5);
             <p>SEM: {{ m(l.sem) }} · IVM: {{ m(l.ivm) }} · Banco Popular: {{ m(l.bancoPopular) }}</p>
             <p>Renta: {{ m(l.renta) }}</p>
             <p>Deudas descontadas: {{ m(l.deudasDescontadas) }}</p>
+            <p v-if="Number(l.viaticos) > 0">Viáticos (fuera del bruto): {{ m(l.viaticos) }}</p>
             <p>Cargas patronales: {{ m(l.cargasPatronales) }}</p>
             <p>Provisiones: {{ m(l.provisiones) }}</p>
             <p v-if="l.detalle.diasSinDatos" class="text-amber-800">Días sin marcas importadas: {{ l.detalle.diasSinDatos }}</p>

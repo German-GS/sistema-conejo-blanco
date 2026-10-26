@@ -380,7 +380,7 @@ describe('horario por día de la semana', () => {
   it('valida el horario: formato, salida después de la entrada y al menos un día', () => {
     expect(() => validarHorarioSemanal({ lun: { entrada: '8:00', salida: '17:00' } })).toThrow();
     expect(() => validarHorarioSemanal({ lun: { entrada: '17:00', salida: '08:00' } })).toThrow();
-    expect(() => validarHorarioSemanal({ dom: { entrada: '08:00', salida: '12:00' } })).toThrow();
+    expect(() => validarHorarioSemanal({ xyz: { entrada: '08:00', salida: '12:00' } })).toThrow();
     expect(() => validarHorarioSemanal({ lun: null })).toThrow();
     expect(validarHorarioSemanal({ lun: { entrada: '08:00', salida: '17:00' }, mar: null }).mar).toBeNull();
   });

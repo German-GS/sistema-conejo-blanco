@@ -79,6 +79,10 @@ export class PlanillaLinea {
   @Column({ type: 'decimal', precision: 12, scale: 2, name: 'deudas_descontadas', default: 0 })
   deudasDescontadas: string;
 
+  // Viáticos pagados con la planilla: se suman al neto pero no entran al bruto, ni a la CCSS, ni a la renta, ni a las provisiones.
+  @Column({ type: 'decimal', precision: 12, scale: 2, default: 0 })
+  viaticos: string;
+
   @Column({ type: 'decimal', precision: 12, scale: 2, name: 'total_deducciones' })
   totalDeducciones: string;
 

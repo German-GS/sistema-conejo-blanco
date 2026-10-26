@@ -45,7 +45,7 @@ import { ActualizarBancoPopularDto } from './dto/banco-popular.dto.js';
 import { GuardarPuestoDto } from './dto/puesto.dto.js';
 import { RegistrarHorasManualesDto } from './dto/horas-manuales.dto.js';
 import { CrearEmpleadoDto, ActualizarEmpleadoDto, CesarEmpleadoDto, CrearDeudaDto } from './dto/empleado.dto.js';
-import { ActualizarParametroDto, CrearFeriadoDto, ResolverDiaDto, CrearPlanillaDto, AprobarPlanillaDto, PagarPlanillaDto, MotivoPlanillaDto } from './dto/otros.dto.js';
+import { ViaticosDto, ActualizarParametroDto, CrearFeriadoDto, ResolverDiaDto, CrearPlanillaDto, AprobarPlanillaDto, PagarPlanillaDto, MotivoPlanillaDto } from './dto/otros.dto.js';
 import type { Mapeo } from './lector-excel.js';
 import { TipoParametroPlanilla, type EstadoDia } from './planilla.enums.js';
 
@@ -365,6 +365,12 @@ export class PlanillaController {
   @Get('planillas/:id')
   detallePlanilla(@Param('id', ParseUUIDPipe) id: string) {
     return this.planillas.detalle(id);
+  }
+
+  // Viáticos de un empleado en una planilla en borrador (0 = quitarlos). Van fuera de los cálculos de planilla.
+  @Patch('planillas/:id/viaticos')
+  fijarViaticos(@Param('id', ParseUUIDPipe) id: string, @Body() dto: ViaticosDto) {
+    return this.planillas.fijarViaticos(id, dto.empleadoId, dto.monto);
   }
 
   @Post('planillas/:id/recalcular')

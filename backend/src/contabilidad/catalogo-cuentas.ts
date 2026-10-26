@@ -89,6 +89,7 @@ export const CATALOGO_CUENTAS: CuentaCatalogo[] = [
   { codigo: '5200', nombre: 'Sueldos y Salarios', tipo: G, naturaleza: D, sistema: true, descripcion: 'Salarios brutos de planilla.' },
   { codigo: '5210', nombre: 'Cargas Sociales Patronales', tipo: G, naturaleza: D, sistema: true, descripcion: 'Cargas sociales a cargo del patrono.' },
   { codigo: '5220', nombre: 'Gasto por Provisiones Laborales', tipo: G, naturaleza: D, sistema: true, descripcion: 'Aguinaldo, vacaciones y cesantía.' },
+  { codigo: '5230', nombre: 'Viáticos', tipo: G, naturaleza: D, sistema: true, descripcion: 'Viáticos pagados con la planilla (no afectos a cargas sociales ni renta).' },
   { codigo: '5300', nombre: 'Alquileres', tipo: G, naturaleza: D, descripcion: 'Alquiler de local, bodega o equipo.' },
   { codigo: '5310', nombre: 'Servicios Públicos', tipo: G, naturaleza: D, descripcion: 'Electricidad y agua.' },
   { codigo: '5320', nombre: 'Teléfono e Internet', tipo: G, naturaleza: D, descripcion: 'Telefonía, internet y sistemas en la nube.' },

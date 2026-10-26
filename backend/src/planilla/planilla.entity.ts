@@ -20,6 +20,10 @@ export class Planilla {
   @Column({ type: 'enum', enum: EstadoPlanilla, default: EstadoPlanilla.BORRADOR })
   estado: EstadoPlanilla;
 
+  // Viáticos anotados a mano por empleado (empleadoId → monto). Viven aquí para que sobrevivan a cada recálculo de las líneas.
+  @Column({ type: 'jsonb', default: () => "'{}'" })
+  viaticos: Record<string, number>;
+
   @Column({ type: 'decimal', precision: 14, scale: 2, name: 'total_bruto', default: 0 })
   totalBruto: string;
 

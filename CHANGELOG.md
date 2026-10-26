@@ -7,6 +7,19 @@ Versionado `MAYOR.MENOR.PARCHE`:
 
 La versión se cambia en `app/package.json` y `backend/package.json` (el pie de página y el panel del sistema la leen solos).
 
+## 1.17.0 — 26 oct 2026 — Viáticos en la planilla y domingo en el horario
+- Cada empleado de una planilla en **borrador** tiene un campo **Viáticos ₡**: se anotan a mano y van **fuera de los cálculos de planilla** (no entran al bruto, ni a la CCSS, ni a la renta, ni a las provisiones). Solo se suman a lo que se le paga (neto), al archivo del Banco Popular y a la colilla.
+- Los viáticos se guardan en la planilla: un recálculo no los pierde. Después de aprobar ya no se cambian.
+- Contabilidad: nueva cuenta **5230 Viáticos**; al aprobar, el asiento carga los viáticos a esa cuenta y cuadra con el neto por pagar.
+- La colilla muestra una línea «Viáticos (no afectos a cargas)» y el libro de salarios (Excel) trae su columna.
+- **El horario por día ahora incluye el domingo** (lunes a domingo), también en «Horas de tienda». El **día sin horario es el día libre** de la persona (en comercio se paga, por eso 56 horas; en industria no). Quien tiene el domingo en su horario lo trabaja como un **día normal** de su semana (sin pago especial, y si falta es una ausencia); quien no lo tiene sigue con el domingo como descanso y trabajarlo se paga como día especial.
+
+## 1.16.2 — 26 oct 2026 — Importar empleados: más claro de usar
+- El selector de archivo tiene el mismo estilo que el de Asistencia (en vez del botón del navegador) y el botón «Importar desde Excel» lleva ícono.
+- El panel se puede cerrar (X) y, al guardar, muestra la confirmación con «Importar otro archivo» y «Cerrar»; se limpia solo para la próxima vez.
+- Quien está en el sistema pero no en el archivo se muestra **arriba** de la lista, con atajos «Marcar para eliminar a los N que se pueden» y «Dejar todos como están»; después de guardar, si alguno quedó sin decidir, el aviso trae «Decidir ahora».
+- La lista de vista previa es más alta, para ver más filas sin desplazarse tanto.
+
 ## 1.16.1 — 26 oct 2026 — Departamento del empleado, separado del puesto
 - Nuevo campo **«Departamento o lugar de trabajo»** (oficina central, bodega, acabado, una tienda…), distinto del **puesto** (gerente comercial, bodeguero…). Se llena en la ficha, en la importación desde Excel y sale en el informe «Empleados y salarios».
 - La importación ya no pisa el puesto con el departamento.

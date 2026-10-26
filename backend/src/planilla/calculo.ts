@@ -117,9 +117,9 @@ export interface DatosJornadaEmpleado {
 }
 
 // Clave del día (lun…sab) de una fecha; null para el domingo.
-export function claveDeFecha(fecha: string): ClaveDia | null {
+export function claveDeFecha(fecha: string): ClaveDia {
   const d = diaSemana(fecha);
-  return d === 0 ? null : CLAVES_DIA[d - 1];
+  return d === 0 ? 'dom' : CLAVES_DIA[d - 1];
 }
 
 // Entrada y salida de un día según el horario del empleado (el suyo, o el de
@@ -127,8 +127,8 @@ export function claveDeFecha(fecha: string): ClaveDia | null {
 // día. null = ese día no se trabaja.
 export function horarioDelDia(e: HorarioEmpleado, fecha: string): { entrada: string; salida: string } | null {
   const clave = claveDeFecha(fecha);
-  if (!clave) return null;
   if (e.horarioSemanal) return e.horarioSemanal[clave] ?? null;
+  if (clave === 'dom') return null; // sin horario por día, el domingo es el descanso
   return { entrada: e.horarioEntrada, salida: clave === 'sab' ? e.horarioSalidaSabado : e.horarioSalida };
 }
 
@@ -398,6 +398,7 @@ export interface HorarioEmpleado extends DatosJornadaEmpleado {
 // 8 h de lunes a viernes; el sábado, de la entrada a la salida de sábado.
 export function esperadoMinutos(fecha: string, horario: HorarioEmpleado, p: Parametros): number {
   if (horario.horarioSemanal) return netosDelHorario(horario, fecha, p) ?? 0;
+  if (diaSemana(fecha) === 0) return 0;
   if (diaSemana(fecha) === 6) {
     return Math.max(0, aMinutos(horario.horarioSalidaSabado) - aMinutos(horario.horarioEntrada));
   }
@@ -605,7 +606,8 @@ export function calcularLinea(e: EntradaLinea): ResultadoLinea {
   let montoEspeciales = 0;
   for (const d of dias) {
     if (d.tipoDia === 'domingo' && d.minutosEspeciales === 0) continue;
-    const laborable = diaSemana(d.fecha) !== 0;
+    // Un domingo que es parte normal de su semana (tiene horario ese día) cuenta como día laborable.
+    const laborable = diaSemana(d.fecha) !== 0 || d.tipoDia === 'ordinario';
     if (d.descuenta && laborable) diasAusencia += 1;
     // Feriado de pago NO obligatorio sin trabajar: a quien no cobra salario
     // fijo mensual/quincenal no se le paga ese día.

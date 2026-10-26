@@ -6,7 +6,7 @@ import { api, ApiError } from '../lib/api.js';
 import { formatearFecha } from '../lib/format.js';
 
 // Horas del personal de tienda: no marca en el reloj de la fábrica, así que se
-// meten a mano, día por día, de lunes a sábado. Cada día queda como una
+// meten a mano, día por día, de lunes a domingo. Cada día queda como una
 // decisión de administración y el archivo del reloj no lo pisa.
 const props = defineProps({
   empleados: { type: Array, required: true }, // empleados de tienda activos
@@ -15,7 +15,7 @@ const props = defineProps({
 });
 const emit = defineEmits(['guardado']);
 
-const NOMBRES = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+const NOMBRES = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
 const empleadoId = ref(props.empleadoIdInicial || props.empleados[0]?.id || '');
 const desde = ref('');
 const filas = ref([]);
@@ -26,7 +26,7 @@ const aviso = ref('');
 
 const empleado = computed(() => props.empleados.find((e) => e.id === empleadoId.value));
 const horarioBase = ref(null);
-const CLAVES = ['lun', 'mar', 'mie', 'jue', 'vie', 'sab'];
+const CLAVES = ['lun', 'mar', 'mie', 'jue', 'vie', 'sab', 'dom'];
 
 function lunesDe(fechaIso) {
   const d = new Date(`${fechaIso}T12:00:00`);
@@ -66,7 +66,7 @@ async function cargar() {
   aviso.value = '';
   const lunes = lunesDe(desde.value);
   try {
-    const existentes = await api.get(`/planilla/asistencia/dias?empleadoId=${empleadoId.value}&desde=${lunes}&hasta=${sumar(lunes, 5)}`);
+    const existentes = await api.get(`/planilla/asistencia/dias?empleadoId=${empleadoId.value}&desde=${lunes}&hasta=${sumar(lunes, 6)}`);
     filas.value = NOMBRES.map((nombre, i) => {
       const fecha = sumar(lunes, i);
       const d = existentes.find((x) => x.fecha === fecha);
@@ -148,7 +148,7 @@ async function guardar() {
           <label class="label">Semana (cualquier día de la semana)</label>
           <input v-model="desde" type="date" class="input" @change="desde = lunesDe(desde)" />
         </div>
-        <p class="pb-2 text-xs text-slate-500">Semana del {{ desde && formatearFecha(desde) }} al {{ desde && formatearFecha(sumar(desde, 5)) }}</p>
+        <p class="pb-2 text-xs text-slate-500">Semana del {{ desde && formatearFecha(desde) }} al {{ desde && formatearFecha(sumar(desde, 6)) }}</p>
       </div>
 
       <Cargando v-if="cargando" texto="Cargando…" compacto />

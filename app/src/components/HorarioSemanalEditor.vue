@@ -1,7 +1,7 @@
 <script setup>
 import { computed } from 'vue';
 
-// Editor del horario por día (lunes a sábado). Cada día tiene entrada y
+// Editor del horario por día (lunes a domingo). Cada día tiene entrada y
 // salida, o queda como día libre. Muestra las horas ordinarias netas de cada
 // día (restando el almuerzo de lunes a viernes) y el total de la semana: a
 // partir de esas horas empieza la hora extra de ese día.
@@ -19,6 +19,7 @@ const DIAS = [
   { clave: 'jue', nombre: 'Jueves' },
   { clave: 'vie', nombre: 'Viernes' },
   { clave: 'sab', nombre: 'Sábado' },
+  { clave: 'dom', nombre: 'Domingo' },
 ];
 
 const minutos = (h) => {
@@ -65,6 +66,9 @@ function alternar(clave, trabaja) {
     <p class="mt-1 text-xs text-slate-500">
       Las horas ordinarias salen de la entrada a la salida menos {{ almuerzoMin }} min de almuerzo (el sábado no lleva). Lo que se trabaje
       de más en un día es hora extra. {{ total === 2880 ? 'La semana suma 48 horas.' : 'La jornada ordinaria normal es de 48 horas por semana.' }}
+      El <strong>día sin horario es su día libre</strong>: en comercio se paga (por eso se pagan 56 horas) y en industria no.
+      Marque el <strong>domingo</strong> solo para quien lo trabaja como un día normal de su semana (ej. comercio, con otro día libre);
+      si el domingo queda sin horario es su descanso y trabajarlo se paga como día especial.
     </p>
   </div>
 </template>

@@ -105,3 +105,15 @@ export class MotivoPlanillaDto {
   @MaxLength(200)
   motivo: string;
 }
+
+export class ViaticosDto {
+  @IsUUID()
+  empleadoId: string;
+
+  // 0 quita los viáticos de ese empleado en la planilla.
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @Max(100000000)
+  monto: number;
+}

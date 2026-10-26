@@ -45,9 +45,11 @@ export function conHorario<T extends Empleado>(e: T, base: HorarioSemanal): T & 
   });
 }
 
-export function tipoDeDia(fecha: string, feriados: Map<string, Feriado>): TipoDia {
+// Un domingo es descanso (día especial) salvo que el horario del empleado lo traiga como día de trabajo.
+export function tipoDeDia(fecha: string, feriados: Map<string, Feriado>, horarioSemanal?: HorarioSemanal | null): TipoDia {
   if (feriados.has(fecha)) return 'feriado';
-  return diaSemana(fecha) === 0 ? 'domingo' : 'ordinario';
+  if (diaSemana(fecha) !== 0) return 'ordinario';
+  return horarioSemanal?.dom ? 'ordinario' : 'domingo';
 }
 
 function aCampos(r: ResultadoDia, tipoDia: TipoDia) {
@@ -278,7 +280,8 @@ export class AsistenciaService implements OnModuleInit {
       for (const [numero, empleado] of presentesConocidos) {
         for (const fecha of rango) {
           const marcas = marcasPor.get(numero)?.get(fecha) ?? [];
-          const tipoDia = tipoDeDia(fecha, feriados);
+          const emp = conHorario(empleado, base);
+          const tipoDia = tipoDeDia(fecha, feriados, emp.horarioSemanal);
           if (tipoDia === 'domingo' && marcas.length === 0) continue;
 
           const existente = await manager.findOneBy(DiaAsistencia, { empleadoId: empleado.id, fecha });
@@ -287,7 +290,6 @@ export class AsistenciaService implements OnModuleInit {
             contadores.yaResueltos++;
             continue;
           }
-          const emp = conHorario(empleado, base);
           const r = clasificarDia(marcas, tipoDia, p, undefined, esperadoMinutos(fecha, emp, p), opcionesEmpleado(emp, p, fecha));
           const dia = existente ?? manager.create(DiaAsistencia, { empleadoId: empleado.id, fecha });
           Object.assign(dia, aCampos(r, tipoDia), { marcas: r.marcas, importacionId: importacion.id });
@@ -392,7 +394,7 @@ export class AsistenciaService implements OnModuleInit {
       if (await this.diaEnPlanillaCerrada(empleado.id, d.fecha)) {
         throw new BadRequestException(`El ${d.fecha} ya está en una planilla aprobada: no se puede cambiar.`);
       }
-      const tipoDia = tipoDeDia(d.fecha, feriados);
+      const tipoDia = tipoDeDia(d.fecha, feriados, empleadoEf.horarioSemanal);
       let tipo: TipoResolucionDia;
       let motivo: string;
       if (d.tipo === 'trabajo') {
@@ -463,7 +465,8 @@ export class AsistenciaService implements OnModuleInit {
 
     const p = await this.parametros.mapa();
     const feriados = await this.parametros.mapaFeriados();
-    const tipoDia = tipoDeDia(dia.fecha, feriados);
+    const horarioEmpleado = conHorario(dia.empleado, await this.parametros.horarioBase());
+    const tipoDia = tipoDeDia(dia.fecha, feriados, horarioEmpleado.horarioSemanal);
 
     let resultado: ResultadoDia;
     try {
@@ -480,7 +483,7 @@ export class AsistenciaService implements OnModuleInit {
         },
         dia.fecha,
         tipoDia,
-        conHorario(dia.empleado, await this.parametros.horarioBase()),
+        horarioEmpleado,
         p,
       );
     } catch (err) {
@@ -573,6 +576,7 @@ export class AsistenciaService implements OnModuleInit {
     const p = await this.parametros.mapa();
     const base = await this.parametros.horarioBase();
     const emp = conHorario(empleado, base);
+    const feriados = await this.parametros.mapaFeriados();
     const cerradas = await this.lineaRepo
       .createQueryBuilder('l')
       .innerJoin('l.planilla', 'pl')
@@ -585,7 +589,7 @@ export class AsistenciaService implements OnModuleInit {
     for (const dia of dias) {
       if (dia.resolucionTipo) continue;
       if (cerradas.some((c) => dia.fecha >= String(c.desde).slice(0, 10) && dia.fecha <= String(c.hasta).slice(0, 10))) continue;
-      const tipoDia = dia.tipoDia as TipoDia;
+      const tipoDia = tipoDeDia(dia.fecha, feriados, emp.horarioSemanal);
       const r = clasificarDia(dia.marcas, tipoDia, p, undefined, esperadoMinutos(dia.fecha, emp, p), opcionesEmpleado(emp, p, dia.fecha));
       const nuevo = aCampos(r, tipoDia);
       const igual = (Object.keys(nuevo) as Array<keyof typeof nuevo>).every(

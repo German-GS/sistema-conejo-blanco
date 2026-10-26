@@ -1,0 +1,75 @@
+import { describe, expect, it } from 'vitest';
+import { PARAMETROS_POR_DEFECTO } from './parametros-por-defecto.js';
+import { calcularLinea, claveDeFecha, clasificarDia, esperadoMinutos, horarioDelDia, opcionesEmpleado } from './calculo.js';
+import { validarHorarioSemanal } from './horario.js';
+import { tipoDeDia } from './asistencia.service.js';
+import { EstadoDia, FrecuenciaPago, TipoSalario } from './planilla.enums.js';
+
+const p = Object.fromEntries(PARAMETROS_POR_DEFECTO.map((x) => [x.nombre, x.valor]));
+const DOMINGO = '2026-10-11'; // domingo
+const SABADO = '2026-10-10';
+const LUNES = '2026-10-12';
+
+// Comercio: trabaja domingo y de lunes a jueves; el viernes y el sábado no (su día libre pagado es el viernes y el sábado queda sin turno).
+const tienda = {
+  horarioEntrada: '08:00', horarioSalida: '17:00', horarioSalidaSabado: '13:00',
+  horarioSemanal: validarHorarioSemanal({
+    lun: { entrada: '08:00', salida: '17:00' }, mar: { entrada: '08:00', salida: '17:00' }, mie: { entrada: '08:00', salida: '17:00' },
+    jue: { entrada: '08:00', salida: '17:00' }, vie: null, sab: { entrada: '08:00', salida: '17:00' }, dom: { entrada: '08:00', salida: '17:00' },
+  }),
+};
+const fabrica = { ...tienda, horarioSemanal: validarHorarioSemanal({ lun: { entrada: '08:00', salida: '17:00' }, sab: { entrada: '08:00', salida: '13:00' } }) };
+
+describe('domingo en el horario por día', () => {
+  it('el domingo tiene su clave y se valida', () => {
+    expect(claveDeFecha(DOMINGO)).toBe('dom');
+    expect(claveDeFecha(LUNES)).toBe('lun');
+    expect(() => validarHorarioSemanal({ dom: { entrada: '08:00', salida: '17:00' } })).not.toThrow();
+    expect(() => validarHorarioSemanal({ dia: { entrada: '08:00', salida: '17:00' } })).toThrow(/no es un día válido/);
+  });
+
+  it('con domingo en el horario, es un día normal que se espera trabajar', () => {
+    expect(horarioDelDia(tienda, DOMINGO)).toEqual({ entrada: '08:00', salida: '17:00' });
+    expect(esperadoMinutos(DOMINGO, tienda, p)).toBe(480);
+    expect(tipoDeDia(DOMINGO, new Map(), tienda.horarioSemanal)).toBe('ordinario');
+  });
+
+  it('sin domingo en el horario sigue siendo descanso: día especial y no se espera nada', () => {
+    expect(horarioDelDia(fabrica, DOMINGO)).toBeNull();
+    expect(esperadoMinutos(DOMINGO, fabrica, p)).toBe(0);
+    expect(tipoDeDia(DOMINGO, new Map(), fabrica.horarioSemanal)).toBe('domingo');
+    expect(tipoDeDia(DOMINGO, new Map())).toBe('domingo');
+  });
+
+  it('el domingo normal se clasifica con la jornada del empleado (almuerzo incluido) y sin pago especial', () => {
+    const r = clasificarDia(['08:00', '17:00'], 'ordinario', p, undefined, esperadoMinutos(DOMINGO, tienda, p), opcionesEmpleado(tienda, p, DOMINGO));
+    expect(r.estado).toBe(EstadoDia.OK);
+    expect(r.minutosNetos).toBe(480);
+    expect(r.minutosEspeciales).toBe(0);
+    expect(r.minutosFaltantes).toBe(0);
+  });
+
+  it('el día libre (viernes) no se espera trabajar', () => {
+    expect(esperadoMinutos('2026-10-09', tienda, p)).toBe(0);
+  });
+
+  it('faltar a un domingo que es parte de su semana es una ausencia que se descuenta (1/7 en comercio)', () => {
+    const entrada = {
+      empleado: { tipoSalario: TipoSalario.SEMANAL, montoSalario: 112000, frecuenciaPago: FrecuenciaPago.SEMANAL, sector: 'comercio' as const, tieneConyuge: false, cantidadHijos: 0 },
+      desde: '2026-10-05', hasta: '2026-10-11', p, brutoPrevioMes: 0, rentaPrevioMes: 0, deudas: [],
+    };
+    const dia = (tipoDia: 'ordinario' | 'domingo') => ({ fecha: DOMINGO, tipoDia, estado: EstadoDia.AUSENCIA, descuenta: true, minutosNetos: 0, minutosExtra: 0, minutosEspeciales: 0, feriadoPagoObligatorio: true });
+    const conDomingo = calcularLinea({ ...entrada, dias: [dia('ordinario')] });
+    expect(conDomingo.diasAusenciaDescontados).toBe(1);
+    expect(conDomingo.descuentoAusencias).toBe(16000); // 112.000 ÷ 7
+    // un domingo de descanso «ausente» no se descuenta (no se esperaba)
+    expect(calcularLinea({ ...entrada, dias: [dia('domingo')] }).diasAusenciaDescontados).toBe(0);
+  });
+
+  it('sin horario por día el domingo sigue siendo descanso', () => {
+    const simple = { horarioEntrada: '08:00', horarioSalida: '17:00', horarioSalidaSabado: '13:00' };
+    expect(horarioDelDia(simple, DOMINGO)).toBeNull();
+    expect(esperadoMinutos(DOMINGO, simple, p)).toBe(0);
+    expect(esperadoMinutos(SABADO, simple, p)).toBe(300);
+  });
+});

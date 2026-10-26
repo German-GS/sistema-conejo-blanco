@@ -118,6 +118,21 @@ export class PlanillasService {
     return this.buscarOFallar(id);
   }
 
+  // Anota (o quita, con 0) los viáticos de un empleado en una planilla en borrador y recalcula. Quedan guardados en la
+  // planilla, así que un recálculo posterior no los pierde.
+  async fijarViaticos(id: string, empleadoId: string, monto: number): Promise<Planilla> {
+    const planilla = await this.buscarOFallar(id);
+    if (planilla.estado !== EstadoPlanilla.BORRADOR) throw new BadRequestException('Los viáticos solo se anotan en una planilla en borrador.');
+    if (!planilla.lineas.some((l) => l.empleadoId === empleadoId)) throw new BadRequestException('Ese empleado no está en esta planilla.');
+    const actuales = { ...(planilla.viaticos ?? {}) };
+    if (monto > 0) actuales[empleadoId] = redondear(monto);
+    else delete actuales[empleadoId];
+    await this.planillaRepo.update(id, { viaticos: actuales });
+    planilla.viaticos = actuales;
+    await this.calcular(planilla);
+    return this.buscarOFallar(id);
+  }
+
   async eliminarBorrador(id: string): Promise<void> {
     const planilla = await this.buscarOFallar(id);
     if (planilla.estado !== EstadoPlanilla.BORRADOR) {
@@ -245,6 +260,8 @@ export class PlanillasService {
         })),
       });
 
+      // Viáticos anotados a mano: fuera de todo cálculo de planilla, solo se suman a lo que se le paga.
+      const viaticos = redondear(Math.max(0, Number(planilla.viaticos?.[empleado.id] ?? 0)));
       lineas.push(
         this.lineaRepo.create({
           planillaId: planilla.id,
@@ -268,7 +285,8 @@ export class PlanillasService {
           renta: r.renta.toFixed(2),
           deudasDescontadas: r.deudasDescontadas.toFixed(2),
           totalDeducciones: r.totalDeducciones.toFixed(2),
-          neto: r.neto.toFixed(2),
+          viaticos: viaticos.toFixed(2),
+          neto: redondear(r.neto + viaticos).toFixed(2),
           cargasPatronales: r.cargasPatronales.toFixed(2),
           desgloseCargas: r.desgloseCargas,
           provisiones: r.provisiones.toFixed(2),
@@ -281,7 +299,7 @@ export class PlanillasService {
             brutoPrevioMes: Number(previo?.bruto ?? 0),
             rentaPrevioMes: Number(previo?.renta ?? 0),
             dias: diasPago
-              .filter((d) => diaSemana(d.fecha) !== 0 || d.minutosEspeciales > 0)
+              .filter((d) => diaSemana(d.fecha) !== 0 || d.minutosEspeciales > 0 || d.tipoDia === 'ordinario')
               .sort((a, b) => a.fecha.localeCompare(b.fecha))
               .map((d) => ({
                 fecha: d.fecha,
@@ -336,6 +354,7 @@ export class PlanillasService {
     const suma = (campo: (l: PlanillaLinea) => string) => redondear(lineas.reduce((a, l) => a + Number(campo(l)), 0));
     const bruto = suma((l) => l.bruto);
     const neto = suma((l) => l.neto);
+    const viaticos = suma((l) => l.viaticos);
     const obrero = redondear(suma((l) => l.sem) + suma((l) => l.ivm) + suma((l) => l.bancoPopular));
     const renta = suma((l) => l.renta);
     const deudas = suma((l) => l.deudasDescontadas);
@@ -365,6 +384,7 @@ export class PlanillasService {
 
       const asientoLineas = [
         { codigoCuenta: CUENTA.SUELDOS_Y_SALARIOS, debe: bruto },
+        { codigoCuenta: CUENTA.VIATICOS, debe: viaticos },
         { codigoCuenta: CUENTA.CARGAS_SOCIALES_PATRONALES, debe: patronal },
         { codigoCuenta: CUENTA.GASTO_PROVISIONES, debe: provisiones },
         { codigoCuenta: CUENTA.SALARIOS_POR_PAGAR, haber: neto },
@@ -496,25 +516,26 @@ export class PlanillasService {
       { key: 'neto', width: 14 },
       { key: 'patronal', width: 14 },
       { key: 'prov', width: 14 },
+      { key: 'viaticos', width: 14 },
     ];
     const encabezado = hoja.addRow([
       'Empleado', 'Cédula', 'Salario base', 'Desc. ausencias', 'Desc. horas faltantes', 'Hrs extra', 'Monto extra', 'Feriado/domingo',
-      'Bruto', 'SEM', 'IVM', 'Banco Popular', 'Renta', 'Deudas', 'Neto', 'Cargas patronales', 'Provisiones',
+      'Bruto', 'SEM', 'IVM', 'Banco Popular', 'Renta', 'Deudas', 'Neto', 'Cargas patronales', 'Provisiones', 'Viáticos (incluidos en el neto)',
     ]);
     encabezado.font = { bold: true };
     for (const l of planilla.lineas) {
       hoja.addRow([
         l.empleadoNombre, l.empleadoCedula ?? '', Number(l.salarioBase), Number(l.descuentoAusencias), Number(l.descuentoHoras), Number(l.horasExtra),
         Number(l.montoExtra), Number(l.montoEspeciales), Number(l.bruto), Number(l.sem), Number(l.ivm), Number(l.bancoPopular),
-        Number(l.renta), Number(l.deudasDescontadas), Number(l.neto), Number(l.cargasPatronales), Number(l.provisiones),
+        Number(l.renta), Number(l.deudasDescontadas), Number(l.neto), Number(l.cargasPatronales), Number(l.provisiones), Number(l.viaticos),
       ]);
     }
     const totales = hoja.addRow([
       'TOTAL', '', '', '', '', '', '', '',
-      Number(planilla.totalBruto), '', '', '', '', '', Number(planilla.totalNeto), Number(planilla.totalCargasPatronales), Number(planilla.totalProvisiones),
+      Number(planilla.totalBruto), '', '', '', '', '', Number(planilla.totalNeto), Number(planilla.totalCargasPatronales), Number(planilla.totalProvisiones), planilla.lineas.reduce((a, l) => a + Number(l.viaticos), 0),
     ]);
     totales.font = { bold: true };
-    for (let c = 3; c <= 17; c++) if (c !== 6) hoja.getColumn(c).numFmt = '#,##0.00';
+    for (let c = 3; c <= 18; c++) if (c !== 6) hoja.getColumn(c).numFmt = '#,##0.00';
     return Buffer.from(await libro.xlsx.writeBuffer());
   }
 }

@@ -1,9 +1,11 @@
-// Horario por día de la semana (lunes a sábado). Define cuántas horas
+// Horario por día de la semana (lunes a domingo). Define cuántas horas
 // ordinarias tiene cada día — ej. lunes y viernes de 8 a 5, martes a jueves de
 // 8 a 6 y sábado de 8 a 1 (jornada acumulativa que completa las 48 horas) — y
 // por lo tanto desde cuántas horas empieza la hora extra de ese día.
 
-export const CLAVES_DIA = ['lun', 'mar', 'mie', 'jue', 'vie', 'sab'] as const;
+// El domingo solo se llena en quien lo trabaja como un día normal de su semana (ej. comercio: 7 días, con un día libre pagado en
+// otro día). Sin domingo en el horario, el domingo es el descanso y trabajarlo se paga como día especial.
+export const CLAVES_DIA = ['lun', 'mar', 'mie', 'jue', 'vie', 'sab', 'dom'] as const;
 export type ClaveDia = (typeof CLAVES_DIA)[number];
 export interface TramoHorario {
   entrada: string; // HH:mm
@@ -30,7 +32,7 @@ export function validarHorarioSemanal(valor: unknown): HorarioSemanal {
   if (typeof valor !== 'object' || valor === null || Array.isArray(valor)) throw new Error('El horario no es válido.');
   const limpio: HorarioSemanal = {};
   for (const [clave, tramo] of Object.entries(valor as Record<string, unknown>)) {
-    if (!(CLAVES_DIA as readonly string[]).includes(clave)) throw new Error(`«${clave}» no es un día válido (de lunes a sábado).`);
+    if (!(CLAVES_DIA as readonly string[]).includes(clave)) throw new Error(`«${clave}» no es un día válido (de lunes a domingo).`);
     if (tramo === null || tramo === undefined) {
       limpio[clave as ClaveDia] = null;
       continue;

@@ -5,7 +5,7 @@ import { computed, nextTick, onMounted, reactive, ref } from 'vue';
 import { api, ApiError, subirArchivo } from '../../../lib/api.js';
 import { exito, fallo } from '../../../lib/avisos.js';
 import { useAuthStore } from '../../../stores/auth.js';
-import { Search } from '@lucide/vue';
+import { FileSpreadsheet, Search, Upload, X } from '@lucide/vue';
 import CesePanel from '../../../components/CesePanel.vue';
 import HorarioSemanalEditor from '../../../components/HorarioSemanalEditor.vue';
 import { formatearColones, formatearFecha, fechaHoyISO } from '../../../lib/format.js';
@@ -42,6 +42,28 @@ const ESTADO_IMPORT = {
   sin_cambios: { texto: 'Sin cambios', clase: 'bg-slate-100 text-slate-600' },
   error: { texto: 'Error', clase: 'bg-red-100 text-red-700' },
 };
+// Cierra el panel y deja todo limpio para la próxima vez.
+function cerrarImport() {
+  Object.assign(importacion, { abierta: false, archivo: null, vista: null, error: '', decisiones: {} });
+}
+// Atajos para quien no está en el archivo: marcar de una vez a todos los que se pueden eliminar.
+const eliminables = computed(() => (importacion.vista?.ausentes ?? []).filter((a) => !a.bloqueos.length && (a.historial.total === 0 || auth.esSistema)));
+function marcarEliminarTodos() {
+  for (const a of eliminables.value) decisionDe(a.id).accion = a.historial.total === 0 ? 'eliminar' : 'eliminar_todo';
+}
+function dejarTodos() {
+  for (const a of importacion.vista?.ausentes ?? []) decisionDe(a.id).accion = 'conservar';
+}
+const cuantosMarcados = computed(() => Object.values(importacion.decisiones).filter((d) => d.accion !== 'conservar').length);
+// Tras guardar, si alguien quedó sin decidir se vuelve a revisar con el mismo archivo.
+async function decidirAusentes() {
+  importacion.vista = null;
+  importacion.decisiones = {};
+  await enviarImport(false);
+}
+function otroArchivoImport() {
+  Object.assign(importacion, { archivo: null, vista: null, error: '', decisiones: {} });
+}
 function elegirArchivoImport(ev) {
   importacion.archivo = ev.target.files?.[0] ?? null;
   importacion.vista = null;
@@ -384,48 +406,68 @@ const etiqueta = (lista, v) => lista.find((x) => x.valor === v)?.etiqueta ?? v;
         <label class="flex items-center gap-2 text-sm text-slate-600">
           <input v-model="verInactivos" type="checkbox" class="size-4" /> Ver inactivos
         </label>
-        <button type="button" class="btn-secondary" @click="importacion.abierta = !importacion.abierta">Importar desde Excel</button>
+        <button type="button" class="btn-secondary" @click="importacion.abierta ? cerrarImport() : (importacion.abierta = true)">
+          <Upload class="size-4" /> Importar desde Excel
+        </button>
         <button type="button" class="btn-primary" @click="nuevo">Nuevo empleado</button>
       </div>
     </div>
 
     <div v-if="importacion.abierta" class="card flex flex-col gap-3">
-      <p class="text-base font-semibold text-slate-900">Importar empleados desde Excel</p>
+      <div class="flex items-start justify-between gap-2">
+        <p class="text-base font-semibold text-slate-900">Importar empleados desde Excel</p>
+        <button type="button" class="rounded-md p-1 text-slate-500 hover:bg-slate-100" title="Cerrar" aria-label="Cerrar" @click="cerrarImport"><X class="size-5" /></button>
+      </div>
       <p class="text-sm text-slate-600">
         El archivo debe tener una fila de encabezados con al menos <strong>Nombre</strong>. Columnas que se entienden: Cédula, N.º de reloj, Puesto, Departamento,
         Fecha de ingreso, Tipo de salario (por hora / semanal / mensual), Monto, Se paga (semanal / quincenal / mensual), Horas por semana, Sector,
         Es de tienda, Puesto de confianza, Marca en reloj, Forma de pago, IBAN e Identificador Banco Popular. Si un empleado ya existe (por cédula o por nombre)
         solo se cambia lo que traiga el archivo; <strong>una celda vacía nunca borra</strong> lo que ya está. Antes de guardar ve una vista previa.
       </p>
-      <input type="file" accept=".xlsx,.xls" class="text-sm" @change="elegirArchivoImport" />
-      <div v-if="importacion.archivo && !importacion.vista"><button type="button" class="btn-primary" :disabled="importacion.trabajando" @click="enviarImport(false)">{{ importacion.trabajando ? 'Leyendo…' : 'Ver vista previa' }}</button></div>
+      <div v-if="!importacion.vista || !importacion.vista.aplicado" class="flex flex-wrap items-center gap-3">
+        <label
+          class="flex min-w-72 flex-1 cursor-pointer items-center gap-3 rounded-xl border-2 border-dashed px-4 py-3 transition-colors"
+          :class="importacion.archivo ? 'border-blue-400 bg-blue-50' : 'border-slate-300 bg-slate-50 hover:border-blue-400 hover:bg-blue-50'"
+        >
+          <FileSpreadsheet class="size-8 shrink-0" :class="importacion.archivo ? 'text-blue-600' : 'text-slate-500'" />
+          <span class="min-w-0 flex-1">
+            <span class="block truncate text-sm font-semibold text-slate-800">{{ importacion.archivo ? importacion.archivo.name : 'Elegir el archivo de empleados' }}</span>
+            <span class="block text-xs text-slate-500">{{ importacion.archivo ? 'Haga clic para cambiar de archivo' : 'Excel .xlsx o .xls con una fila por empleado' }}</span>
+          </span>
+          <input type="file" accept=".xlsx,.xls" class="hidden" @change="elegirArchivoImport" />
+        </label>
+        <button v-if="importacion.archivo && !importacion.vista" type="button" class="btn-primary" :disabled="importacion.trabajando" @click="enviarImport(false)">
+          {{ importacion.trabajando ? 'Leyendo…' : 'Ver vista previa' }}
+        </button>
+      </div>
       <p v-if="importacion.error" class="text-sm font-medium text-red-600">{{ importacion.error }}</p>
       <template v-if="importacion.vista">
         <p class="text-sm text-slate-700">
           {{ importacion.vista.resumen.total }} filas: <strong>{{ importacion.vista.resumen.crear }}</strong> nuevos ·
           <strong>{{ importacion.vista.resumen.actualizar }}</strong> con cambios · {{ importacion.vista.resumen.sinCambios }} sin cambios ·
           <strong :class="importacion.vista.resumen.errores ? 'text-red-600' : ''">{{ importacion.vista.resumen.errores }}</strong> con errores.
-          <span v-if="importacion.vista.aplicado" class="font-semibold text-teal-700">Ya se guardó.</span>
         </p>
-        <div class="max-h-96 overflow-auto rounded-lg border border-slate-200">
-          <table class="tabla-fija min-w-full text-sm">
-            <thead class="bg-slate-50 text-left text-xs font-semibold text-slate-600"><tr><th class="px-3 py-2">Fila</th><th class="px-3">Empleado</th><th class="px-3">Qué pasa</th><th class="px-3">Detalle</th></tr></thead>
-            <tbody>
-              <tr v-for="x in importacion.vista.filas" :key="x.fila.fila" class="border-t border-slate-100 align-top">
-                <td class="px-3 py-1.5 text-xs text-slate-500">{{ x.fila.fila }}</td>
-                <td class="px-3">{{ x.fila.nombre }}<span v-if="x.existente && x.existente.nombre !== x.fila.nombre" class="block text-xs text-slate-500">= {{ x.existente.nombre }}</span></td>
-                <td class="px-3"><span class="rounded-full px-2 py-0.5 text-xs font-semibold" :class="ESTADO_IMPORT[x.accion].clase">{{ ESTADO_IMPORT[x.accion].texto }}</span></td>
-                <td class="px-3 text-xs text-slate-600">
-                  <span v-for="c in x.cambios" :key="c.campo" class="block">{{ c.etiqueta }}: {{ c.antes }} → <strong>{{ c.despues }}</strong></span>
-                  <span v-for="e in x.fila.errores" :key="e" class="block font-medium text-red-600">{{ e }}</span>
-                  <span v-for="a in x.avisos" :key="a" class="block text-amber-700">{{ a }}</span>
-                </td>
-              </tr>
-            </tbody>
-          </table>
+        <div v-if="importacion.vista.aplicado" class="flex flex-wrap items-center gap-3 rounded-xl border border-teal-300 bg-teal-50 p-3 text-sm text-teal-900">
+          <span class="font-semibold">Importación guardada.</span>
+          <span v-if="importacion.vista.bajas?.length">Dados de baja: {{ importacion.vista.bajas.join(', ') }}.</span>
+          <span v-if="importacion.vista.borrados?.length">Eliminados: {{ importacion.vista.borrados.join(', ') }}.</span>
+          <span v-if="importacion.vista.ausentes?.length" class="basis-full rounded-lg border border-amber-300 bg-amber-50 p-2 text-amber-900">
+            <strong>{{ importacion.vista.ausentes.length }} empleado(s) siguen en el sistema pero no están en el archivo:</strong>
+            {{ importacion.vista.ausentes.map((a) => a.nombre).join(', ') }}.
+            <button type="button" class="ml-1 font-semibold underline" @click="decidirAusentes">Decidir ahora</button>
+          </span>
+          <span class="ml-auto flex gap-2">
+            <button type="button" class="btn-secondary" @click="otroArchivoImport">Importar otro archivo</button>
+            <button type="button" class="btn-primary" @click="cerrarImport">Cerrar</button>
+          </span>
         </div>
-        <div v-if="importacion.vista.ausentes?.length" class="flex flex-col gap-2 rounded-xl border border-amber-300 bg-amber-50 p-3">
-          <p class="text-sm font-semibold text-amber-900">En el sistema pero NO en el archivo ({{ importacion.vista.ausentes.length }})</p>
+        <div v-if="importacion.vista.ausentes?.length && !importacion.vista.aplicado" class="flex flex-col gap-2 rounded-xl border border-amber-300 bg-amber-50 p-3">
+          <p class="text-sm font-semibold text-amber-900">En el sistema pero NO en el archivo ({{ importacion.vista.ausentes.length }}): decida qué hacer con cada uno</p>
+          <div class="flex flex-wrap gap-2">
+            <button v-if="eliminables.length" type="button" class="rounded-md border border-red-300 bg-red-50 px-3 py-1.5 text-sm font-semibold text-red-800" @click="marcarEliminarTodos">Marcar para eliminar a los {{ eliminables.length }} que se pueden</button>
+            <button type="button" class="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700" @click="dejarTodos">Dejar todos como están</button>
+            <span class="self-center text-xs text-amber-900">{{ cuantosMarcados }} marcado(s) · se aplican al pulsar «Guardar estos cambios»</span>
+          </div>
           <p class="text-xs text-amber-900">
             Por seguridad nadie se toca si no lo decide aquí. <strong>Eliminar</strong> solo se permite a quien no tiene nada registrado (planillas, asistencia, deudas…);
             a quien ya tiene historial se le <strong>da de baja</strong> (cese), que conserva su historial y le quita el acceso al sistema. Si son datos de prueba, el administrador del sistema puede <strong>eliminarlo con todo su historial</strong>, salvo que salga en planillas ya aprobadas o pagadas (esas se anulan primero).
@@ -447,6 +489,23 @@ const etiqueta = (lista, v) => lista.find((x) => x.valor === v)?.etiqueta ?? v;
               <div><label class="label">Motivo *</label><input v-model="decisionDe(a.id).motivo" class="input" placeholder="Ej. dejó de laborar" /></div>
             </div>
           </div>
+        </div>
+        <div class="max-h-[32rem] overflow-auto rounded-lg border border-slate-200">
+          <table class="tabla-fija min-w-full text-sm">
+            <thead class="bg-slate-50 text-left text-xs font-semibold text-slate-600"><tr><th class="px-3 py-2">Fila</th><th class="px-3">Empleado</th><th class="px-3">Qué pasa</th><th class="px-3">Detalle</th></tr></thead>
+            <tbody>
+              <tr v-for="x in importacion.vista.filas" :key="x.fila.fila" class="border-t border-slate-100 align-top">
+                <td class="px-3 py-1.5 text-xs text-slate-500">{{ x.fila.fila }}</td>
+                <td class="px-3">{{ x.fila.nombre }}<span v-if="x.existente && x.existente.nombre !== x.fila.nombre" class="block text-xs text-slate-500">= {{ x.existente.nombre }}</span></td>
+                <td class="px-3"><span class="rounded-full px-2 py-0.5 text-xs font-semibold" :class="ESTADO_IMPORT[x.accion].clase">{{ ESTADO_IMPORT[x.accion].texto }}</span></td>
+                <td class="px-3 text-xs text-slate-600">
+                  <span v-for="c in x.cambios" :key="c.campo" class="block">{{ c.etiqueta }}: {{ c.antes }} → <strong>{{ c.despues }}</strong></span>
+                  <span v-for="e in x.fila.errores" :key="e" class="block font-medium text-red-600">{{ e }}</span>
+                  <span v-for="a in x.avisos" :key="a" class="block text-amber-700">{{ a }}</span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
         <div v-if="!importacion.vista.aplicado" class="flex gap-2">
           <button type="button" class="btn-primary" :disabled="importacion.trabajando || importacion.vista.resumen.errores > 0 || (importacion.vista.resumen.crear + importacion.vista.resumen.actualizar === 0 && !Object.values(importacion.decisiones).some((d) => d.accion !== 'conservar'))" @click="aplicarImport">Guardar estos cambios</button>
