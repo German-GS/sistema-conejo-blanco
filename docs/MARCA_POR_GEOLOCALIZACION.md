@@ -103,5 +103,5 @@ Tres grupos, cuatro marcas con tipo explícito cada día: **entrada · salida a 
 - Con marcas de almuerzo (reloj o app): si el almuerzo real es de **30 minutos o más → se descuenta la hora fija**. Si es de **menos de 30 minutos → queda en «Resolver» para gerencia**, que decide (por ejemplo, si le pidieron trabajar de más): descontar la hora fija o descontar el almuerzo real.
 - **Vendedores de ruta:** no marcan almuerzo (están en la calle); siempre se descuenta 1 hora. En la app solo marcan entrada y salida de jornada (QR en la empresa); el GPS sirve para validar la ruta, no para el almuerzo.
 - Aplica igual a las marcas del reloj actual, no depende de la app.
-- **Por definir:** un almuerzo de más de 1 hora (ej. 90 min): ¿se descuenta lo real (90) o solo la hora fija?
+- **Almuerzo de más de 1 hora:** con una tolerancia de 10 minutos después de la hora, se considera **llegada tarde del almuerzo** (igual que una entrada tarde): 70 min o menos = sin consecuencia; más de eso, el exceso cuenta como tiempo no trabajado y se rebaja (ej. 90 min → 30 de más). Pendiente: la empresa lo está consultando (reglamento / abogado laboral); **no implementar hasta confirmar**.
 - Hoy (1.14.0) con 4 marcas el sistema descuenta siempre la hora fija sin mirar cuánto duró el almuerzo marcado: un almuerzo de 10 minutos pasa sin que nadie lo revise.
