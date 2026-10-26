@@ -70,3 +70,14 @@ Fase 1: la pieza más grande es unir empleados con usuarios y la mezcla con las 
   - El rastreo continuo en segundo plano **no es confiable desde una página web** (el celular lo detiene al bloquear la pantalla, sobre todo iPhone); exigiría una app nativa. Si se quiere, que sea solo mientras la «jornada de ruta» esté activa (botón de iniciar/terminar visible para el vendedor), con aviso y consentimiento escritos, y revisión legal.
   - Los clientes hoy no tienen coordenadas: se guardarían la primera vez que se visitan.
 - **Tablet con reconocimiento facial:** no sirve cualquier tablet ni es la única vía; ver la respuesta en la conversación (terminal comercial vs. desarrollo propio vs. foto de evidencia sin reconocimiento).
+
+## Decisiones (26-oct-2026, segunda ronda)
+- **No se compra un reloj marcador nuevo:** todo por software. Queda descartada la opción «terminal comercial».
+- **Los vendedores usan su propio celular** (BYOD): rastreo solo con la jornada de ruta activa, con consentimiento escrito y revisión legal; ojo con batería y plan de datos (definir si la empresa compensa).
+- **Apps nativas: no se descartan.** Se pueden hacer envolviendo el sistema actual con Capacitor (misma interfaz Vue, más acceso al teléfono), sin reescribir.
+
+## Plan por etapas (todo por software)
+1. **Etapa 1 — PWA (sin tienda de apps):** marcar con ubicación + dispositivo registrado; punto de marca de la empresa y de cada tienda; visitas con llegada para vendedores; mezcla con las marcas del reloj actual (que sigue funcionando mientras tanto).
+2. **Etapa 2 — Seguridad:** código QR rotativo en una tablet fija (cualquier tablet decente en modo quiosco) + selfie de evidencia (sin reconocimiento automático).
+3. **Etapa 3 — App nativa (Capacitor) para vendedores:** ubicación en segundo plano durante la jornada de ruta, detección de ubicación simulada en Android, avisos (notificaciones), marca sin conexión más confiable. Android se puede instalar directo (APK); iPhone requiere cuenta de desarrollador de Apple y TestFlight/App Store.
+4. **Etapa 4 — Reconocimiento facial por software (opcional):** comparar la selfie con la foto registrada del empleado, con prueba de vida. Es lo más difícil de hacer bien (suplantación con fotos o video) y suele cobrarse por uso si se contrata en la nube: evaluar solo si la selfie de evidencia no basta. Datos biométricos: revisar con abogado antes.
