@@ -119,3 +119,21 @@ describe('tope semanal de 48 horas ordinarias', () => {
     expect(calcularLinea({ ...entrada([...semana1, ...semana2]), hasta: '2026-10-18' }).horasExtra).toBe(0);
   });
 });
+
+describe('almuerzo según el largo de la jornada (no según el día)', () => {
+  const dia = (entrada: string, salida: string) => ({ entrada, salida });
+  it('un sábado completo (9 a 6) descuenta el almuerzo: 8 h ordinarias, no 9', () => {
+    const e = { horarioEntrada: '09:00', horarioSalida: '18:00', horarioSalidaSabado: '13:00', horarioSemanal: validarHorarioSemanal({ sab: dia('09:00', '18:00') }) };
+    expect(esperadoMinutos(SABADO, e, p)).toBe(480);
+  });
+  it('un sábado corto (8 a 1) no lleva almuerzo', () => {
+    const e = { horarioEntrada: '08:00', horarioSalida: '17:00', horarioSalidaSabado: '13:00', horarioSemanal: validarHorarioSemanal({ sab: dia('08:00', '13:00') }) };
+    expect(esperadoMinutos(SABADO, e, p)).toBe(300);
+  });
+  it('una semana de 7 días de 9 a 6 suma 56 horas ordinarias, no 57', () => {
+    const todos = Object.fromEntries(['lun', 'mar', 'mie', 'jue', 'vie', 'sab', 'dom'].map((d) => [d, dia('09:00', '18:00')]));
+    const e = { horarioEntrada: '09:00', horarioSalida: '18:00', horarioSalidaSabado: '18:00', horarioSemanal: validarHorarioSemanal(todos) };
+    const fechas = ['2026-10-05', '2026-10-06', '2026-10-07', '2026-10-08', '2026-10-09', '2026-10-10', '2026-10-11'];
+    expect(fechas.reduce((a, f) => a + esperadoMinutos(f, e, p), 0)).toBe(56 * 60);
+  });
+});

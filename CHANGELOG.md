@@ -7,6 +7,10 @@ Versionado `MAYOR.MENOR.PARCHE`:
 
 La versión se cambia en `app/package.json` y `backend/package.json` (el pie de página y el panel del sistema la leen solos).
 
+## 1.17.3 — 26 oct 2026 — El almuerzo depende del largo de la jornada, no del día
+- Un **sábado completo** (ej. 9 a 6) ya descuenta el almuerzo como cualquier otro día: antes el editor del horario sumaba una hora de más (57 h en lugar de 56 con siete días de 9 a 6) y el cálculo de lo esperado quedaba una hora alto, lo que habría descontado de más. El sábado corto (8 a 1) sigue sin almuerzo. Se aplica a todos los días: el almuerzo se resta cuando la jornada del día pasa de 6 horas.
+- Igual en «Horas de tienda» al proponer los valores de cada día.
+
 ## 1.17.2 — 26 oct 2026 — Tope semanal de 48 horas ordinarias
 - Si en una semana (lunes a domingo) se superan las **48 horas ordinarias**, lo que pasa se paga como **hora extra desde el primer minuto**, aunque ningún día haya pasado de su límite diario (ej. quien trabaja 7 días de 8 horas). Se cuentan solo los días ordinarios con marcas confirmadas, y la extra que ya salió por día no se paga dos veces; cada semana se cuenta aparte.
 - El tope es el parámetro **TOPE_ORDINARIAS_SEMANA_HORAS** (48), en Planilla → Parámetros.

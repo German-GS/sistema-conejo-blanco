@@ -50,11 +50,14 @@ function porDefecto(i) {
   // Su horario por día (o el de la fábrica); si ese día no trabaja, queda como día libre.
   const h = (e?.horarioSemanal ?? horarioBase.value)?.[CLAVES[i]];
   const sinHorario = (e?.horarioSemanal ?? horarioBase.value) && !h;
+  const entradaDia = h?.entrada ?? e?.horarioEntrada ?? '08:00';
+  const salidaDia = h?.salida ?? (i === 5 ? e?.horarioSalidaSabado : e?.horarioSalida) ?? (i === 5 ? '13:00' : '17:00');
   return {
     tipo: sinHorario ? 'libre' : 'trabajo',
-    entrada: h?.entrada ?? e?.horarioEntrada ?? '08:00',
-    salida: h?.salida ?? (i === 5 ? e?.horarioSalidaSabado : e?.horarioSalida) ?? (i === 5 ? '13:00' : '17:00'),
-    almuerzo: i === 5 ? 0 : (e?.almuerzoMinutos ?? 60),
+    entrada: entradaDia,
+    salida: salidaDia,
+    // El almuerzo se resta cuando la jornada del día es larga (más de 6 h), sea el día que sea.
+    almuerzo: minutos(salidaDia) - minutos(entradaDia) > 360 ? (e?.almuerzoMinutos ?? 60) : 0,
     motivo: '',
   };
 }

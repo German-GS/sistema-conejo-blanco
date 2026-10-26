@@ -29,7 +29,9 @@ const minutos = (h) => {
 const netos = (clave) => {
   const t = props.modelValue[clave];
   if (!t) return 0;
-  return Math.max(0, minutos(t.salida) - minutos(t.entrada) - (clave === 'sab' ? 0 : props.almuerzoMin));
+  // El almuerzo se resta cuando la jornada del día es larga (más de 6 h), sea el día que sea: un sábado de 8 a 1 no lleva, uno de 9 a 6 sí.
+  const bruto = minutos(t.salida) - minutos(t.entrada);
+  return Math.max(0, bruto - (bruto > 360 ? props.almuerzoMin : 0));
 };
 const hhmm = (min) => `${Math.floor(min / 60)}:${String(min % 60).padStart(2, '0')}`;
 const total = computed(() => DIAS.reduce((a, d) => a + netos(d.clave), 0));
@@ -64,7 +66,7 @@ function alternar(clave, trabaja) {
       </table>
     </div>
     <p class="mt-1 text-xs text-slate-500">
-      Las horas ordinarias salen de la entrada a la salida menos {{ almuerzoMin }} min de almuerzo (el sábado no lleva). Lo que se trabaje
+      Las horas ordinarias salen de la entrada a la salida menos {{ almuerzoMin }} min de almuerzo (solo en los días de más de 6 horas). Lo que se trabaje
       de más en un día es hora extra. {{ total === 2880 ? 'La semana suma 48 horas.' : 'La jornada ordinaria normal es de 48 horas por semana.' }}
       El <strong>día sin horario es su día libre</strong>: en comercio se paga (por eso se pagan 56 horas) y en industria no.
       Marque el <strong>domingo</strong> solo para quien lo trabaja como un día normal de su semana (ej. comercio, con otro día libre);

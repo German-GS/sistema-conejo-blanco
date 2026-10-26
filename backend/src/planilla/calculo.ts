@@ -137,8 +137,11 @@ export function horarioDelDia(e: HorarioEmpleado, fecha: string): { entrada: str
 function netosDelHorario(e: HorarioEmpleado, fecha: string, p: Parametros): number | null {
   const h = e.horarioSemanal ? horarioDelDia(e, fecha) : null;
   if (!h) return null;
-  const almuerzo = claveDeFecha(fecha) === 'sab' ? 0 : (e.almuerzoMinutos ?? p.ALMUERZO_MINUTOS);
-  return Math.max(0, aMinutos(h.salida) - aMinutos(h.entrada) - almuerzo);
+  // El almuerzo se descuenta de cualquier día cuya jornada es larga (no solo de lunes a viernes): un sábado corto (8 a 1) no lo lleva,
+  // pero un sábado completo (9 a 6) sí. Mismo umbral que usa la lectura de marcas.
+  const bruto = aMinutos(h.salida) - aMinutos(h.entrada);
+  const almuerzo = bruto > p.ALMUERZO_UMBRAL_HORAS * 60 ? (e.almuerzoMinutos ?? p.ALMUERZO_MINUTOS) : 0;
+  return Math.max(0, bruto - almuerzo);
 }
 
 export function opcionesEmpleado(e: DatosJornadaEmpleado & Partial<HorarioEmpleado>, p: Parametros, fecha?: string): OpcionesDia {
