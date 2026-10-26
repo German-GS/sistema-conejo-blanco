@@ -81,3 +81,19 @@ Fase 1: la pieza más grande es unir empleados con usuarios y la mezcla con las 
 2. **Etapa 2 — Seguridad:** código QR rotativo en una tablet fija (cualquier tablet decente en modo quiosco) + selfie de evidencia (sin reconocimiento automático).
 3. **Etapa 3 — App nativa (Capacitor) para vendedores:** ubicación en segundo plano durante la jornada de ruta, detección de ubicación simulada en Android, avisos (notificaciones), marca sin conexión más confiable. Android se puede instalar directo (APK); iPhone requiere cuenta de desarrollador de Apple y TestFlight/App Store.
 4. **Etapa 4 — Reconocimiento facial por software (opcional):** comparar la selfie con la foto registrada del empleado, con prueba de vida. Es lo más difícil de hacer bien (suplantación con fotos o video) y suele cobrarse por uso si se contrata en la nube: evaluar solo si la selfie de evidencia no basta. Datos biométricos: revisar con abogado antes.
+
+## Esquema propuesto (26-oct-2026, tercera ronda)
+Tres grupos, cuatro marcas con tipo explícito cada día: **entrada · salida a almuerzo · regreso de almuerzo · salida**.
+
+| Grupo | Cómo marca | Verificación |
+|---|---|---|
+| **Fábrica** (y administrativos en la empresa) | Escanea el QR de la pantalla de la empresa, las 4 veces | QR que cambia + ubicación dentro de la empresa |
+| **Vendedores de ruta** | Entrada y salida de jornada con el QR en la empresa. Durante el día, rastreo; almuerzo (salida/regreso) marcado en ruta con ubicación | QR en la empresa; en ruta, ubicación (rastreo solo en jornada activa y en pausa durante el almuerzo) |
+| **Personal de tienda** | App web con geolocalización, las 4 marcas | Ubicación dentro de la tienda (opcional: QR en la pantalla del POS) |
+
+### Ajustes recomendados al esquema
+1. **El QR no necesita durar 15 minutos.** Lo muestra una pantalla, así que puede cambiar cada 30–60 s sin costo. Con 15 min, alguien podría fotografiarlo y mandarlo a un compañero que marque desde afuera. Además del QR se valida la **ubicación** (en la empresa) y el **celular registrado**: el QR prueba que hay un código vigente, la ubicación prueba dónde, el celular prueba quién.
+2. **Pantalla de marca:** una página del sistema en pantalla completa («Pantalla del punto») que se abre en cualquier tablet o monitor; no hace falta hardware especial. El empleado puede escanear con la cámara del celular (abre el sistema ya con su sesión) y no necesita escáner dentro de la app.
+3. **Almuerzo:** hoy el sistema descuenta un **bloque fijo** e ignora las marcas del medio (1.14.0). Con marcas de almuerzo explícitas y con tipo ya no hay ambigüedad, así que hay que elegir: (a) seguir con bloque fijo y usar las marcas solo para detectar almuerzos muy largos, o (b) descontar el almuerzo real marcado para quienes usan la app (requiere ajuste por empleado, hoy el parámetro es global).
+4. **Rastreo de vendedores de ruta:** el rastreo continuo exige la **app nativa** (Capacitor); desde la página web se corta al bloquear la pantalla. Es la única pieza del plan que no se puede resolver solo con la web.
+5. **Si falla algo** (sin internet en la empresa, pantalla apagada, celular sin batería): la marca se guarda como «sin verificar» y el supervisor la confirma, como ya funciona con el reloj; nadie pierde pago por una falla técnica.
