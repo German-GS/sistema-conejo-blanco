@@ -1,6 +1,6 @@
 import { ESTADOS_VIGENTES } from './planilla.enums.js';
 import { redondear } from '../common/utils/dinero.util.js';
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { ContabilidadService, CUENTA } from '../contabilidad/contabilidad.service.js';
@@ -18,7 +18,17 @@ import { PlanillaLinea } from './planilla-linea.entity.js';
 import { EstadoPlanilla } from './planilla.enums.js';
 import { estimarLiquidacion, ETIQUETAS_CESE, type TipoCese } from './liquidacion.js';
 import { hoyISO } from '../common/utils/fecha.util.js';
+import { ausentesDelArchivo, leerEmpleadosExcel, planificarImportacion, type ResultadoFila } from './importar-empleados.js';
+import { BitacoraService } from '../bitacora/bitacora.service.js';
+import type { UsuarioAutenticado } from '../auth/usuario-autenticado.interface.js';
 import type { ActualizarEmpleadoDto, CesarEmpleadoDto, CrearDeudaDto, CrearEmpleadoDto } from './dto/empleado.dto.js';
+
+export interface DecisionAusente {
+  accion: 'conservar' | 'eliminar' | 'eliminar_todo' | 'cesar';
+  fechaCese?: string;
+  tipoCese?: 'renuncia' | 'despido_con_responsabilidad' | 'despido_sin_responsabilidad' | 'mutuo_acuerdo' | 'fin_contrato';
+  motivo?: string;
+}
 
 const ORIGEN_DEUDA = 'deuda_empleado';
 const ORIGEN_DEUDA_BAJA = 'deuda_empleado_baja';
@@ -36,7 +46,184 @@ export class EmpleadosService {
     private readonly contabilidad: ContabilidadService,
     private readonly cuentasBancarias: CuentasBancariasService,
     private readonly dataSource: DataSource,
+    private readonly bitacora: BitacoraService,
   ) {}
+
+  // Qué tiene registrado un empleado en el sistema (planillas, días de asistencia, deudas, cuenta de usuario…). Con algo
+  // registrado no se puede borrar sin perder historial laboral y contable: se le da de baja (cese) en su lugar.
+  async historialDe(id: string): Promise<{ total: number; detalle: Array<{ tabla: string; cantidad: number }> }> {
+    const refs: Array<{ tabla: string; columna: string }> = await this.dataSource.query(
+      `SELECT c.conrelid::regclass::text AS tabla, a.attname AS columna
+         FROM pg_constraint c JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = ANY (c.conkey)
+        WHERE c.contype = 'f' AND c.confrelid = 'planilla_empleados'::regclass`,
+    );
+    const detalle: Array<{ tabla: string; cantidad: number }> = [];
+    for (const r of refs) {
+      const ident = (t: string) => `"${t.replace(/"/g, '""')}"`;
+      const tabla = r.tabla.replace(/^"|"$/g, '');
+      const [fila] = await this.dataSource.query(`SELECT COUNT(*)::int AS n FROM ${ident(tabla)} WHERE ${ident(r.columna)} = $1`, [id]);
+      if (fila.n > 0) detalle.push({ tabla, cantidad: fila.n });
+    }
+    return { total: detalle.reduce((a, d) => a + d.cantidad, 0), detalle };
+  }
+
+  // Planillas ya aprobadas o pagadas en las que sale el empleado: con asientos contables hechos, sus líneas no se pueden quitar
+  // sin descuadrar los libros. Hay que anular primero esas planillas.
+  async bloqueosParaEliminar(id: string): Promise<string[]> {
+    const filas: Array<{ fecha_desde: string; fecha_hasta: string; estado: string }> = await this.dataSource.query(
+      `SELECT to_char(p.fecha_desde, 'DD/MM/YYYY') AS fecha_desde, to_char(p.fecha_hasta, 'DD/MM/YYYY') AS fecha_hasta, p.estado FROM planilla_lineas l JOIN planilla_planillas p ON p.id = l.planilla_id
+        WHERE l.empleado_id = $1 AND p.estado IN ('aprobada', 'pagada') ORDER BY p.fecha_desde`,
+      [id],
+    );
+    return filas.map((f) => `planilla del ${f.fecha_desde} al ${f.fecha_hasta} (${f.estado})`);
+  }
+
+  // Borra al empleado CON todo su historial (asistencia, líneas de planillas en borrador o anuladas, deudas). Solo el administrador
+  // del sistema. Pensado para datos de prueba cargados antes de que el sistema se usara de verdad. No toca planillas aprobadas o pagadas.
+  async eliminarConHistorial(id: string, usuario: UsuarioAutenticado): Promise<{ nombre: string }> {
+    if (usuario.rol !== 'sistema') throw new ForbiddenException('Solo el administrador del sistema puede eliminar a un empleado con su historial.');
+    const empleado = await this.buscarOFallar(id);
+    const bloqueos = await this.bloqueosParaEliminar(id);
+    if (bloqueos.length) {
+      throw new BadRequestException(`No se puede eliminar a ${empleado.nombre}: sale en planillas ya aprobadas o pagadas (${bloqueos.join('; ')}). Anule esas planillas primero (Planillas → Anular).`);
+    }
+    // Los préstamos con saldo se cierran bien (revierte o da de baja el asiento) antes de borrar la deuda.
+    for (const d of await this.deudaRepo.find({ where: { empleadoId: id } })) {
+      if (d.activa || Number(d.saldo) > 0) await this.desactivarDeuda(d.id);
+    }
+    await this.dataSource.transaction(async (manager) => {
+      const afectadas: Array<{ planilla_id: string }> = await manager.query('SELECT DISTINCT planilla_id FROM planilla_lineas WHERE empleado_id = $1', [id]);
+      await manager.query('DELETE FROM planilla_lineas WHERE empleado_id = $1', [id]);
+      if (afectadas.length) {
+        await manager.query(
+          `UPDATE planilla_planillas p SET
+             total_bruto = COALESCE((SELECT SUM(bruto) FROM planilla_lineas WHERE planilla_id = p.id), 0),
+             total_deducciones = COALESCE((SELECT SUM(total_deducciones) FROM planilla_lineas WHERE planilla_id = p.id), 0),
+             total_neto = COALESCE((SELECT SUM(neto) FROM planilla_lineas WHERE planilla_id = p.id), 0),
+             total_cargas_patronales = COALESCE((SELECT SUM(cargas_patronales) FROM planilla_lineas WHERE planilla_id = p.id), 0),
+             total_provisiones = COALESCE((SELECT SUM(provisiones) FROM planilla_lineas WHERE planilla_id = p.id), 0)
+           WHERE p.id = ANY($1::uuid[])`,
+          [afectadas.map((a) => a.planilla_id)],
+        );
+      }
+      await manager.query('DELETE FROM planilla_dias WHERE empleado_id = $1', [id]);
+      await manager.query('DELETE FROM planilla_deudas WHERE empleado_id = $1', [id]);
+      await manager.query('UPDATE usuarios SET activo = false, version_token = version_token + 1 WHERE empleado_id = $1 AND rol <> $2', [id, 'sistema']);
+      await manager.query('DELETE FROM planilla_empleados WHERE id = $1', [id]);
+    });
+    await this.bitacora.registrar({ accion: 'empleado_eliminado', usuarioId: usuario.id, usuarioEmail: usuario.email, objetivo: empleado.nombre, detalle: `Empleado eliminado con todo su historial (cédula ${empleado.cedula ?? 'sin cédula'}).` });
+    return { nombre: empleado.nombre };
+  }
+
+  // Importar empleados desde Excel. Sin aplicar, solo dice qué haría (crear, cambiar, errores);
+  // al aplicar se hace lo mismo y se niega si alguna fila tiene error.
+  async importarDesdeExcel(buffer: Buffer, aplicar: boolean, usuario: UsuarioAutenticado, decisiones: Record<string, DecisionAusente> = {}) {
+    let filas;
+    try {
+      filas = await leerEmpleadosExcel(buffer);
+    } catch (err) {
+      throw new BadRequestException(err instanceof Error ? err.message : 'No se pudo leer el archivo.');
+    }
+    if (filas.length === 0) throw new BadRequestException('El archivo no trae empleados.');
+    const existentes = await this.empleadoRepo.find();
+    const plan = planificarImportacion(filas, existentes);
+    const resumen = (p: ResultadoFila[]) => ({
+      total: p.length,
+      crear: p.filter((x) => x.accion === 'crear').length,
+      actualizar: p.filter((x) => x.accion === 'actualizar').length,
+      sinCambios: p.filter((x) => x.accion === 'sin_cambios').length,
+      errores: p.filter((x) => x.accion === 'error').length,
+    });
+    const ausentes = await Promise.all(
+      ausentesDelArchivo(plan, existentes).map(async (a) => {
+        const h = await this.historialDe(a.id);
+        const bloqueos = await this.bloqueosParaEliminar(a.id);
+        return { ...a, historial: h, bloqueos, sugerencia: h.total === 0 ? 'eliminar' : 'cesar' };
+      }),
+    );
+    if (!aplicar) return { aplicado: false, resumen: resumen(plan), filas: plan, ausentes };
+    if (plan.some((x) => x.accion === 'error')) throw new BadRequestException('Hay filas con errores: corríjalas y vuelva a subir el archivo. No se cambió nada.');
+
+    // Las decisiones sobre quien no está en el archivo se validan ANTES de tocar nada.
+    const porId = new Map(ausentes.map((a) => [a.id, a]));
+    for (const [id, d] of Object.entries(decisiones)) {
+      const a = porId.get(id);
+      if (!a) throw new BadRequestException('Una de las decisiones no corresponde a un empleado que falte en el archivo.');
+      if (d.accion === 'eliminar' && a.historial.total > 0) {
+        throw new BadRequestException(`${a.nombre} tiene historial (${a.historial.detalle.map((x) => `${x.cantidad} en ${x.tabla}`).join(', ')}): no se puede borrar sin perderlo. Désele de baja.`);
+      }
+      if (d.accion === 'eliminar_todo') {
+        if (usuario.rol !== 'sistema') throw new ForbiddenException('Solo el administrador del sistema puede eliminar a un empleado con su historial.');
+        if (a.bloqueos.length) throw new BadRequestException(`${a.nombre} sale en planillas ya aprobadas o pagadas (${a.bloqueos.join('; ')}): anúlelas primero para poder eliminarlo.`);
+      }
+      if (d.accion === 'cesar' && (!/^\d{4}-\d{2}-\d{2}$/.test(d.fechaCese ?? '') || !d.tipoCese || (d.motivo ?? '').trim().length < 3)) {
+        throw new BadRequestException(`Para dar de baja a ${a.nombre} indique la fecha, el tipo y el motivo del cese.`);
+      }
+    }
+
+    const usados = new Set(existentes.map((e) => e.numeroReloj));
+    for (const x of plan) {
+      const f = x.fila;
+      if (x.accion === 'crear') {
+        let numeroReloj = f.numeroReloj;
+        if (!numeroReloj) {
+          const base = `SIN-${(f.cedula ?? String(f.fila)).slice(-12)}`;
+          numeroReloj = base;
+          for (let i = 2; usados.has(numeroReloj); i++) numeroReloj = `${base}-${i}`;
+        }
+        usados.add(numeroReloj);
+        await this.crear({
+          numeroReloj,
+          nombre: f.nombre,
+          cedula: f.cedula ?? undefined,
+          puesto: f.puesto ?? undefined,
+          fechaIngreso: f.fechaIngreso ?? undefined,
+          tipoSalario: f.tipoSalario as TipoSalario,
+          montoSalario: f.monto as number,
+          frecuenciaPago: f.frecuenciaPago as FrecuenciaPago,
+          horasSemana: f.horasSemana ?? undefined,
+          sector: f.sector ?? undefined,
+          esDeTienda: f.esDeTienda ?? undefined,
+          esConfianza: f.esConfianza ?? undefined,
+          marcaReloj: f.marcaReloj ?? undefined,
+          formaPago: f.formaPago ?? undefined,
+          iban: f.iban ?? undefined,
+          identificadorBp: f.identificadorBp ?? undefined,
+        } as CrearEmpleadoDto);
+      } else if (x.accion === 'actualizar' && x.existente) {
+        const dto: Record<string, unknown> = {};
+        for (const c of x.cambios) {
+          if (c.campo === 'monto') dto.montoSalario = f.monto;
+          else dto[c.campo] = (f as unknown as Record<string, unknown>)[c.campo];
+        }
+        await this.actualizar(x.existente.id, dto as ActualizarEmpleadoDto);
+      }
+    }
+    const bajas: string[] = [];
+    const borrados: string[] = [];
+    for (const [id, d] of Object.entries(decisiones)) {
+      const a = porId.get(id)!;
+      if (d.accion === 'eliminar') {
+        await this.dataSource.query('DELETE FROM planilla_empleados WHERE id = $1', [id]);
+        borrados.push(a.nombre);
+        await this.bitacora.registrar({ accion: 'empleado_eliminado', usuarioId: usuario.id, usuarioEmail: usuario.email, objetivo: a.nombre, detalle: `Empleado eliminado al importar empleados (cédula ${a.cedula ?? 'sin cédula'}).` });
+      } else if (d.accion === 'eliminar_todo') {
+        await this.eliminarConHistorial(id, usuario);
+        borrados.push(a.nombre);
+      } else if (d.accion === 'cesar') {
+        await this.cesar(id, { fechaCese: d.fechaCese!, tipoCese: d.tipoCese!, motivo: d.motivo! });
+        bajas.push(a.nombre);
+      }
+    }
+    await this.bitacora.registrar({
+      accion: 'empleados_importados',
+      usuarioId: usuario.id,
+      usuarioEmail: usuario.email,
+      objetivo: 'planilla_empleados',
+      detalle: `Creados ${resumen(plan).crear}, actualizados ${resumen(plan).actualizar}, dados de baja ${bajas.length}, eliminados ${borrados.length}.`,
+    });
+    return { aplicado: true, resumen: resumen(plan), filas: plan, ausentes, bajas, borrados };
+  }
 
   listar(): Promise<Empleado[]> {
     return this.empleadoRepo.find({ order: { activo: 'DESC', nombre: 'ASC' } });

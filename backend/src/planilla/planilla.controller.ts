@@ -161,9 +161,35 @@ export class PlanillaController {
     return this.empleados.listar();
   }
 
+  // Importar empleados desde un Excel. Con aplicar=true se guardan los cambios; sin él solo se muestra
+  // la vista previa (qué se crearía, qué cambiaría y qué está mal).
+  @Post('empleados/importar')
+  @UseInterceptors(FileInterceptor('archivo', opcionesArchivo))
+  importarEmpleados(
+    @UploadedFile() archivo: Express.Multer.File | undefined,
+    @CurrentUser() usuario: UsuarioAutenticado,
+    @Query('aplicar') aplicar?: string,
+    @Body('decisiones') decisionesJson?: string,
+  ) {
+    if (!archivo) throw new BadRequestException('No se recibió ningún archivo.');
+    let decisiones = {};
+    try {
+      decisiones = decisionesJson ? JSON.parse(decisionesJson) : {};
+    } catch {
+      throw new BadRequestException('Las decisiones no son válidas.');
+    }
+    return this.empleados.importarDesdeExcel(archivo.buffer, aplicar === 'true', usuario, decisiones);
+  }
+
   @Post('empleados')
   crearEmpleado(@Body() dto: CrearEmpleadoDto) {
     return this.empleados.crear(dto);
+  }
+
+  // Solo el administrador del sistema: borra al empleado con todo su historial (datos de prueba).
+  @Delete('empleados/:id')
+  eliminarEmpleado(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() usuario: UsuarioAutenticado) {
+    return this.empleados.eliminarConHistorial(id, usuario);
   }
 
   @Patch('empleados/:id')

@@ -2,11 +2,82 @@
 import { confirmar } from '../../../lib/confirmar.js';
 import Cargando from '../../../components/Cargando.vue';
 import { computed, nextTick, onMounted, reactive, ref } from 'vue';
-import { api, ApiError } from '../../../lib/api.js';
+import { api, ApiError, subirArchivo } from '../../../lib/api.js';
+import { exito, fallo } from '../../../lib/avisos.js';
+import { useAuthStore } from '../../../stores/auth.js';
 import { Search } from '@lucide/vue';
 import CesePanel from '../../../components/CesePanel.vue';
 import HorarioSemanalEditor from '../../../components/HorarioSemanalEditor.vue';
 import { formatearColones, formatearFecha, fechaHoyISO } from '../../../lib/format.js';
+
+const auth = useAuthStore();
+
+// Solo el administrador del sistema: borra al empleado con todo su historial (datos de prueba).
+async function eliminarEmpleado(e) {
+  if (!await confirmar(`¿Eliminar a ${e.nombre} con todo su historial (asistencia, líneas de planillas en borrador o anuladas y deudas)? No se puede deshacer.`)) return;
+  try {
+    await api.delete(`/planilla/empleados/${e.id}`);
+    exito(`${e.nombre} eliminado.`);
+    await cargar();
+  } catch (err) {
+    fallo(err instanceof ApiError ? err.message : 'No se pudo eliminar.');
+  }
+}
+
+// ---- Importar empleados desde Excel ----
+// Se sube el archivo, se ve una vista previa (qué se crea, qué cambia, qué está mal) y recién ahí se aplica.
+const importacion = reactive({ abierta: false, archivo: null, vista: null, trabajando: false, error: '', decisiones: {} });
+const TIPOS_CESE = [
+  { valor: 'renuncia', etiqueta: 'Renuncia' },
+  { valor: 'mutuo_acuerdo', etiqueta: 'Mutuo acuerdo' },
+  { valor: 'fin_contrato', etiqueta: 'Fin de contrato' },
+  { valor: 'despido_sin_responsabilidad', etiqueta: 'Despido sin responsabilidad' },
+  { valor: 'despido_con_responsabilidad', etiqueta: 'Despido con responsabilidad' },
+];
+const decisionDe = (id) => (importacion.decisiones[id] ??= { accion: 'conservar', fechaCese: '', tipoCese: 'renuncia', motivo: '' });
+const resumenHistorial = (h) => h.detalle.map((d) => `${d.cantidad} en ${d.tabla.replace(/^planilla_/, '')}`).join(', ');
+const ESTADO_IMPORT = {
+  crear: { texto: 'Nuevo', clase: 'bg-green-100 text-green-700' },
+  actualizar: { texto: 'Cambia', clase: 'bg-blue-100 text-blue-700' },
+  sin_cambios: { texto: 'Sin cambios', clase: 'bg-slate-100 text-slate-600' },
+  error: { texto: 'Error', clase: 'bg-red-100 text-red-700' },
+};
+function elegirArchivoImport(ev) {
+  importacion.archivo = ev.target.files?.[0] ?? null;
+  importacion.vista = null;
+  importacion.error = '';
+}
+async function enviarImport(aplicar) {
+  importacion.trabajando = true;
+  importacion.error = '';
+  try {
+    const f = new FormData();
+    f.append('archivo', importacion.archivo);
+    if (aplicar) {
+      const hechas = Object.fromEntries(Object.entries(importacion.decisiones).filter(([, d]) => d.accion !== 'conservar'));
+      f.append('decisiones', JSON.stringify(hechas));
+    }
+    importacion.vista = await subirArchivo(`/planilla/empleados/importar${aplicar ? '?aplicar=true' : ''}`, f);
+    if (aplicar) {
+      const v = importacion.vista;
+      exito(`Importación lista: ${v.resumen.crear} nuevos, ${v.resumen.actualizar} actualizados, ${v.bajas.length} dados de baja, ${v.borrados.length} eliminados.`);
+      await cargar();
+    }
+  } catch (err) {
+    importacion.error = err instanceof ApiError ? err.message : 'No se pudo procesar el archivo.';
+  } finally {
+    importacion.trabajando = false;
+  }
+}
+async function aplicarImport() {
+  const r = importacion.vista.resumen;
+  const decisiones = Object.entries(importacion.decisiones).filter(([, d]) => d.accion !== 'conservar');
+  const aEliminar = decisiones.filter(([, d]) => d.accion === 'eliminar' || d.accion === 'eliminar_todo').length;
+  const aBaja = decisiones.length - aEliminar;
+  const detalle = `Se van a crear ${r.crear} empleados, actualizar ${r.actualizar}, dar de baja ${aBaja} y eliminar ${aEliminar}.`;
+  if (!await confirmar(`${detalle} ¿Continuar?`)) return;
+  await enviarImport(true);
+}
 
 const TIPOS = [
   { valor: 'mensual', etiqueta: 'Salario mensual' },
@@ -310,8 +381,75 @@ const etiqueta = (lista, v) => lista.find((x) => x.valor === v)?.etiqueta ?? v;
         <label class="flex items-center gap-2 text-sm text-slate-600">
           <input v-model="verInactivos" type="checkbox" class="size-4" /> Ver inactivos
         </label>
+        <button type="button" class="btn-secondary" @click="importacion.abierta = !importacion.abierta">Importar desde Excel</button>
         <button type="button" class="btn-primary" @click="nuevo">Nuevo empleado</button>
       </div>
+    </div>
+
+    <div v-if="importacion.abierta" class="card flex flex-col gap-3">
+      <p class="text-base font-semibold text-slate-900">Importar empleados desde Excel</p>
+      <p class="text-sm text-slate-600">
+        El archivo debe tener una fila de encabezados con al menos <strong>Nombre</strong>. Columnas que se entienden: Cédula, N.º de reloj, Puesto,
+        Fecha de ingreso, Tipo de salario (por hora / semanal / mensual), Monto, Se paga (semanal / quincenal / mensual), Horas por semana, Sector,
+        Es de tienda, Puesto de confianza, Marca en reloj, Forma de pago, IBAN e Identificador Banco Popular. Si un empleado ya existe (por cédula o por nombre)
+        solo se cambia lo que traiga el archivo; <strong>una celda vacía nunca borra</strong> lo que ya está. Antes de guardar ve una vista previa.
+      </p>
+      <input type="file" accept=".xlsx,.xls" class="text-sm" @change="elegirArchivoImport" />
+      <div v-if="importacion.archivo && !importacion.vista"><button type="button" class="btn-primary" :disabled="importacion.trabajando" @click="enviarImport(false)">{{ importacion.trabajando ? 'Leyendo…' : 'Ver vista previa' }}</button></div>
+      <p v-if="importacion.error" class="text-sm font-medium text-red-600">{{ importacion.error }}</p>
+      <template v-if="importacion.vista">
+        <p class="text-sm text-slate-700">
+          {{ importacion.vista.resumen.total }} filas: <strong>{{ importacion.vista.resumen.crear }}</strong> nuevos ·
+          <strong>{{ importacion.vista.resumen.actualizar }}</strong> con cambios · {{ importacion.vista.resumen.sinCambios }} sin cambios ·
+          <strong :class="importacion.vista.resumen.errores ? 'text-red-600' : ''">{{ importacion.vista.resumen.errores }}</strong> con errores.
+          <span v-if="importacion.vista.aplicado" class="font-semibold text-teal-700">Ya se guardó.</span>
+        </p>
+        <div class="max-h-96 overflow-auto rounded-lg border border-slate-200">
+          <table class="tabla-fija min-w-full text-sm">
+            <thead class="bg-slate-50 text-left text-xs font-semibold text-slate-600"><tr><th class="px-3 py-2">Fila</th><th class="px-3">Empleado</th><th class="px-3">Qué pasa</th><th class="px-3">Detalle</th></tr></thead>
+            <tbody>
+              <tr v-for="x in importacion.vista.filas" :key="x.fila.fila" class="border-t border-slate-100 align-top">
+                <td class="px-3 py-1.5 text-xs text-slate-500">{{ x.fila.fila }}</td>
+                <td class="px-3">{{ x.fila.nombre }}<span v-if="x.existente && x.existente.nombre !== x.fila.nombre" class="block text-xs text-slate-500">= {{ x.existente.nombre }}</span></td>
+                <td class="px-3"><span class="rounded-full px-2 py-0.5 text-xs font-semibold" :class="ESTADO_IMPORT[x.accion].clase">{{ ESTADO_IMPORT[x.accion].texto }}</span></td>
+                <td class="px-3 text-xs text-slate-600">
+                  <span v-for="c in x.cambios" :key="c.campo" class="block">{{ c.etiqueta }}: {{ c.antes }} → <strong>{{ c.despues }}</strong></span>
+                  <span v-for="e in x.fila.errores" :key="e" class="block font-medium text-red-600">{{ e }}</span>
+                  <span v-for="a in x.avisos" :key="a" class="block text-amber-700">{{ a }}</span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div v-if="importacion.vista.ausentes?.length" class="flex flex-col gap-2 rounded-xl border border-amber-300 bg-amber-50 p-3">
+          <p class="text-sm font-semibold text-amber-900">En el sistema pero NO en el archivo ({{ importacion.vista.ausentes.length }})</p>
+          <p class="text-xs text-amber-900">
+            Por seguridad nadie se toca si no lo decide aquí. <strong>Eliminar</strong> solo se permite a quien no tiene nada registrado (planillas, asistencia, deudas…);
+            a quien ya tiene historial se le <strong>da de baja</strong> (cese), que conserva su historial y le quita el acceso al sistema. Si son datos de prueba, el administrador del sistema puede <strong>eliminarlo con todo su historial</strong>, salvo que salga en planillas ya aprobadas o pagadas (esas se anulan primero).
+          </p>
+          <div v-for="a in importacion.vista.ausentes" :key="a.id" class="rounded-lg border border-amber-200 bg-white p-2 text-sm">
+            <p class="font-semibold text-slate-900">{{ a.nombre }} <span v-if="a.puesto" class="font-normal text-slate-500">· {{ a.puesto }}</span></p>
+            <p v-if="a.parecidoA.length" class="text-xs text-amber-800">Se parece a «{{ a.parecidoA.join(', ') }}» del archivo: ¿es la misma persona? Si es así, no lo elimine; corrija su nombre o su cédula y vuelva a revisar.</p>
+            <p class="text-xs text-slate-500">{{ a.historial.total === 0 ? 'Sin nada registrado: se puede eliminar.' : `Con historial (${resumenHistorial(a.historial)}).` }}</p>
+            <p v-if="a.bloqueos.length" class="text-xs font-medium text-red-700">Sale en {{ a.bloqueos.join('; ') }}: para eliminarlo hay que anular esas planillas primero.</p>
+            <div class="mt-1 flex flex-wrap items-center gap-3">
+              <label class="flex items-center gap-1"><input v-model="decisionDe(a.id).accion" type="radio" value="conservar" /> Dejarlo como está</label>
+              <label v-if="a.historial.total === 0" class="flex items-center gap-1 text-red-700"><input v-model="decisionDe(a.id).accion" type="radio" value="eliminar" /> Eliminar</label>
+              <label v-if="auth.esSistema && a.historial.total > 0 && !a.bloqueos.length" class="flex items-center gap-1 text-red-700"><input v-model="decisionDe(a.id).accion" type="radio" value="eliminar_todo" /> Eliminar con todo su historial</label>
+              <label class="flex items-center gap-1"><input v-model="decisionDe(a.id).accion" type="radio" value="cesar" /> Dar de baja (cesar)</label>
+            </div>
+            <div v-if="decisionDe(a.id).accion === 'cesar'" class="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
+              <div><label class="label">Fecha del cese *</label><input v-model="decisionDe(a.id).fechaCese" type="date" class="input" /></div>
+              <div><label class="label">Tipo *</label><select v-model="decisionDe(a.id).tipoCese" class="input"><option v-for="t in TIPOS_CESE" :key="t.valor" :value="t.valor">{{ t.etiqueta }}</option></select></div>
+              <div><label class="label">Motivo *</label><input v-model="decisionDe(a.id).motivo" class="input" placeholder="Ej. dejó de laborar" /></div>
+            </div>
+          </div>
+        </div>
+        <div v-if="!importacion.vista.aplicado" class="flex gap-2">
+          <button type="button" class="btn-primary" :disabled="importacion.trabajando || importacion.vista.resumen.errores > 0 || (importacion.vista.resumen.crear + importacion.vista.resumen.actualizar === 0 && !Object.values(importacion.decisiones).some((d) => d.accion !== 'conservar'))" @click="aplicarImport">Guardar estos cambios</button>
+          <p v-if="importacion.vista.resumen.errores" class="self-center text-xs text-red-600">Corrija los errores en el Excel y vuelva a subirlo.</p>
+        </div>
+      </template>
     </div>
 
     <div class="relative max-w-xl">
@@ -547,6 +685,7 @@ const etiqueta = (lista, v) => lista.find((x) => x.valor === v)?.etiqueta ?? v;
           </div>
           <div class="flex gap-3 text-sm font-semibold text-blue-700">
             <button type="button" class="underline" @click="abrirDeudas(e)">Deudas</button>
+            <button v-if="auth.esSistema" type="button" class="text-red-700 underline" @click="eliminarEmpleado(e)">Eliminar</button>
             <button type="button" class="underline" @click="editar(e)">Editar</button>
             <button v-if="e.activo && !e.fechaCese" type="button" class="text-red-700 underline" @click="ceseDe = { id: e.id, nombre: e.nombre, modo: 'cesar' }">Dar de baja</button>
             <template v-if="e.fechaCese">

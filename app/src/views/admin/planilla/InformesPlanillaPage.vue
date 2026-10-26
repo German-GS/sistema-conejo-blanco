@@ -12,6 +12,7 @@ const INFORMES = [
   { tipo: 'asistencia', titulo: 'Asistencia', ayuda: 'Ausencias, extras y horas faltantes por empleado.' },
   { tipo: 'irregularidades', titulo: 'Irregularidades', ayuda: 'Ausencias, horas descontadas y marcas corregidas, con motivo y comprobante.' },
   { tipo: 'deudas', titulo: 'Deudas de empleados', ayuda: 'Saldos pendientes con la empresa.' },
+  { tipo: 'empleados', titulo: 'Empleados y salarios', ayuda: 'Lo que se le paga a cada empleado según su ficha.' },
 ];
 
 const hoy = fechaHoyISO();
@@ -27,7 +28,7 @@ const filasVisibles = computed(() => {
 const cargando = ref(false);
 const error = ref('');
 
-const sinFechas = computed(() => tipo.value === 'deudas');
+const sinFechas = computed(() => ['deudas', 'empleados'].includes(tipo.value));
 
 function mesActual() {
   const [a, m] = hoy.split('-').map(Number);

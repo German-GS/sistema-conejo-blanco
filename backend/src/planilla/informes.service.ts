@@ -7,11 +7,12 @@ import { PlanillaLinea } from './planilla-linea.entity.js';
 import { DiaAsistencia } from './dia-asistencia.entity.js';
 import { ResolucionDia } from './resolucion-dia.entity.js';
 import { DeudaEmpleado } from './deuda-empleado.entity.js';
-import { EstadoDia, EstadoPlanilla, TipoResolucionDia } from './planilla.enums.js';
+import { Empleado } from './empleado.entity.js';
+import { EstadoDia, EstadoPlanilla, FrecuenciaPago, TipoResolucionDia, TipoSalario } from './planilla.enums.js';
 import { redondear } from '../common/utils/dinero.util.js';
 
-export type TipoInforme = 'asientos' | 'libro' | 'cargas' | 'renta' | 'provisiones' | 'asistencia' | 'irregularidades' | 'deudas';
-export const TIPOS_INFORME: TipoInforme[] = ['asientos', 'libro', 'cargas', 'renta', 'provisiones', 'asistencia', 'irregularidades', 'deudas'];
+export type TipoInforme = 'asientos' | 'libro' | 'cargas' | 'renta' | 'provisiones' | 'asistencia' | 'irregularidades' | 'deudas' | 'empleados';
+export const TIPOS_INFORME: TipoInforme[] = ['asientos', 'libro', 'cargas', 'renta', 'provisiones', 'asistencia', 'irregularidades', 'deudas', 'empleados'];
 
 type TipoColumna = 'texto' | 'moneda' | 'numero';
 export interface Informe {
@@ -24,6 +25,8 @@ export interface Informe {
 }
 
 const FECHA = /^\d{4}-\d{2}-\d{2}$/;
+// Informes que muestran lo vigente hoy y no dependen de un rango de fechas.
+export const SIN_FECHAS: string[] = ['deudas', 'empleados'];
 
 // Etiquetas legibles para los conceptos que guarda el cálculo.
 const ETIQUETA_CARGA: Record<string, string> = {
@@ -70,7 +73,7 @@ export class InformesService {
 
   async generar(tipo: string, desde: string, hasta: string): Promise<Informe> {
     if (!TIPOS_INFORME.includes(tipo as TipoInforme)) throw new BadRequestException('Ese informe no existe.');
-    if (tipo !== 'deudas') {
+    if (!SIN_FECHAS.includes(tipo)) {
       if (!FECHA.test(desde) || !FECHA.test(hasta)) throw new BadRequestException('Indique las fechas desde y hasta (YYYY-MM-DD).');
       if (desde > hasta) throw new BadRequestException('La fecha inicial no puede ser posterior a la final.');
     }
@@ -89,6 +92,8 @@ export class InformesService {
         return this.asistencia(desde, hasta);
       case 'irregularidades':
         return this.irregularidades(desde, hasta);
+      case 'empleados':
+        return this.empleados();
       default:
         return this.deudas();
     }
@@ -441,6 +446,57 @@ export class InformesService {
     };
   }
 
+  // Empleados con lo que se les paga hoy (según su ficha): salario pactado, cada cuánto, y su equivalente
+  // por semana y por mes. No es lo pagado en una planilla (eso está en «Libro de planilla»).
+  private async empleados(): Promise<Informe> {
+    const lista = await this.dataSource.getRepository(Empleado).find({ order: { nombre: 'ASC' } });
+    const SEMANAS_POR_MES = 52 / 12; // semanas por mes
+    const filas = lista.map((e) => {
+      const monto = Number(e.montoSalario);
+      const horasSemana = e.horasSemana && Number(e.horasSemana) > 0 ? Number(e.horasSemana) : 48;
+      // Se lleva todo a «por semana» y de ahí al mes (mensual = 30 días, como en el cálculo de planilla).
+      let semanal: number;
+      if (e.tipoSalario === TipoSalario.POR_HORA) semanal = monto * horasSemana;
+      else if (e.tipoSalario === TipoSalario.SEMANAL) semanal = monto;
+      else semanal = (monto / 30) * 7;
+      const mensual = e.tipoSalario === TipoSalario.MENSUAL ? monto : semanal * SEMANAS_POR_MES;
+      return {
+        empleado: e.nombre,
+        cedula: e.cedula ?? '',
+        puesto: e.puesto ?? '',
+        estado: e.activo ? 'Activo' : 'Inactivo',
+        tipoSalario: e.tipoSalario === TipoSalario.POR_HORA ? 'Por hora' : e.tipoSalario === TipoSalario.SEMANAL ? 'Semanal' : 'Mensual',
+        frecuencia: e.frecuenciaPago === FrecuenciaPago.SEMANAL ? 'Semanal' : e.frecuenciaPago === FrecuenciaPago.QUINCENAL ? 'Quincenal' : 'Mensual',
+        monto: redondear(monto),
+        horasSemana: e.tipoSalario === TipoSalario.POR_HORA ? horasSemana : '',
+        semanal: redondear(semanal),
+        mensual: redondear(mensual),
+        notas: [e.esDeTienda ? 'De tienda' : '', e.esConfianza ? 'Puesto de confianza' : '', e.marcaReloj === false ? 'No marca en el reloj' : ''].filter(Boolean).join(', '),
+      };
+    });
+    const activos = filas.filter((f) => f.estado === 'Activo');
+    return {
+      tipo: 'empleados',
+      titulo: 'Empleados y salarios',
+      descripcion: 'Lo que se le paga a cada empleado según su ficha (no depende de fechas). Los equivalentes semanal y mensual son aproximados; el total es solo de los activos. Lo realmente pagado en una planilla está en «Libro de planilla».',
+      columnas: [
+        { clave: 'empleado', etiqueta: 'Empleado', tipo: 'texto' },
+        { clave: 'cedula', etiqueta: 'Cédula', tipo: 'texto' },
+        { clave: 'puesto', etiqueta: 'Puesto', tipo: 'texto' },
+        { clave: 'estado', etiqueta: 'Estado', tipo: 'texto' },
+        { clave: 'tipoSalario', etiqueta: 'Tipo de salario', tipo: 'texto' },
+        { clave: 'frecuencia', etiqueta: 'Se paga', tipo: 'texto' },
+        { clave: 'monto', etiqueta: 'Monto pactado', tipo: 'moneda' },
+        { clave: 'horasSemana', etiqueta: 'Horas por semana', tipo: 'numero' },
+        { clave: 'semanal', etiqueta: 'Equivalente semanal', tipo: 'moneda' },
+        { clave: 'mensual', etiqueta: 'Equivalente mensual', tipo: 'moneda' },
+        { clave: 'notas', etiqueta: 'Notas', tipo: 'texto' },
+      ],
+      filas,
+      totales: { semanal: sumar(activos, 'semanal'), mensual: sumar(activos, 'mensual') },
+    };
+  }
+
   private async deudas(): Promise<Informe> {
     const deudas = await this.deudaRepo.find({ where: { activa: true }, relations: { empleado: true }, order: { creadoEn: 'ASC' } });
     const filas = deudas
@@ -475,7 +531,7 @@ export class InformesService {
     const libro = new ExcelJS.Workbook();
     libro.creator = 'Conejo Blanco';
     const hoja = libro.addWorksheet(informe.titulo.slice(0, 30));
-    hoja.addRow([tipo === 'deudas' ? informe.titulo : `${informe.titulo} — del ${desde} al ${hasta}`]).font = { bold: true, size: 13 };
+    hoja.addRow([SIN_FECHAS.includes(tipo) ? informe.titulo : `${informe.titulo} — del ${desde} al ${hasta}`]).font = { bold: true, size: 13 };
     hoja.addRow([]);
     hoja.addRow(informe.columnas.map((c) => c.etiqueta)).font = { bold: true };
     for (const f of informe.filas) hoja.addRow(informe.columnas.map((c) => f[c.clave] ?? ''));
