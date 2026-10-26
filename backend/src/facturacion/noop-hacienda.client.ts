@@ -1,6 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import type { EstadoConexionHacienda, HaciendaClient, ResultadoConsultaHacienda, ResultadoEnvioHacienda } from './hacienda-client.interface.js';
 
+// PENDIENTE(hacienda): para conectar de verdad no hay que tocar código: cargar los secretos (llave .p12, PIN,
+// contraseña de la API), completar los datos del emisor y el CABYS, y poner HACIENDA_MODO=pruebas.
+// Pasos completos en docs/FACTURACION_ELECTRONICA.md. Todo lo pendiente se encuentra con:
+//   grep -rn "PENDIENTE(hacienda)" backend/src
 // Implementación mientras no hay llaves: no firma ni envía nada de verdad y lo
 // dice, en vez de fingir un envío exitoso. La factura queda «Pendiente de envío».
 @Injectable()

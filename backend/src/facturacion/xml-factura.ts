@@ -113,6 +113,11 @@ export function problemasDeDatos(d: DatosFacturaXml): string[] {
   return p;
 }
 
+// PENDIENTE(hacienda): validar este XML contra el XSD oficial v4.4 (facturaElectronica.xsd) con xmllint
+// y dejarlo como prueba automática. La descarga desde esta máquina dio 403 (no se debe eludir): bajarlo
+// desde la Oficina Virtual y guardarlo en el repositorio. La primera emisión en el ambiente de PRUEBAS de
+// Hacienda también lo confirma. Revisar además: SINPE Móvil (medio 06), unidad «Par» en vez de «Unid»,
+// código de tarifa para 0 % (hoy 01), y medio de pago de las facturas de pedido (hoy transferencia).
 export function construirXmlFactura(d: DatosFacturaXml): { xml: string; resumen: ResumenXml } {
   const problemas = problemasDeDatos(d);
   if (problemas.length) throw new ErrorDatosFactura(problemas.join(' '));

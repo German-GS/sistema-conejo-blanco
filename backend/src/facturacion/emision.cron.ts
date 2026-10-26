@@ -12,6 +12,8 @@ export class EmisionCron {
 
   constructor(private readonly emision: EmisionService) {}
 
+  // PENDIENTE(hacienda): en Cloud Run este cron solo corre si el servicio está despierto. Para producción:
+  // dejar `--min-instances 1 --no-cpu-throttling`, o llamar a una ruta de revisión desde Cloud Scheduler.
   @Cron('*/10 * * * *')
   async revisar(): Promise<void> {
     if (this.corriendo) return; // no se solapan dos revisiones

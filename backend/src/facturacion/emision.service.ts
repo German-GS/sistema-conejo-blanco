@@ -245,6 +245,8 @@ export class EmisionService {
     return { intentadas: pendientes.length, enviadas };
   }
 
+  // PENDIENTE(hacienda): adjuntar también la representación gráfica (PDF) de la factura; hoy solo van
+  // los dos XML. Se puede generar con pdfkit (ya instalado) a partir de FacturaManualService.documento().
   // XML firmado de Hacienda + su respuesta, al correo del cliente. Una sola vez.
   async entregarAlCliente(f: Factura, forzar = false): Promise<{ enviado: boolean; motivo?: string }> {
     if (f.entregadoCliente && !forzar) return { enviado: false, motivo: 'Ya se entregó al cliente.' };

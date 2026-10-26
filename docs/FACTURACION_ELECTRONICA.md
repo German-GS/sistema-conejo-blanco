@@ -2,6 +2,13 @@
 
 Estado: **preparada, sin conectar**. Las facturas se crean y quedan «Pendiente de envío». Todo lo demás (XML v4.4, firma, envío, seguimiento, correo al cliente, re-emisión) está construido y se activa con las llaves.
 
+## Para retomarlo
+Cada cosa que falta está marcada en el código con `PENDIENTE(hacienda)`:
+```
+grep -rn "PENDIENTE(hacienda)" backend/src
+```
+Orden sugerido: (1) cargar llaves y poner modo pruebas, (2) validar el XML contra el XSD y corregir lo que Hacienda rechace, (3) nota de crédito electrónica, (4) PDF en el correo, (5) Cloud Run siempre encendido, (6) producción.
+
 ## Estados que ve el usuario (como en Alegra)
 | Estado | Color | Significa |
 |---|---|---|

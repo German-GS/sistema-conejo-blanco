@@ -264,6 +264,12 @@ export class FacturacionService {
   // venta y al del costo de ventas, (3) deja el pedido como anulado.
   // Anula la factura COMPLETA — no hay notas de crédito parciales en
   // este sistema todavía, así que solo se puede anular una vez.
+  // PENDIENTE(hacienda): la nota de crédito se crea en el sistema pero NO se envía a Hacienda.
+  // Una factura aceptada solo se anula de verdad con una nota de crédito electrónica aceptada.
+  // Hay que: armar el XML de NotaCreditoElectronica (tipo 03, con InformacionReferencia a la clave de
+  // la factura, código 01/02), firmarlo y enviarlo por el mismo HaciendaClient, y darle a NotaCredito
+  // los mismos estados de emisión que Factura (estado, xmlEnviado, xmlRespuesta, cron de consulta).
+  // Imprescindible ANTES de pasar a producción. Ver docs/FACTURACION_ELECTRONICA.md.
   async anularFactura(facturaId: string, motivo: string, usuarioId: string): Promise<NotaCredito> {
     const factura = await this.buscarPorIdOFallar(facturaId);
     const pagado = (await pagadoPorFactura(this.dataSource.manager, [factura.id])).get(factura.id) ?? 0;
