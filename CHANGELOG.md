@@ -7,6 +7,10 @@ Versionado `MAYOR.MENOR.PARCHE`:
 
 La versión se cambia en `app/package.json` y `backend/package.json` (el pie de página y el panel del sistema la leen solos).
 
+## 1.17.1 — 26 oct 2026 — Se quita el «contrato especial de horas» de la ficha del empleado
+- Ya no aparece el campo «Contrato especial: horas ordinarias por semana»: podía dar a malos entendidos. En comercio la semana se paga sobre 56 horas por el sector «comercio», sin necesidad de ese campo.
+- A los empleados de comercio que tenían «56» escrito ahí se les quita al arrancar el servidor (el valor de la hora no cambia: salario ÷ 56; solo vuelve el día ordinario a 8 horas, que es lo correcto).
+
 ## 1.17.0 — 26 oct 2026 — Viáticos en la planilla y domingo en el horario
 - Cada empleado de una planilla en **borrador** tiene un campo **Viáticos ₡**: se anotan a mano y van **fuera de los cálculos de planilla** (no entran al bruto, ni a la CCSS, ni a la renta, ni a las provisiones). Solo se suman a lo que se le paga (neto), al archivo del Banco Popular y a la colilla.
 - Los viáticos se guardan en la planilla: un recálculo no los pierde. Después de aprobar ya no se cambian.

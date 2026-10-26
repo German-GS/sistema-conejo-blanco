@@ -1,6 +1,6 @@
 import { ESTADOS_VIGENTES } from './planilla.enums.js';
 import { redondear } from '../common/utils/dinero.util.js';
-import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, Logger, NotFoundException, type OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { ContabilidadService, CUENTA } from '../contabilidad/contabilidad.service.js';
@@ -34,7 +34,20 @@ const ORIGEN_DEUDA = 'deuda_empleado';
 const ORIGEN_DEUDA_BAJA = 'deuda_empleado_baja';
 
 @Injectable()
-export class EmpleadosService {
+export class EmpleadosService implements OnModuleInit {
+  private readonly logger = new Logger(EmpleadosService.name);
+
+  // En comercio la semana se paga sobre 56 horas (7 días de 8 h, con el día libre pagado) y eso ya lo hace el sector «comercio»:
+  // un «contrato especial de 56 horas» explícito solo estorbaba (movía el día ordinario a 9 h 20 min). Se limpia.
+  async onModuleInit() {
+    try {
+      const limpiados: Array<{ id: string }> = await this.dataSource.query("UPDATE planilla_empleados SET horas_semana = NULL WHERE sector = 'comercio' AND horas_semana = 56 RETURNING id");
+      if (limpiados.length) this.logger.log(`Se quitó el «contrato especial de 56 horas» a ${limpiados.length} empleado(s) de comercio.`);
+    } catch (err) {
+      this.logger.warn(`No se pudo limpiar el contrato especial de comercio: ${err instanceof Error ? err.message : err}`);
+    }
+  }
+
   constructor(
     @InjectRepository(Empleado)
     private readonly empleadoRepo: Repository<Empleado>,

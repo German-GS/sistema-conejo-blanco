@@ -420,7 +420,7 @@ const etiqueta = (lista, v) => lista.find((x) => x.valor === v)?.etiqueta ?? v;
       </div>
       <p class="text-sm text-slate-600">
         El archivo debe tener una fila de encabezados con al menos <strong>Nombre</strong>. Columnas que se entienden: Cédula, N.º de reloj, Puesto, Departamento,
-        Fecha de ingreso, Tipo de salario (por hora / semanal / mensual), Monto, Se paga (semanal / quincenal / mensual), Horas por semana, Sector,
+        Fecha de ingreso, Tipo de salario (por hora / semanal / mensual), Monto, Se paga (semanal / quincenal / mensual), Sector,
         Es de tienda, Puesto de confianza, Marca en reloj, Forma de pago, IBAN e Identificador Banco Popular. Si un empleado ya existe (por cédula o por nombre)
         solo se cambia lo que traiga el archivo; <strong>una celda vacía nunca borra</strong> lo que ya está. Antes de guardar ve una vista previa.
       </p>
@@ -667,12 +667,7 @@ const etiqueta = (lista, v) => lista.find((x) => x.valor === v)?.etiqueta ?? v;
               <em v-if="form.esConfianza" class="block text-xs text-violet-700">Como es puesto de confianza, ya queda fuera del control del reloj.</em>
             </span>
           </label>
-          <div v-if="!form.esConfianza" class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <div>
-              <label class="label">Contrato especial: horas ordinarias por semana</label>
-              <input v-model="form.horasSemana" type="number" min="30" max="72" step="0.5" class="input" placeholder="Vacío = 48 (jornada normal)" />
-              <p class="mt-1 text-xs text-slate-500">Solo para quien tiene un contrato con más horas ordinarias que las normales (ej. 56). Esas horas <strong>no se pagan como extra</strong>: el día ordinario pasa a ser horas ÷ 6, y la hora vale el salario semanal ÷ las horas del contrato.</p>
-            </div>
+          <div v-if="!form.esConfianza" class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label class="label">¿Marca el almuerzo en el reloj?</label>
               <select v-model="form.almuerzoMarca" class="input">
