@@ -117,9 +117,10 @@ export class InformesService {
       bancoPopular: Number(l.bancoPopular),
       renta: Number(l.renta),
       deudas: Number(l.deudasDescontadas),
+      prestamosBanco: Number(l.deduccionesExternas),
       neto: Number(l.neto),
     }));
-    const claves = ['base', 'descAusencias', 'descHoras', 'montoExtra', 'montoEspeciales', 'bruto', 'sem', 'ivm', 'bancoPopular', 'renta', 'deudas', 'neto'];
+    const claves = ['base', 'descAusencias', 'descHoras', 'montoExtra', 'montoEspeciales', 'bruto', 'sem', 'ivm', 'bancoPopular', 'renta', 'deudas', 'prestamosBanco', 'neto'];
     return {
       tipo: 'libro',
       titulo: 'Libro de salarios',
@@ -140,6 +141,7 @@ export class InformesService {
         { clave: 'bancoPopular', etiqueta: 'Banco Popular', tipo: 'moneda' },
         { clave: 'renta', etiqueta: 'Renta', tipo: 'moneda' },
         { clave: 'deudas', etiqueta: 'Deudas', tipo: 'moneda' },
+        { clave: 'prestamosBanco', etiqueta: 'Préstamos Banco Popular', tipo: 'moneda' },
         { clave: 'neto', etiqueta: 'Neto', tipo: 'moneda' },
       ],
       filas,

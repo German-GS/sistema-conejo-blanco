@@ -18,7 +18,7 @@ import { ParametrosService } from './parametros.service.js';
 import { leerMarcas, previsualizar, type Lectura, type Mapeo } from './lector-excel.js';
 import { esXls } from './lector-xls.js';
 import { leerTarjetaXls } from './lector-tarjeta.js';
-import { aplicarResolucion, clasificarDia, diaSemana, esperadoMinutos, normalizarNumeroReloj, opcionesEmpleado, type ResultadoDia, type TipoDia } from './calculo.js';
+import { aplicarResolucion, clasificarDia, compensacionSemanal, diaSemana, esperadoMinutos, lunesDeSemana, normalizarNumeroReloj, opcionesEmpleado, type ResultadoDia, type TipoDia } from './calculo.js';
 import { EstadoDia, EstadoPlanilla, TipoResolucionDia } from './planilla.enums.js';
 import { sumarDias } from '../common/utils/fecha.util.js';
 import type { Feriado } from './feriado.entity.js';
@@ -498,7 +498,8 @@ export class AsistenciaService implements OnModuleInit {
       const emp = conHorario(empleado, base);
       const tipoDia = tipoDeDia(d.fecha, feriados, emp.horarioSemanal);
       const marcas = d.ausente ? [] : d.marcas;
-      const r = clasificarDia(marcas, tipoDia, p, undefined, esperadoMinutos(d.fecha, emp, p), opcionesEmpleado(emp, p, d.fecha));
+      // Quien las anota ya las confirma: no se tratan como «marca que se olvidó» (una salida a mediodía es una salida a mediodía) y las horas que faltan sí se descuentan.
+      const r = clasificarDia(marcas, tipoDia, p, undefined, esperadoMinutos(d.fecha, emp, p), { ...opcionesEmpleado(emp, p, d.fecha), verificado: true, decidido: true });
       const dia = existente ?? this.diaRepo.create({ empleadoId: empleado.id, fecha: d.fecha });
       Object.assign(dia, aCampos(r, tipoDia), { marcas: r.marcas, importacionId: null, origen: 'manual', registradoPorId: usuario.id, registradoEn: new Date() });
       await this.diaRepo.save(dia);
@@ -535,7 +536,8 @@ export class AsistenciaService implements OnModuleInit {
     const emp = conHorario(empleado, await this.parametros.horarioBase());
     const tipoDia = tipoDeDia(fecha, feriados, emp.horarioSemanal);
     const marcas = unirMarcas(actuales, [hora]);
-    const r = clasificarDia(marcas, tipoDia, p, undefined, esperadoMinutos(fecha, emp, p), opcionesEmpleado(emp, p, fecha));
+    const opciones = existente?.origen === 'manual' ? { ...opcionesEmpleado(emp, p, fecha), verificado: true, decidido: true } : opcionesEmpleado(emp, p, fecha);
+    const r = clasificarDia(marcas, tipoDia, p, undefined, esperadoMinutos(fecha, emp, p), opciones);
     const dia = existente ?? this.diaRepo.create({ empleadoId: empleado.id, fecha });
     // Un día anotado a mano sigue siendo «manual»: el archivo del reloj no lo pisa.
     Object.assign(dia, aCampos(r, tipoDia), { marcas: r.marcas, origen: existente?.origen === 'manual' ? 'manual' : 'app' });
@@ -638,17 +640,43 @@ export class AsistenciaService implements OnModuleInit {
       .where('dia.fecha BETWEEN :desde AND :hasta', { desde, hasta })
       .andWhere('empleado.marca_reloj = true AND empleado.es_confianza = false')
       .getMany();
-    const porEmpleado = new Map<string, { empleadoId: string; nombre: string; horasSemanaOrdinarias: number; trabajadoMin: number; esperadoMin: number; diasTrabajados: number; diasSinMarcas: number; esConfianza: boolean }>();
+    const porEmpleado = new Map<string, { empleadoId: string; nombre: string; horasSemanaOrdinarias: number; trabajadoMin: number; esperadoMin: number; diasTrabajados: number; diasSinMarcas: number; diasPorConfirmar: number; esConfianza: boolean; semanas: Array<{ lunes: string; trabajadoMin: number; esperadoMin: number; faltantesMin: number; extraMin: number; compensadoMin: number; descuentoMin: number; extraPagadaMin: number }> }>();
+    const diasPorEmpleado = new Map<string, DiaAsistencia[]>();
     for (const d of dias) {
       const e = d.empleado;
       const r =
         porEmpleado.get(e.id) ??
-        { empleadoId: e.id, nombre: e.nombre, horasSemanaOrdinarias: e.horasSemana != null ? Number(e.horasSemana) : p.HORAS_SEMANA_PAGADAS, trabajadoMin: 0, esperadoMin: 0, diasTrabajados: 0, diasSinMarcas: 0, esConfianza: e.esConfianza };
+        { empleadoId: e.id, nombre: e.nombre, horasSemanaOrdinarias: e.horasSemana != null ? Number(e.horasSemana) : p.HORAS_SEMANA_PAGADAS, trabajadoMin: 0, esperadoMin: 0, diasTrabajados: 0, diasSinMarcas: 0, diasPorConfirmar: 0, esConfianza: e.esConfianza, semanas: [] };
+      diasPorEmpleado.set(e.id, [...(diasPorEmpleado.get(e.id) ?? []), d]);
+      // Un día con marca faltante trae una hora ESTIMADA, no trabajada: no cuenta hasta que se confirme (ni a favor ni en contra).
+      if (d.estado === EstadoDia.MARCA_FALTANTE || d.estado === EstadoDia.MARCAS_AMBIGUAS) {
+        r.diasPorConfirmar++;
+        if (d.marcas.length === 0) r.diasSinMarcas++;
+        porEmpleado.set(e.id, r);
+        continue;
+      }
       r.trabajadoMin += d.minutosNetos;
       if (d.tipoDia === 'ordinario') r.esperadoMin += esperadoMinutos(d.fecha, conHorario(e, base), p);
       if (d.minutosNetos > 0) r.diasTrabajados++;
       if (d.marcas.length === 0) r.diasSinMarcas++;
       porEmpleado.set(e.id, r);
+    }
+    // Por semana: lo trabajado frente a lo esperado, y cuánto de lo que faltó un día se compensa con lo que sobró otro.
+    for (const r of porEmpleado.values()) {
+      const lista = diasPorEmpleado.get(r.empleadoId) ?? [];
+      const emp = lista[0].empleado;
+      const porLunes = new Map<string, { trabajadoMin: number; esperadoMin: number }>();
+      for (const d of lista) {
+        if (d.tipoDia !== 'ordinario' || d.estado !== EstadoDia.OK) continue;
+        const lunes = lunesDeSemana(d.fecha);
+        const x = porLunes.get(lunes) ?? { trabajadoMin: 0, esperadoMin: 0 };
+        x.trabajadoMin += d.minutosNetos;
+        x.esperadoMin += esperadoMinutos(d.fecha, conHorario(emp, base), p);
+        porLunes.set(lunes, x);
+      }
+      r.semanas = compensacionSemanal(
+        lista.map((d) => ({ fecha: d.fecha, tipoDia: d.tipoDia as 'ordinario', estado: d.estado, descuenta: d.descuenta, minutosExtra: d.minutosExtra, minutosDescontar: d.minutosDescontar, compensable: d.estado === EstadoDia.OK && d.minutosDescontar > 0 && !d.resolucionTipo })),
+      ).map((c) => ({ ...c, ...(porLunes.get(c.lunes) ?? { trabajadoMin: 0, esperadoMin: 0 }), descuentoMin: c.faltantesMin - c.compensadoMin, extraPagadaMin: c.extraMin - c.compensadoMin }));
     }
     return [...porEmpleado.values()];
   }
@@ -684,7 +712,9 @@ export class AsistenciaService implements OnModuleInit {
       if (dia.resolucionTipo) continue;
       if (cerradas.some((c) => dia.fecha >= String(c.desde).slice(0, 10) && dia.fecha <= String(c.hasta).slice(0, 10))) continue;
       const tipoDia = tipoDeDia(dia.fecha, feriados, emp.horarioSemanal);
-      const r = clasificarDia(dia.marcas, tipoDia, p, undefined, esperadoMinutos(dia.fecha, emp, p), opcionesEmpleado(emp, p, dia.fecha));
+      // Los días anotados a mano siguen siendo marcas confirmadas al recalcular.
+      const opciones = dia.origen === 'manual' ? { ...opcionesEmpleado(emp, p, dia.fecha), verificado: true, decidido: true } : opcionesEmpleado(emp, p, dia.fecha);
+      const r = clasificarDia(dia.marcas, tipoDia, p, undefined, esperadoMinutos(dia.fecha, emp, p), opciones);
       await this.anomalias.sincronizarAlmuerzo(empleado, dia.fecha, r.estado === EstadoDia.OK ? r.marcas : [], p);
       const nuevo = aCampos(r, tipoDia);
       const igual = (Object.keys(nuevo) as Array<keyof typeof nuevo>).every(

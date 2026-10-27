@@ -270,6 +270,20 @@ async function resolver(d) {
   }
 }
 const tieneFaltante = (d) => d.estado === 'ok' && d.minutosFaltantes > 0;
+// La semana (lunes a domingo) es la unidad real: lo que faltó un día se compensa con lo que sobró otro, y solo se descuenta lo que quede.
+const lunesDe = (iso) => {
+  const f = new Date(`${iso}T12:00:00Z`);
+  f.setUTCDate(f.getUTCDate() - ((f.getUTCDay() + 6) % 7));
+  return f.toISOString().slice(0, 10);
+};
+const semanaDe = (g, d) => resumen.value[g.id]?.semanas?.find((s) => s.lunes === lunesDe(d.fecha)) ?? null;
+// Qué pasa con las horas que faltaron ese día, según su semana.
+function destinoFaltante(g, d) {
+  if (d.minutosDescontar === 0 || d.resolucionTipo) return d.minutosDescontar === 0 ? '' : 'se descuentan';
+  const s = semanaDe(g, d);
+  if (!s || s.compensadoMin === 0) return 'se descuentan';
+  return s.descuentoMin === 0 ? 'se compensan con las horas de más de la semana, no se descuentan' : 'se compensan en parte con la semana: ver abajo cuánto se descuenta';
+}
 const estadoVisual = (d) => (tieneFaltante(d) && d.minutosDescontar > 0 ? 'ok_faltante' : d.estado);
 // El almuerzo solo se puede ajustar en días con entrada y salida (sin marcas de almuerzo).
 const sePuedeAjustarAlmuerzo = (d) => d.estado === 'ok' && d.marcas.length === 2;
@@ -562,7 +576,17 @@ const hhmm = (min) => `${Math.floor(min / 60)}:${String(min % 60).padStart(2, '0
             ({{ resumen[g.id].horasSemanaOrdinarias }} h ordinarias pagadas por semana) ·
             {{ resumen[g.id].diasTrabajados }} día(s) con trabajo<template v-if="resumen[g.id].diasSinMarcas"> · {{ resumen[g.id].diasSinMarcas }} sin marcas</template>
             <template v-if="resumen[g.id].trabajadoMin < resumen[g.id].esperadoMin"> · le faltan {{ hhmm(resumen[g.id].esperadoMin - resumen[g.id].trabajadoMin) }} h</template>
+            <template v-if="resumen[g.id].diasPorConfirmar"> · <strong>{{ resumen[g.id].diasPorConfirmar }} día(s) por confirmar no se cuentan</strong> (traen una hora estimada, no trabajada)</template>
           </p>
+          <ul v-if="resumen[g.id]?.semanas?.length" class="w-full text-xs text-slate-700">
+            <li v-for="s in resumen[g.id].semanas" :key="s.lunes">
+              Semana del {{ formatearFecha(s.lunes).slice(0, 5) }}: trabajó <strong>{{ hhmm(s.trabajadoMin) }} h</strong> de {{ hhmm(s.esperadoMin) }} h
+              <template v-if="s.faltantesMin"> · faltó {{ hhmm(s.faltantesMin) }} h en algunos días</template>
+              <template v-if="s.compensadoMin"> · <strong class="text-teal-700">{{ hhmm(s.compensadoMin) }} h compensadas con días de más</strong></template>
+              <template v-if="s.faltantesMin"> · <strong :class="s.descuentoMin ? 'text-orange-800' : 'text-teal-700'">{{ s.descuentoMin ? `se descuentan ${hhmm(s.descuentoMin)} h` : 'no se descuenta nada' }}</strong></template>
+              <template v-if="s.extraPagadaMin"> · extra {{ hhmm(s.extraPagadaMin) }} h</template>
+            </li>
+          </ul>
           <button v-if="g.pendientes.length > 1" type="button" class="text-sm font-semibold text-blue-700 underline" @click="masivo.abierto === g.id ? (masivo.abierto = null) : abrirMasivo(g)">
             Resolver los {{ g.pendientes.length }} días juntos
           </button>
@@ -607,7 +631,7 @@ const hhmm = (min) => `${Math.floor(min / 60)}:${String(min % 60).padStart(2, '0
               <p class="text-xs text-slate-500">
                 Marcas: {{ d.marcas.length ? d.marcas.join(' · ') : 'ninguna' }}
                 <template v-if="d.estado === 'ok'"> · trabajó {{ hhmm(d.minutosNetos) }}<template v-if="d.minutosExtra"> (+{{ hhmm(d.minutosExtra) }} extra)</template><template v-if="d.almuerzoEstimado"> · almuerzo estimado</template></template>
-                <template v-if="tieneFaltante(d)"> · <strong class="text-orange-800">no trabajadas {{ hhmm(d.minutosFaltantes) }} h<template v-if="d.minutosDescontar === 0"> ({{ !d.verificado ? 'sin verificar' : d.resolucionTipo ? 'justificadas' : 'dentro de la tolerancia' }})</template><template v-else> (se descuentan)</template></strong></template>
+                <template v-if="tieneFaltante(d)"> · <strong class="text-orange-800">no trabajadas {{ hhmm(d.minutosFaltantes) }} h<template v-if="d.minutosDescontar === 0"> ({{ !d.verificado ? 'sin verificar' : d.resolucionTipo ? 'justificadas' : 'dentro de la tolerancia' }})</template><template v-else> ({{ destinoFaltante(g, d) }})</template></strong></template>
               </p>
               <p v-if="d.motivoRevision" class="text-xs text-amber-800">{{ d.motivoRevision }}</p>
               <p v-if="d.estimacion" class="text-xs text-amber-800">

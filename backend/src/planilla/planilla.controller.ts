@@ -34,6 +34,7 @@ import { Permiso } from '../common/enums/permiso.enum.js';
 import { PermisosMetodoGuard } from '../auth/guards/permisos-metodo.guard.js';
 import { PermisosPorMetodo } from '../auth/decorators/permisos-metodo.decorator.js';
 import { AnomaliasService } from './anomalias.service.js';
+import { DeduccionesExternasService } from './deducciones-externas.service.js';
 import { ColillaService } from './colilla.service.js';
 import { ParametrosService } from './parametros.service.js';
 import { EmpleadosService } from './empleados.service.js';
@@ -45,7 +46,7 @@ import { PuestosService } from './puestos.service.js';
 import { ActualizarBancoPopularDto } from './dto/banco-popular.dto.js';
 import { GuardarPuestoDto } from './dto/puesto.dto.js';
 import { RegistrarHorasManualesDto, RegistrarMarcasManualesDto } from './dto/horas-manuales.dto.js';
-import { CrearEmpleadoDto, ActualizarEmpleadoDto, CesarEmpleadoDto, CrearDeudaDto } from './dto/empleado.dto.js';
+import { CrearEmpleadoDto, ActualizarEmpleadoDto, CesarEmpleadoDto, CrearDeudaDto, GuardarDeduccionExternaDto } from './dto/empleado.dto.js';
 import { CambiarEstadoAnomaliaDto, CrearAnomaliaDto, ViaticosDto, ActualizarParametroDto, CrearFeriadoDto, ResolverDiaDto, CrearPlanillaDto, AprobarPlanillaDto, PagarPlanillaDto, MotivoPlanillaDto } from './dto/otros.dto.js';
 import type { Mapeo } from './lector-excel.js';
 import { TipoParametroPlanilla, type EstadoDia } from './planilla.enums.js';
@@ -84,6 +85,7 @@ export class PlanillaController {
     private readonly puestos: PuestosService,
     private readonly colillas: ColillaService,
     private readonly anomalias: AnomaliasService,
+    private readonly deduccionesExternas: DeduccionesExternasService,
   ) {}
 
   // ---- Parámetros y feriados ----
@@ -181,6 +183,22 @@ export class PlanillaController {
       throw new BadRequestException('Las decisiones no son válidas.');
     }
     return this.empleados.importarDesdeExcel(archivo.buffer, aplicar === 'true', usuario, decisiones);
+  }
+
+  // ---- Préstamos del Banco Popular (cuota mensual repartida entre los sábados del mes) ----
+  @Get('empleados/:id/deducciones-externas')
+  listarDeduccionesExternas(@Param('id', ParseUUIDPipe) id: string) {
+    return this.deduccionesExternas.listar(id);
+  }
+
+  @Post('empleados/:id/deducciones-externas')
+  crearDeduccionExterna(@Param('id', ParseUUIDPipe) id: string, @Body() dto: GuardarDeduccionExternaDto, @CurrentUser() usuario: UsuarioAutenticado) {
+    return this.deduccionesExternas.crear(id, dto, usuario);
+  }
+
+  @Patch('deducciones-externas/:id')
+  actualizarDeduccionExterna(@Param('id', ParseUUIDPipe) id: string, @Body() dto: GuardarDeduccionExternaDto, @CurrentUser() usuario: UsuarioAutenticado) {
+    return this.deduccionesExternas.actualizar(id, dto, usuario);
   }
 
   @Post('empleados')

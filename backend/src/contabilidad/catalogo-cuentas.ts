@@ -54,6 +54,7 @@ export const CATALOGO_CUENTAS: CuentaCatalogo[] = [
   { codigo: '2130', nombre: 'Provisiones Laborales por Pagar', tipo: P, naturaleza: C, sistema: true, descripcion: 'Aguinaldo, vacaciones y cesantía provisionados.' },
   { codigo: '2140', nombre: 'INS Póliza de Riesgos del Trabajo por Pagar', tipo: P, naturaleza: C, sistema: true, descripcion: 'Prima de la póliza de riesgos del trabajo que se paga al INS (no a la CCSS).' },
   { codigo: '2150', nombre: 'Impuesto sobre la Renta por Pagar', tipo: P, naturaleza: C, sistema: true, descripcion: 'Impuesto de renta del año provisionado al cierre fiscal, por pagar a Hacienda.' },
+  { codigo: '2160', nombre: 'Deducciones a Terceros por Pagar', tipo: P, naturaleza: C, sistema: true, descripcion: 'Préstamos del Banco Popular y otras deducciones de planilla que la empresa descuenta al empleado y debe girar al tercero.' },
   { codigo: '2200', nombre: 'IVA por Pagar', tipo: P, naturaleza: C, sistema: true, descripcion: 'IVA cobrado en las ventas, por declarar y pagar a Hacienda.' },
   { codigo: '2300', nombre: 'Cuentas por Pagar Proveedores', tipo: P, naturaleza: C, descripcion: 'CxP — compras a crédito pendientes de pago a proveedores.' },
   { codigo: '2310', nombre: 'Documentos por Pagar', tipo: P, naturaleza: C, descripcion: 'Letras, pagarés o cheques girados a proveedores.' },

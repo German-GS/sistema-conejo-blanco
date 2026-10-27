@@ -47,6 +47,7 @@ import { ConfiguracionBancoPopular } from '../planilla/configuracion-banco-popul
 import { PlanillaLinea } from '../planilla/planilla-linea.entity.js';
 import { AnomaliaEmpleado } from '../planilla/anomalia-empleado.entity.js';
 import { AccesoMarca } from '../planilla/acceso-marca.entity.js';
+import { DeduccionExterna } from '../planilla/deduccion-externa.entity.js';
 import { PuntoMarca } from '../planilla/punto-marca.entity.js';
 import { MarcaApp } from '../planilla/marca-app.entity.js';
 import { Rol } from '../common/enums/rol.enum.js';
@@ -112,6 +113,7 @@ async function seed() {
       PlanillaLinea,
       AnomaliaEmpleado,
       AccesoMarca,
+      DeduccionExterna,
       PuntoMarca,
       MarcaApp,
       ConfiguracionBancoPopular,

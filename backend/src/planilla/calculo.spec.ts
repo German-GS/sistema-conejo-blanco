@@ -470,3 +470,93 @@ describe('incapacidad: la empresa paga solo una parte de las horas', () => {
     expect(r.bruto).toBe(108000); // 120 000 − 5 h × 2 400: ese día se paga la mitad (₡12 000 de ₡24 000)
   });
 });
+
+describe('préstamos del Banco Popular en la planilla', () => {
+  const emp = { tipoSalario: TipoSalario.SEMANAL, montoSalario: 120000, frecuenciaPago: FrecuenciaPago.SEMANAL, sector: 'industria' as const, tieneConyuge: false, cantidadHijos: 0 };
+  const dia = { fecha: '2026-10-19', tipoDia: 'ordinario' as const, estado: EstadoDia.OK, descuenta: false, minutosNetos: 480, minutosExtra: 0, minutosEspeciales: 0, minutosDescontar: 0, feriadoPagoObligatorio: true };
+  const corrida = (externas: Array<{ id: string; descripcion: string; cuota: number; saldo: number | null }>, deudas: Array<{ id: string; descripcion: string; cuota: number; saldo: number }> = []) =>
+    calcularLinea({ ...base, desde: '2026-10-19', hasta: '2026-10-25', empleado: emp, dias: [dia], externas, deudas });
+
+  it('la cuota semanal baja el neto y queda en el detalle', () => {
+    const sin = corrida([]);
+    const con = corrida([{ id: 'x', descripcion: 'Operación 123', cuota: 20000, saldo: null }]);
+    expect(con.externasDescontadas).toBe(20000);
+    expect(con.detalleExternas).toEqual([{ id: 'x', descripcion: 'Operación 123', monto: 20000 }]);
+    expect(con.neto).toBe(sin.neto - 20000);
+    expect(con.bruto).toBe(sin.bruto); // no cambia lo devengado
+    expect(con.totalDeducciones).toBe(sin.totalDeducciones + 20000);
+  });
+
+  it('no se descuenta más que el saldo ni más de lo que queda después de los rebajos de ley', () => {
+    expect(corrida([{ id: 'x', descripcion: 'p', cuota: 20000, saldo: 7500 }]).externasDescontadas).toBe(7500);
+    expect(corrida([{ id: 'x', descripcion: 'p', cuota: 5_000_000, saldo: null }]).neto).toBeGreaterThanOrEqual(0);
+  });
+
+  it('va antes que las deudas con la empresa', () => {
+    const r = corrida([{ id: 'x', descripcion: 'p', cuota: 20000, saldo: null }], [{ id: 'd', descripcion: 'Adelanto', cuota: 10000, saldo: 10000 }]);
+    expect(r.externasDescontadas).toBe(20000);
+    expect(r.deudasDescontadas).toBe(10000);
+    expect(r.neto).toBe(corrida([]).neto - 30000);
+  });
+
+  it('sin préstamos todo queda como antes', () => {
+    expect(corrida([]).externasDescontadas).toBe(0);
+  });
+});
+
+describe('compensación semanal: lo que falta un día se compensa con lo que sobra otro', () => {
+  const emp = { tipoSalario: TipoSalario.SEMANAL, montoSalario: 120000, frecuenciaPago: FrecuenciaPago.SEMANAL, sector: 'industria' as const, tieneConyuge: false, cantidadHijos: 0 };
+  // Semana del 19 al 24 de octubre (lunes a sábado). Cada día: [netos, extra del día, horas que faltaron (min) que se descontarían]
+  const semana = (filas: Array<[number, number, number]>) =>
+    filas.map(([netos, extra, descontar], i) => ({
+      fecha: `2026-10-${String(19 + i).padStart(2, '0')}`,
+      tipoDia: 'ordinario' as const,
+      estado: EstadoDia.OK,
+      descuenta: false,
+      minutosNetos: netos,
+      minutosExtra: extra,
+      minutosEspeciales: 0,
+      minutosDescontar: descontar,
+      compensable: descontar > 0,
+      feriadoPagoObligatorio: true,
+    }));
+  const corrida = (dias: ReturnType<typeof semana>) => calcularLinea({ ...base, desde: '2026-10-19', hasta: '2026-10-25', empleado: emp, dias });
+
+  it('trabajó más de 48 h en la semana: las horas que faltaron tres días no se descuentan, y solo lo que pasa de 48 es extra', () => {
+    // Mar–jue: 8 h (esperaban 9, faltó 1 h cada día). Lun, vie y sáb trabajó 5 h 30 min más de lo esperado en total → 50 h 30 min en la semana.
+    const dias = semana([[510, 30, 0], [480, 0, 60], [480, 0, 60], [480, 0, 60], [600, 120, 0], [480, 180, 0]]);
+    // trabajado: 510+480×3+600+480 = 3030 min = 50 h 30
+    const r = corrida(dias);
+    expect(r.horasAusentes).toBe(0); // nada se descuenta
+    expect(r.horasExtra).toBe(2.5); // 50 h 30 − 48 h
+  });
+
+  it('si la semana no llega a lo esperado, sí se descuenta lo que falta', () => {
+    const dias = semana([[480, 0, 0], [480, 0, 60], [480, 0, 60], [480, 0, 60], [480, 0, 0], [300, 0, 0]]);
+    const r = corrida(dias);
+    expect(r.horasAusentes).toBe(3);
+    expect(r.horasExtra).toBe(0);
+  });
+
+  it('compensa solo hasta donde alcanzan las horas de más (descuenta el resto)', () => {
+    const dias = semana([[600, 120, 0], [480, 0, 60], [480, 0, 60], [480, 0, 60], [480, 0, 0], [300, 0, 0]]);
+    const r = corrida(dias);
+    expect(r.horasAusentes).toBe(1); // faltaron 3 h, sobraron 2 h
+    expect(r.horasExtra).toBe(0);
+  });
+
+  it('lo que alguien decidió descontar (no sale de las marcas) no se compensa', () => {
+    const dias = semana([[600, 120, 0], [480, 0, 60], [480, 0, 0], [480, 0, 0], [480, 0, 0], [300, 0, 0]]).map((d, i) => (i === 1 ? { ...d, compensable: false } : d));
+    const r = corrida(dias);
+    expect(r.horasAusentes).toBe(1);
+    expect(r.horasExtra).toBe(2);
+  });
+
+  it('cada semana se compensa por separado', () => {
+    const lunes2 = semana([[600, 120, 0]]).map((d) => ({ ...d, fecha: '2026-10-26' }));
+    const cortos = semana([[480, 0, 60]]); // 19 de octubre, otra semana
+    const r = calcularLinea({ ...base, desde: '2026-10-19', hasta: '2026-11-01', empleado: emp, dias: [...cortos, ...lunes2] });
+    expect(r.horasAusentes).toBe(1);
+    expect(r.horasExtra).toBe(2);
+  });
+});

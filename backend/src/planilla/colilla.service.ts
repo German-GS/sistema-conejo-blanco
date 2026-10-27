@@ -130,6 +130,8 @@ export class ColillaService {
     ];
     if (n(l.renta) > 0) deducciones.push(['Impuesto sobre la renta', n(l.renta)]);
     const deudas = (l.detalle as { deudas?: Array<{ descripcion: string; monto: number }> }).deudas ?? [];
+    const externas = (l.detalle as { externas?: Array<{ descripcion: string; monto: number }> }).externas ?? [];
+    for (const x of externas) deducciones.push([`Préstamo B. Popular ${x.descripcion}`.slice(0, 30), x.monto]);
     for (const d of deudas) deducciones.push([d.descripcion.slice(0, 30), d.monto]);
 
     this.columna(doc, 'INGRESOS', ingresos, xIzq, y, mitad);

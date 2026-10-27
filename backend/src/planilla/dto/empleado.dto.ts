@@ -335,3 +335,33 @@ export class CesarEmpleadoDto {
   @MaxLength(255)
   motivo: string;
 }
+
+// Préstamo del Banco Popular que se le descuenta al empleado por planilla.
+export class GuardarDeduccionExternaDto {
+  @IsString()
+  @MinLength(2)
+  @MaxLength(160)
+  descripcion: string;
+
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @IsPositive()
+  @Max(100_000_000)
+  cuotaMensual: number;
+
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'La fecha de inicio debe ser YYYY-MM-DD.' })
+  fechaDesde: string;
+
+  @IsOptional()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'La fecha de fin debe ser YYYY-MM-DD.' })
+  fechaHasta?: string | null;
+
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @Max(1_000_000_000)
+  saldo?: number | null;
+
+  @IsOptional()
+  @IsBoolean()
+  activa?: boolean;
+}

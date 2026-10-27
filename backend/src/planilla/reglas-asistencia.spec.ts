@@ -157,3 +157,25 @@ describe('5. marca faltante (técnico) ≠ horas no trabajadas (real)', () => {
     expect(linea(real).horasAusentes).toBe(1); // 09:00 vs 08:00
   });
 });
+
+describe('marcas anotadas a mano: ya vienen confirmadas', () => {
+  const manual = { verificado: true, decidido: true };
+  const dm = (marcas: string[]) => clasificarDia(marcas, 'ordinario', p, undefined, esperadoMinutos(LUNES, emp, p), { ...opcionesEmpleado(emp, p, LUNES), ...manual });
+
+  it('entró a las 8 y salió a mediodía: son 4 h trabajadas y las 4 h que faltan se descuentan', () => {
+    const r = dm(['08:00', '12:00']);
+    expect(r.estado).toBe(EstadoDia.OK);
+    expect(r.estimacion).toBeNull();
+    expect(r.minutosNetos).toBe(240);
+    expect(r.minutosFaltantes).toBe(240);
+    expect(r.minutosDescontar).toBe(240);
+  });
+
+  it('con las marcas del reloj, la misma salida a mediodía sigue pidiendo confirmar (el reloj sí olvida marcas)', () => {
+    expect(dia(['08:00', '12:00']).estado).toBe(EstadoDia.MARCA_FALTANTE);
+  });
+
+  it('una sola marca sigue necesitando decisión aunque se anote a mano', () => {
+    expect(dm(['08:00']).estado).not.toBe(EstadoDia.OK);
+  });
+});

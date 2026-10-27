@@ -8,6 +8,7 @@ import { useAuthStore } from '../../../stores/auth.js';
 import { FileSpreadsheet, Search, Upload, X } from '@lucide/vue';
 import CesePanel from '../../../components/CesePanel.vue';
 import AnomaliasPanel from '../../../components/AnomaliasPanel.vue';
+import PrestamosBancoPanel from '../../../components/PrestamosBancoPanel.vue';
 import HorarioSemanalEditor from '../../../components/HorarioSemanalEditor.vue';
 import { formatearColones, formatearFecha, fechaHoyISO } from '../../../lib/format.js';
 
@@ -381,6 +382,9 @@ async function reactivar(e) {
     error.value = err instanceof ApiError ? err.message : 'No se pudo reactivar.';
   }
 }
+
+// ---- Préstamos del Banco Popular ----
+const prestamosDe = ref(null);
 
 // ---- Deudas con la empresa ----
 const deudasDe = ref(null);
@@ -793,6 +797,7 @@ const etiqueta = (lista, v) => lista.find((x) => x.valor === v)?.etiqueta ?? v;
           </div>
           <div class="flex gap-3 text-sm font-semibold text-blue-700">
             <button type="button" class="underline" @click="abrirDeudas(e)">Deudas</button>
+            <button type="button" class="underline" @click="prestamosDe = prestamosDe === e.id ? null : e.id">Préstamos banco</button>
             <button type="button" class="underline" @click="anomaliasDe = anomaliasDe === e.id ? null : e.id">
               Anomalías<span v-if="anomaliasPendientes[e.id]" class="ml-1 rounded-full bg-amber-100 px-1.5 py-0.5 text-xs text-amber-800">{{ anomaliasPendientes[e.id] }}</span>
             </button>
@@ -817,6 +822,7 @@ const etiqueta = (lista, v) => lista.find((x) => x.valor === v)?.etiqueta ?? v;
           @cancelar="ceseDe = null; cargar()"
         />
 
+        <PrestamosBancoPanel v-if="prestamosDe === e.id" :empleado="e" @cerrar="prestamosDe = null" />
         <AnomaliasPanel v-if="anomaliasDe === e.id" :empleado="e" @cambio="cargarAnomaliasPendientes" @cerrar="anomaliasDe = null" />
         <div v-if="deudasDe?.id === e.id" class="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
           <p class="mb-2 text-sm font-semibold text-slate-800">Deudas de {{ e.nombre }} con la empresa</p>

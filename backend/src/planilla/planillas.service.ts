@@ -11,10 +11,12 @@ import { Planilla } from './planilla.entity.js';
 import { PlanillaLinea } from './planilla-linea.entity.js';
 import { Empleado } from './empleado.entity.js';
 import { DeudaEmpleado } from './deuda-empleado.entity.js';
+import { DeduccionExterna } from './deduccion-externa.entity.js';
+import { cuotaExternaDelPeriodo } from './cuotas-externas.js';
 import { ParametrosService } from './parametros.service.js';
 import { AsistenciaService } from './asistencia.service.js';
 import { calcularLinea, diaSemana, diasLaborables, type DiaParaPago } from './calculo.js';
-import { EstadoPlanilla, FrecuenciaPago } from './planilla.enums.js';
+import { EstadoDia, EstadoPlanilla, FrecuenciaPago } from './planilla.enums.js';
 import { ContabilidadService, CUENTA } from '../contabilidad/contabilidad.service.js';
 import { redondear } from '../common/utils/dinero.util.js';
 import { hoyISO, sumarDias } from '../common/utils/fecha.util.js';
@@ -46,6 +48,8 @@ export class PlanillasService {
     private readonly empleadoRepo: Repository<Empleado>,
     @InjectRepository(DeudaEmpleado)
     private readonly deudaRepo: Repository<DeudaEmpleado>,
+    @InjectRepository(DeduccionExterna)
+    private readonly externaRepo: Repository<DeduccionExterna>,
     private readonly parametros: ParametrosService,
     private readonly asistencia: AsistenciaService,
     private readonly contabilidad: ContabilidadService,
@@ -180,6 +184,8 @@ export class PlanillasService {
         minutosExtra: d.minutosExtra,
         minutosEspeciales: d.minutosEspeciales,
         minutosDescontar: d.minutosDescontar,
+        // Horas faltantes que salieron de las marcas y nadie decidió: se compensan con horas de más de la misma semana.
+        compensable: d.estado === EstadoDia.OK && d.minutosDescontar > 0 && !d.resolucionTipo,
         feriadoPagoObligatorio: feriados.get(d.fecha)?.pagoObligatorio ?? true,
       }));
       // Feriados sin registro de marcas cuentan como feriado sin trabajar.
@@ -241,7 +247,19 @@ export class PlanillasService {
 
       const deudas = await this.deudaRepo.find({ where: { empleadoId: empleado.id, activa: true }, order: { creadoEn: 'ASC' } });
 
+      // Préstamos del Banco Popular vigentes en el período: la cuota mensual repartida según cada cuánto se paga (semanal: sábados del mes).
+      const externas = (await this.externaRepo.find({ where: { empleadoId: empleado.id, activa: true }, order: { creadoEn: 'ASC' } }))
+        .filter((x) => x.fechaDesde <= planilla.fechaHasta && (!x.fechaHasta || x.fechaHasta >= planilla.fechaDesde))
+        .map((x) => ({
+          id: x.id,
+          descripcion: x.descripcion,
+          cuota: cuotaExternaDelPeriodo(Number(x.cuotaMensual), planilla.frecuencia, planilla.fechaDesde, planilla.fechaHasta),
+          saldo: x.saldo != null ? Number(x.saldo) : null,
+        }))
+        .filter((x) => x.cuota > 0 && (x.saldo === null || x.saldo > 0));
+
       const r = calcularLinea({
+        externas,
         empleado: {
           tipoSalario: empleado.tipoSalario,
           montoSalario: Number(empleado.montoSalario),
@@ -293,6 +311,7 @@ export class PlanillasService {
           bancoPopular: r.bancoPopular.toFixed(2),
           renta: r.renta.toFixed(2),
           deudasDescontadas: r.deudasDescontadas.toFixed(2),
+          deduccionesExternas: r.externasDescontadas.toFixed(2),
           totalDeducciones: r.totalDeducciones.toFixed(2),
           viaticos: viaticos.toFixed(2),
           neto: redondear(r.neto + viaticos).toFixed(2),
@@ -306,6 +325,7 @@ export class PlanillasService {
             fechasSinDatos,
             deTienda: empleado.esDeTienda,
             deudas: r.detalleDeudas,
+            externas: r.detalleExternas,
             brutoPrevioMes: Number(previo?.bruto ?? 0),
             rentaPrevioMes: Number(previo?.renta ?? 0),
             dias: diasPago
@@ -368,6 +388,7 @@ export class PlanillasService {
     const obrero = redondear(suma((l) => l.sem) + suma((l) => l.ivm) + suma((l) => l.bancoPopular));
     const renta = suma((l) => l.renta);
     const deudas = suma((l) => l.deudasDescontadas);
+    const externas = suma((l) => l.deduccionesExternas);
     const patronal = suma((l) => l.cargasPatronales);
     const provisiones = suma((l) => l.provisiones);
     // La póliza de riesgos del trabajo se paga al INS, no a la CCSS: va a su propia cuenta por pagar.
@@ -392,6 +413,16 @@ export class PlanillasService {
         }
       }
 
+      // Los préstamos del Banco Popular descontados bajan su saldo (si se lleva) y el descuento para al llegar a cero.
+      for (const linea of lineas) {
+        for (const x of (linea.detalle as { externas?: Array<{ id: string; monto: number }> }).externas ?? []) {
+          const ext = await manager.findOneBy(DeduccionExterna, { id: x.id });
+          if (!ext || ext.saldo === null) continue;
+          const saldo = redondear(Number(ext.saldo) - x.monto);
+          await manager.update(DeduccionExterna, ext.id, { saldo: saldo.toFixed(2), activa: saldo > 0 });
+        }
+      }
+
       const asientoLineas = [
         { codigoCuenta: CUENTA.SUELDOS_Y_SALARIOS, debe: bruto },
         { codigoCuenta: CUENTA.VIATICOS, debe: viaticos },
@@ -403,6 +434,7 @@ export class PlanillasService {
         { codigoCuenta: CUENTA.RENTA_SALARIOS_POR_PAGAR, haber: renta },
         { codigoCuenta: CUENTA.PROVISIONES_POR_PAGAR, haber: provisiones },
         { codigoCuenta: CUENTA.CUENTAS_POR_COBRAR_EMPLEADOS, haber: deudas },
+        { codigoCuenta: CUENTA.DEDUCCIONES_TERCEROS_POR_PAGAR, haber: externas },
       ].filter((l) => (l.debe ?? 0) > 0 || (l.haber ?? 0) > 0);
 
       await this.contabilidad.registrarAsientoEnTransaccion(manager, {
@@ -494,6 +526,13 @@ export class PlanillasService {
           await manager.update(DeudaEmpleado, deuda.id, { saldo: redondear(Number(deuda.saldo) + d.monto).toFixed(2), activa: true });
         }
       }
+      for (const linea of planilla.lineas) {
+        for (const x of (linea.detalle as { externas?: Array<{ id: string; monto: number }> }).externas ?? []) {
+          const ext = await manager.findOneBy(DeduccionExterna, { id: x.id });
+          if (!ext || ext.saldo === null) continue;
+          await manager.update(DeduccionExterna, ext.id, { saldo: redondear(Number(ext.saldo) + x.monto).toFixed(2), activa: true });
+        }
+      }
       await manager.update(Planilla, id, { estado: EstadoPlanilla.ANULADA, anuladaEn: new Date(), motivoAnulacion: motivo.trim() });
     });
     return this.buscarOFallar(id);
@@ -527,17 +566,19 @@ export class PlanillasService {
       { key: 'patronal', width: 14 },
       { key: 'prov', width: 14 },
       { key: 'viaticos', width: 14 },
+      { key: 'justificante', width: 24 },
+      { key: 'externas', width: 16 },
     ];
     const encabezado = hoja.addRow([
       'Empleado', 'Cédula', 'Salario base', 'Desc. ausencias', 'Desc. horas faltantes', 'Hrs extra', 'Monto extra', 'Feriado/domingo',
-      'Bruto', 'SEM', 'IVM', 'Banco Popular', 'Renta', 'Deudas', 'Neto', 'Cargas patronales', 'Provisiones', 'Viáticos (incluidos en el neto)', 'Justificante de viáticos',
+      'Bruto', 'SEM', 'IVM', 'Banco Popular', 'Renta', 'Deudas', 'Neto', 'Cargas patronales', 'Provisiones', 'Viáticos (incluidos en el neto)', 'Justificante de viáticos', 'Préstamos Banco Popular',
     ]);
     encabezado.font = { bold: true };
     for (const l of planilla.lineas) {
       hoja.addRow([
         l.empleadoNombre, l.empleadoCedula ?? '', Number(l.salarioBase), Number(l.descuentoAusencias), Number(l.descuentoHoras), Number(l.horasExtra),
         Number(l.montoExtra), Number(l.montoEspeciales), Number(l.bruto), Number(l.sem), Number(l.ivm), Number(l.bancoPopular),
-        Number(l.renta), Number(l.deudasDescontadas), Number(l.neto), Number(l.cargasPatronales), Number(l.provisiones), Number(l.viaticos), (l.detalle as { viaticosJustificante?: string }).viaticosJustificante ?? '',
+        Number(l.renta), Number(l.deudasDescontadas), Number(l.neto), Number(l.cargasPatronales), Number(l.provisiones), Number(l.viaticos), (l.detalle as { viaticosJustificante?: string }).viaticosJustificante ?? '', Number(l.deduccionesExternas),
       ]);
     }
     const totales = hoja.addRow([
@@ -545,7 +586,7 @@ export class PlanillasService {
       Number(planilla.totalBruto), '', '', '', '', '', Number(planilla.totalNeto), Number(planilla.totalCargasPatronales), Number(planilla.totalProvisiones), planilla.lineas.reduce((a, l) => a + Number(l.viaticos), 0),
     ]);
     totales.font = { bold: true };
-    for (let c = 3; c <= 18; c++) if (c !== 6) hoja.getColumn(c).numFmt = '#,##0.00';
+    for (let c = 3; c <= 20; c++) if (c !== 6 && c !== 19) hoja.getColumn(c).numFmt = '#,##0.00';
     return Buffer.from(await libro.xlsx.writeBuffer());
   }
 }

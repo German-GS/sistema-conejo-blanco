@@ -505,6 +505,31 @@ export interface DiaParaPago {
   minutosEspeciales: number;
   feriadoPagoObligatorio: boolean;
   minutosDescontar?: number;
+  // Las horas que le faltaron ese día salieron de sus marcas (nadie decidió descontarlas): se pueden compensar con horas de más de otros días de la semana.
+  compensable?: boolean;
+}
+
+// La semana es la unidad real de la jornada: lo que falta un día se compensa con lo que sobra otro día de la misma semana (lunes a domingo),
+// y solo se descuenta lo que quede sin compensar. Del otro lado, esas mismas horas ya no se pagan como extra.
+export interface CompensacionSemanal {
+  lunes: string;
+  faltantesMin: number;
+  extraMin: number;
+  compensadoMin: number;
+}
+export function compensacionSemanal(dias: Array<Pick<DiaParaPago, 'fecha' | 'tipoDia' | 'estado' | 'descuenta' | 'minutosExtra' | 'minutosDescontar' | 'compensable'>>): CompensacionSemanal[] {
+  const semanas = new Map<string, CompensacionSemanal>();
+  for (const d of dias) {
+    if (d.tipoDia !== 'ordinario' || d.estado !== EstadoDia.OK) continue;
+    const lunes = lunesDeSemana(d.fecha);
+    const s = semanas.get(lunes) ?? { lunes, faltantesMin: 0, extraMin: 0, compensadoMin: 0 };
+    if (d.compensable && !d.descuenta) s.faltantesMin += d.minutosDescontar ?? 0;
+    s.extraMin += d.minutosExtra;
+    semanas.set(lunes, s);
+  }
+  return [...semanas.values()]
+    .map((s) => ({ ...s, compensadoMin: Math.min(s.faltantesMin, s.extraMin) }))
+    .sort((a, b) => a.lunes.localeCompare(b.lunes));
 }
 
 export interface EmpleadoParaPago {
@@ -535,8 +560,18 @@ export interface DeudaParaPago {
   saldo: number;
 }
 
+// Préstamo de un tercero (Banco Popular) que se descuenta en esta planilla: la cuota ya viene repartida para el período.
+export interface DeduccionExternaParaPago {
+  id: string;
+  descripcion: string;
+  cuota: number;
+  // Saldo pendiente (null = sin control de saldo).
+  saldo: number | null;
+}
+
 export interface EntradaLinea {
   empleado: EmpleadoParaPago;
+  externas?: DeduccionExternaParaPago[];
   dias: DiaParaPago[];
   desde: string;
   hasta: string;
@@ -564,6 +599,8 @@ export interface ResultadoLinea {
   ivm: number;
   bancoPopular: number;
   renta: number;
+  externasDescontadas: number;
+  detalleExternas: Array<{ id: string; descripcion: string; monto: number }>;
   deudasDescontadas: number;
   detalleDeudas: Array<{ id: string; descripcion: string; monto: number }>;
   totalDeducciones: number;
@@ -664,6 +701,12 @@ export function calcularLinea(e: EntradaLinea): ResultadoLinea {
     }
   }
 
+  // Primero se compensan, dentro de cada semana, las horas que faltaron un día con las que sobraron otro: ni se descuentan ni se pagan como extra.
+  for (const c of compensacionSemanal(dias)) {
+    minutosAusentes -= c.compensadoMin;
+    minutosExtra -= c.compensadoMin;
+  }
+
   // La jornada ordinaria es de 48 horas por semana (lunes a domingo): lo que pase de ahí en la semana se paga como extra, desde
   // el primer minuto, aunque ningún día solo haya pasado de su límite diario (ej. quien trabaja 7 días). Se cuentan solo los días
   // ordinarios con marcas confirmadas, sin la extra que ya salió por día, para no pagarla dos veces.
@@ -703,6 +746,16 @@ export function calcularLinea(e: EntradaLinea): ResultadoLinea {
   // Deudas con la empresa: nunca se descuenta más de lo que queda después
   // de los rebajos de ley, ni más del saldo.
   let disponible = bruto - sem - ivm - bancoPopular - renta;
+  // Los préstamos del Banco Popular van primero: son una orden de un tercero y no dependen de lo que deba el empleado a la empresa.
+  const detalleExternas: ResultadoLinea['detalleExternas'] = [];
+  let externasDescontadas = 0;
+  for (const x of e.externas ?? []) {
+    const monto = redondear(Math.max(0, Math.min(x.cuota, x.saldo ?? Number.POSITIVE_INFINITY, disponible)));
+    if (monto <= 0) continue;
+    detalleExternas.push({ id: x.id, descripcion: x.descripcion, monto });
+    externasDescontadas = redondear(externasDescontadas + monto);
+    disponible -= monto;
+  }
   const detalleDeudas: ResultadoLinea['detalleDeudas'] = [];
   let deudasDescontadas = 0;
   for (const deuda of e.deudas) {
@@ -713,7 +766,7 @@ export function calcularLinea(e: EntradaLinea): ResultadoLinea {
     disponible -= monto;
   }
 
-  const totalDeducciones = redondear(sem + ivm + bancoPopular + renta + deudasDescontadas);
+  const totalDeducciones = redondear(sem + ivm + bancoPopular + renta + externasDescontadas + deudasDescontadas);
   const neto = redondear(bruto - totalDeducciones);
 
   const desgloseCargas: Record<string, number> = {};
@@ -748,6 +801,8 @@ export function calcularLinea(e: EntradaLinea): ResultadoLinea {
     ivm,
     bancoPopular,
     renta,
+    externasDescontadas,
+    detalleExternas,
     deudasDescontadas,
     detalleDeudas,
     totalDeducciones,

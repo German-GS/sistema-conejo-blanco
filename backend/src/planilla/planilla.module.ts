@@ -28,6 +28,8 @@ import { InformesController } from './informes.controller.js';
 import { AnomaliaEmpleado } from './anomalia-empleado.entity.js';
 import { AnomaliasService } from './anomalias.service.js';
 import { AccesoMarca } from './acceso-marca.entity.js';
+import { DeduccionExterna } from './deduccion-externa.entity.js';
+import { DeduccionesExternasService } from './deducciones-externas.service.js';
 import { AccesoMarcaService } from './acceso-marca.service.js';
 import { PuntoMarca } from './punto-marca.entity.js';
 import { MarcaApp } from './marca-app.entity.js';
@@ -54,11 +56,12 @@ import { AccesoMarcaAdminController, MarcaPublicaController, MarcasAppController
       HorarioBase,
       AnomaliaEmpleado,
       AccesoMarca,
+      DeduccionExterna,
       PuntoMarca,
       MarcaApp,
     ]),
   ],
-  providers: [ParametrosService, EmpleadosService, AsistenciaService, PlanillasService, InformesService, BancoPopularService, PuestosService, ColillaService, AnomaliasService, AccesoMarcaService, MarcaAppService],
+  providers: [ParametrosService, EmpleadosService, AsistenciaService, PlanillasService, InformesService, BancoPopularService, PuestosService, ColillaService, AnomaliasService, AccesoMarcaService, MarcaAppService, DeduccionesExternasService],
   controllers: [PlanillaController, InformesController, AccesoMarcaAdminController, MarcaPublicaController, MarcasAppController, PuntosMarcaAdminController],
 })
 export class PlanillaModule {}
