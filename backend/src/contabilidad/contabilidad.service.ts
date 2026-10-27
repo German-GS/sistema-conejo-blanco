@@ -298,6 +298,24 @@ export class ContabilidadService implements OnModuleInit {
     return this.periodoRepo.find({ order: { periodo: 'DESC' } });
   }
 
+  // Borra de verdad (sin dejar reversa) los asientos de un origen y las reversas que se les hicieron; solo para el administrador del sistema
+  // cuando algo se registró por error. Un mes ya cerrado no se toca. Devuelve cuántos asientos se borraron.
+  async borrarAsientosDeOrigenEnTransaccion(manager: EntityManager, origenTipo: string, origenId: string): Promise<number> {
+    const originales = await manager.find(AsientoContable, { where: { origenTipo, origenId } });
+    if (originales.length === 0) return 0;
+    const reversas: Array<{ id: string; fecha: string }> = await manager.query(
+      `SELECT id, fecha::text AS fecha FROM asientos_contables WHERE origen_tipo = 'reversa' AND origen_id = ANY($1::uuid[])`,
+      [originales.map((a) => a.id)],
+    );
+    for (const a of [...originales.map((o) => ({ fecha: o.fecha })), ...reversas]) {
+      if (await this.estaCerrado(manager, a.fecha)) throw new BadRequestException(`El asiento del ${a.fecha} está en un mes ya cerrado: reabra el período antes de borrarlo.`);
+    }
+    // Primero las reversas (apuntan a los originales); las líneas se borran con su asiento.
+    if (reversas.length) await manager.query('DELETE FROM asientos_contables WHERE id = ANY($1::uuid[])', [reversas.map((r) => r.id)]);
+    await manager.query('DELETE FROM asientos_contables WHERE id = ANY($1::uuid[])', [originales.map((a) => a.id)]);
+    return originales.length + reversas.length;
+  }
+
   async estaCerrado(manager: EntityManager, fecha: string): Promise<boolean> {
     return manager.exists(PeriodoCerrado, { where: { periodo: this.periodoDe(fecha) } });
   }

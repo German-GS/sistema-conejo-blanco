@@ -7,6 +7,10 @@ Versionado `MAYOR.MENOR.PARCHE`:
 
 La versión se cambia en `app/package.json` y `backend/package.json` (el pie de página y el panel del sistema la leen solos).
 
+## 1.24.1 — 28 oct 2026 — Confirmar antes de aprobar y poder deshacer una aprobación hecha por error
+- **Confirmación antes de «Aprobar y generar asiento»:** ahora pregunta, con el resumen de la planilla (empleados, neto y bruto) y lo que se registra (asiento contable y baja de saldos de deudas, préstamos y embargos). Se aprueba solo con «Sí, aprobar y generar asiento».
+- **«Deshacer aprobación (sin rastro)»** — solo para el administrador del sistema, en una planilla **aprobada y no pagada**: **borra su asiento contable** (no deja reversa en los libros), devuelve los saldos de deudas, préstamos y embargos que se habían descontado y la planilla vuelve a **borrador** (se puede recalcular y aprobar de nuevo, o eliminar con «Eliminar borrador»). Pide escribir DESHACER. No funciona si ya está pagada (primero se reversa el pago) ni si el mes contable está cerrado. En la bitácora de accesos queda **una línea** de quién lo hizo y cuándo, a propósito: es el registro de seguridad del sistema, no los libros. «Anular planilla» sigue existiendo y sí deja reversas contables.
+
 ## 1.24.0 — 28 oct 2026 — Socios: se calculan y se pagan las cargas, pero no se les deposita
 - **Nueva forma de pago «No se le deposita (socio)»** en la ficha del empleado (junto a «Transferencia» y «Efectivo»). Para los socios: la planilla los **calcula igual** (salario, CCSS, cargas patronales y provisiones) y **salen en el libro de salarios** para el cálculo de la Caja, pero **no van en el TXT del banco**, ni se listan como efectivo, ni se les paga.
 - **Archivo del banco:** los socios quedan fuera del TXT y la pantalla del banco los lista aparte («No se depositan: …») con su monto.

@@ -1,5 +1,6 @@
 <script setup>
 import { confirmar } from '../../../lib/confirmar.js';
+import { useAuthStore } from '../../../stores/auth.js';
 import { onMounted, reactive, ref } from 'vue';
 import { api, ApiError, descargarArchivo, obtenerArchivo } from '../../../lib/api.js';
 import CesePanel from '../../../components/CesePanel.vue';
@@ -11,6 +12,7 @@ const ESTADOS = {
   pagada: 'bg-green-100 text-green-700',
   anulada: 'bg-slate-200 text-slate-600',
 };
+const auth = useAuthStore();
 const planillas = ref([]);
 const error = ref('');
 const nueva = reactive({ frecuencia: 'semanal', fechaDesde: fechaHoyISO() });
@@ -101,11 +103,35 @@ const recalcular = () =>
     await api.post(`/planilla/planillas/${detalle.value.planilla.id}/recalcular`, {});
     await abrir(detalle.value.planilla.id);
   }, 'No se pudo recalcular.');
-const aprobar = () =>
-  ejecutar(async () => {
+// Aprobar registra el asiento contable y baja los saldos de deudas, préstamos y embargos: se pide confirmar para no hacerlo por error.
+async function aprobar() {
+  const pl = detalle.value.planilla;
+  const lineas = [
+    `Planilla ${pl.frecuencia} del ${formatearFecha(pl.fechaDesde)} al ${formatearFecha(pl.fechaHasta)}: ${pl.lineas.length} empleados.`,
+    `Neto a pagar ${m(pl.totalNeto)}; bruto ${m(pl.totalBruto)}.`,
+    'Se registra el asiento contable y se descuentan los saldos de deudas, préstamos y embargos. Después solo se puede anular o, el administrador del sistema, deshacer.',
+  ];
+  if (!(await confirmar('¿Aprobar y generar el asiento de esta planilla?', { detalle: lineas, aceptar: 'Sí, aprobar y generar asiento', cancelar: 'Todavía no' }))) return;
+  await ejecutar(async () => {
     await api.post(`/planilla/planillas/${detalle.value.planilla.id}/aprobar`, { aceptarDiasSinDatos: aceptarSinDatos.value });
     await Promise.all([abrir(detalle.value.planilla.id), cargar()]);
   }, 'No se pudo aprobar.');
+}
+
+// Solo el administrador del sistema: borra el asiento de una aprobación hecha por error y la planilla vuelve a borrador (sin reversas en los libros).
+async function deshacerAprobacion() {
+  const pl = detalle.value.planilla;
+  const ok = await confirmar(`¿Deshacer la aprobación de la planilla del ${formatearFecha(pl.fechaDesde)} al ${formatearFecha(pl.fechaHasta)}?`, {
+    detalle: ['Se BORRA su asiento contable (no queda reversa en los libros) y se devuelven los saldos de deudas, préstamos y embargos.', 'La planilla vuelve a borrador: se puede recalcular y aprobar de nuevo, o eliminar.', 'En la bitácora queda una línea de quién lo hizo. No sirve si ya está pagada o el mes está cerrado.'],
+    aceptar: 'Sí, deshacer la aprobación',
+    palabra: 'DESHACER',
+  });
+  if (!ok) return;
+  await ejecutar(async () => {
+    await api.post(`/planilla/planillas/${pl.id}/deshacer-aprobacion`, {});
+    await Promise.all([abrir(pl.id), cargar()]);
+  }, 'No se pudo deshacer la aprobación.');
+}
 // ---- Pago, reversa del pago y anulación ----
 const cuentasPago = ref([]);
 const formPago = reactive({ cuentaBancariaId: '', fecha: fechaHoyISO() });
@@ -350,6 +376,7 @@ const fechaCorta = (f) => formatearFecha(f).slice(0, 5);
         <div v-else class="flex flex-wrap gap-2">
           <button v-if="detalle.planilla.estado === 'aprobada'" type="button" class="btn-primary" :disabled="trabajando" @click="abrirAccion('pagar')">Registrar pago</button>
           <button v-if="detalle.planilla.estado === 'aprobada'" type="button" class="btn-secondary" :disabled="trabajando" @click="abrirAccion('anular')">Anular planilla</button>
+          <button v-if="detalle.planilla.estado === 'aprobada' && auth.esSistema" type="button" class="btn-danger" :disabled="trabajando" title="Aprobada por error: borra su asiento y la devuelve a borrador" @click="deshacerAprobacion">Deshacer aprobación (sin rastro)</button>
           <button v-if="detalle.planilla.estado === 'pagada'" type="button" class="btn-secondary" :disabled="trabajando" @click="abrirAccion('reversar-pago')">Reversar pago</button>
         </div>
 

@@ -409,6 +409,12 @@ export class PlanillaController {
     return this.planillas.aprobar(id, dto, usuario.id);
   }
 
+  // Solo el administrador del sistema: borra el asiento de una aprobación hecha por error y devuelve la planilla a borrador.
+  @Post('planillas/:id/deshacer-aprobacion')
+  deshacerAprobacion(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() usuario: UsuarioAutenticado) {
+    return this.planillas.deshacerAprobacion(id, usuario);
+  }
+
   @Post('planillas/:id/pagar')
   pagar(@Param('id', ParseUUIDPipe) id: string, @Body() dto: PagarPlanillaDto) {
     return this.planillas.pagar(id, dto);

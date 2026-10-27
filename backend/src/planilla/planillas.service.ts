@@ -3,7 +3,8 @@ import { ESTADOS_VIGENTES } from './planilla.enums.js';
 import { CuentasBancariasService } from '../pagos/cuentas-bancarias.service.js';
 import { AsientoContable } from '../contabilidad/asiento-contable.entity.js';
 import type { PagarPlanillaDto } from './dto/otros.dto.js';
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BitacoraService } from '../bitacora/bitacora.service.js';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, EntityManager, In, Repository } from 'typeorm';
 import ExcelJS from 'exceljs';
@@ -56,6 +57,7 @@ export class PlanillasService {
     private readonly contabilidad: ContabilidadService,
     private readonly cuentasBancarias: CuentasBancariasService,
     private readonly dataSource: DataSource,
+    private readonly bitacora: BitacoraService,
   ) {}
 
   listar(): Promise<Planilla[]> {
@@ -516,6 +518,41 @@ export class PlanillasService {
       const pagos = await this.asientosDe(manager, id, 'pago');
       await this.contabilidad.reversarAsientosEnTransaccion(manager, pagos, motivo, `Reversa del pago de planilla del ${planilla.fechaDesde} al ${planilla.fechaHasta} — ${motivo.trim()}`);
       await manager.update(Planilla, id, { estado: EstadoPlanilla.APROBADA, pagadaEn: null });
+    });
+    return this.buscarOFallar(id);
+  }
+
+  // Aprobada por error: la deja como si no se hubiera aprobado. Se BORRA su asiento contable (sin reversa), se devuelven los saldos de deudas,
+  // préstamos y embargos descontados y la planilla vuelve a borrador (se puede recalcular y aprobar de nuevo, o eliminar). Solo el
+  // administrador del sistema, solo si aún no está pagada y el mes no está cerrado. En la bitácora queda una línea de quién lo hizo.
+  async deshacerAprobacion(id: string, usuario: { id: string; email?: string; rol?: string }): Promise<Planilla> {
+    if (usuario.rol !== 'sistema') throw new ForbiddenException('Solo el administrador del sistema puede deshacer la aprobación de una planilla.');
+    const planilla = await this.buscarOFallar(id);
+    if (planilla.estado === EstadoPlanilla.PAGADA) throw new BadRequestException('La planilla ya está pagada: primero reverse el pago.');
+    if (planilla.estado !== EstadoPlanilla.APROBADA) throw new BadRequestException('Solo se puede deshacer la aprobación de una planilla aprobada.');
+    let borrados = 0;
+    await this.dataSource.transaction(async (manager) => {
+      borrados = await this.contabilidad.borrarAsientosDeOrigenEnTransaccion(manager, REFERENCIA_PLANILLA, id);
+      for (const linea of planilla.lineas) {
+        for (const d of (linea.detalle as { deudas?: Array<{ id: string; monto: number }> }).deudas ?? []) {
+          const deuda = await manager.findOneBy(DeudaEmpleado, { id: d.id });
+          if (!deuda) continue;
+          await manager.update(DeudaEmpleado, deuda.id, { saldo: redondear(Number(deuda.saldo) + d.monto).toFixed(2), activa: true });
+        }
+        for (const x of (linea.detalle as { externas?: Array<{ id: string; monto: number }> }).externas ?? []) {
+          const ext = await manager.findOneBy(DeduccionExterna, { id: x.id });
+          if (!ext || ext.saldo === null) continue;
+          await manager.update(DeduccionExterna, ext.id, { saldo: redondear(Number(ext.saldo) + x.monto).toFixed(2), activa: true });
+        }
+      }
+      await manager.update(Planilla, id, { estado: EstadoPlanilla.BORRADOR, aprobadaEn: null, aprobadaPorId: null });
+    });
+    await this.bitacora.registrar({
+      accion: 'planilla_aprobacion_deshecha',
+      usuarioId: usuario.id,
+      usuarioEmail: usuario.email,
+      objetivo: `planilla ${planilla.frecuencia} del ${planilla.fechaDesde} al ${planilla.fechaHasta}`,
+      detalle: `Aprobación deshecha: ${borrados} asiento(s) borrado(s); la planilla volvió a borrador.`,
     });
     return this.buscarOFallar(id);
   }

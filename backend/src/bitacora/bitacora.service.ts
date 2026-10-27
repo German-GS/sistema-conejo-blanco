@@ -38,7 +38,8 @@ export type AccionBitacora =
   | 'marca_acceso_bloqueado'
   | 'marca_punto_guardado'
   | 'marca_pantalla_generada'
-  | 'deduccion_externa';
+  | 'deduccion_externa'
+  | 'planilla_aprobacion_deshecha';
 
 export interface EntradaBitacora {
   accion: AccionBitacora;
