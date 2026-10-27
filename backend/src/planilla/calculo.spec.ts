@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { PARAMETROS_POR_DEFECTO } from './parametros-por-defecto.js';
-import { aplicarResolucion, calcularLinea, clasificarDia, esperadoMinutos, horarioDelDia, impuestoRenta, opcionesEmpleado, normalizarNumeroReloj } from './calculo.js';
+import { aplicarResolucion, calcularLinea, clasificarDia, esperadoMinutos, fechasDeTrabajo, horarioDelDia, impuestoRenta, opcionesEmpleado, normalizarNumeroReloj } from './calculo.js';
 import { HORARIO_BASE_POR_DEFECTO, validarHorarioSemanal } from './horario.js';
 import { EstadoDia, FrecuenciaPago, TipoResolucionDia, TipoSalario } from './planilla.enums.js';
 
@@ -558,5 +558,27 @@ describe('compensación semanal: lo que falta un día se compensa con lo que sob
     const r = calcularLinea({ ...base, desde: '2026-10-19', hasta: '2026-11-01', empleado: emp, dias: [...cortos, ...lunes2] });
     expect(r.horasAusentes).toBe(1);
     expect(r.horasExtra).toBe(2);
+  });
+});
+
+describe('días en que cada persona debe trabajar (según su horario)', () => {
+  const dia = (e: string, s: string) => ({ entrada: e, salida: s });
+  const emp = (horarioSemanal: Parameters<typeof fechasDeTrabajo>[0]['horarioSemanal']) => ({ horarioEntrada: '08:00', horarioSalida: '17:00', horarioSalidaSabado: '13:00', horarioSemanal });
+
+  it('lunes a viernes: el sábado no se espera (semana del 19 al 25 de octubre de 2026)', () => {
+    const propio = { lun: dia('07:00', '18:00'), mar: dia('07:00', '18:00'), mie: dia('07:00', '18:00'), jue: dia('07:00', '18:00'), vie: dia('07:00', '18:00'), sab: null, dom: null };
+    expect(fechasDeTrabajo(emp(propio), '2026-10-19', '2026-10-25')).toEqual(['2026-10-19', '2026-10-20', '2026-10-21', '2026-10-22', '2026-10-23']);
+  });
+  it('con el horario de la fábrica (lunes a sábado) se esperan los 6 días', () => {
+    expect(fechasDeTrabajo(emp(HORARIO_BASE_POR_DEFECTO), '2026-10-19', '2026-10-25')).toHaveLength(6);
+  });
+  it('sin horario por día (solo horas por semana) se asume lunes a sábado', () => {
+    expect(fechasDeTrabajo(emp(null), '2026-10-19', '2026-10-25')).toHaveLength(6);
+  });
+  it('quien trabaja el domingo como día normal lo tiene', () => {
+    const conDomingo = { lun: dia('08:00', '17:00'), mar: dia('08:00', '17:00'), mie: dia('08:00', '17:00'), jue: dia('08:00', '17:00'), vie: null, sab: dia('08:00', '17:00'), dom: dia('09:00', '14:00') };
+    const f = fechasDeTrabajo(emp(conDomingo), '2026-10-19', '2026-10-25');
+    expect(f).toContain('2026-10-25');
+    expect(f).not.toContain('2026-10-23');
   });
 });

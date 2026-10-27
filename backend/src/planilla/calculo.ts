@@ -619,6 +619,16 @@ export function lunesDeSemana(fechaISO: string): string {
   return d.toISOString().slice(0, 10);
 }
 
+// Los días del período en que ESTA persona debe trabajar según su horario por día (propio o el de la fábrica): quien no trabaja los sábados
+// no tiene sábados que esperar, y quien trabaja domingos sí los tiene. Sin horario por día (solo horas por semana) se asume lunes a sábado.
+export function fechasDeTrabajo(horario: HorarioEmpleado, desde: string, hasta: string): string[] {
+  const resultado: string[] = [];
+  for (let f = desde; f <= hasta; f = siguiente(f)) {
+    if (horario.horarioSemanal ? !!horarioDelDia(horario, f) : diaSemana(f) !== 0) resultado.push(f);
+  }
+  return resultado;
+}
+
 export function diasLaborables(desde: string, hasta: string): string[] {
   const resultado: string[] = [];
   for (let f = desde; f <= hasta; f = siguiente(f)) {

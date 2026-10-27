@@ -15,8 +15,8 @@ import { DeduccionExterna } from './deduccion-externa.entity.js';
 import { cuotaExternaDelPeriodo } from './cuotas-externas.js';
 import { etiquetaDeduccion } from './deducciones-externas.service.js';
 import { ParametrosService } from './parametros.service.js';
-import { AsistenciaService } from './asistencia.service.js';
-import { calcularLinea, diaSemana, diasLaborables, type DiaParaPago } from './calculo.js';
+import { AsistenciaService, conHorario } from './asistencia.service.js';
+import { calcularLinea, diaSemana, diasLaborables, fechasDeTrabajo, type DiaParaPago } from './calculo.js';
 import { EstadoDia, EstadoPlanilla, FrecuenciaPago } from './planilla.enums.js';
 import { ContabilidadService, CUENTA } from '../contabilidad/contabilidad.service.js';
 import { redondear } from '../common/utils/dinero.util.js';
@@ -170,6 +170,7 @@ export class PlanillasService {
     const dias = await this.asistencia.diasDeEmpleados(planilla.fechaDesde, planilla.fechaHasta, empleados.map((e) => e.id));
     const mes = planilla.fechaHasta.slice(0, 7);
     const laborables = diasLaborables(planilla.fechaDesde, planilla.fechaHasta);
+    const horarioBase = await this.parametros.horarioBase();
 
     const lineas: PlanillaLinea[] = [];
     for (const empleado of empleados) {
@@ -224,9 +225,10 @@ export class PlanillasService {
         }
       }
       // Quien no usa el reloj (ej. gerencia) no tiene días «sin datos»: se le paga completo.
+      // Solo cuentan los días de su propio horario (quien no trabaja los sábados no los debe).
       const fechasSinDatos = exentoDeReloj(empleado)
         ? []
-        : laborables.filter(
+        : fechasDeTrabajo(conHorario(empleado, horarioBase), planilla.fechaDesde, planilla.fechaHasta).filter(
             (f) =>
               !porFecha.has(f) &&
               !feriados.has(f) &&
