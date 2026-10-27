@@ -157,6 +157,7 @@ function formVacio() {
     puestoId: '',
     departamento: '',
     esConfianza: false,
+    esPrueba: false,
     cotizaIvm: true,
     horarioSemanal: horarioBaseCopia(),
     sector: 'industria',
@@ -258,6 +259,7 @@ function editar(e) {
     departamento: e.departamento ?? '',
     puestoId: e.puestoId ?? '',
     esConfianza: e.esConfianza === true,
+    esPrueba: e.esPrueba === true,
     cotizaIvm: e.cotizaIvm !== false,
     horarioSemanal: e.horarioSemanal ? { lun: null, mar: null, mie: null, jue: null, vie: null, sab: null, ...e.horarioSemanal } : horarioBaseCopia(),
     sector: e.sector ?? 'industria',
@@ -287,6 +289,7 @@ async function guardar() {
       ...(form.puestoId ? { puestoId: form.puestoId } : { puesto: form.puesto.trim() || undefined }),
       departamento: form.departamento.trim(),
       esConfianza: form.esConfianza,
+      esPrueba: form.esPrueba,
       cotizaIvm: form.cotizaIvm,
       sector: form.sector,
       // null = sigue el horario de la fábrica (si no se tocó la tabla)
@@ -587,6 +590,14 @@ const etiqueta = (lista, v) => lista.find((x) => x.valor === v)?.etiqueta ?? v;
             Asistencia ni como «sin marcas», no se les piden marcas y se les paga siempre la jornada completa.
           </span>
         </label>
+        <label v-if="auth.esSistema || form.esPrueba" class="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 sm:col-span-2">
+          <input v-model="form.esPrueba" type="checkbox" class="mt-0.5 size-4" :disabled="!auth.esSistema" />
+          <span>
+            <strong>Empleado de prueba.</strong> Sirve para probar cómo marca el personal (celular, PIN y QR). <strong>Nunca entra a una planilla</strong>, no genera
+            asistencia, no sale en informes ni en la importación del reloj; sus marcas quedan registradas en «Marcas del celular», pero no se suman a ningún día.
+            Solo el administrador del sistema lo puede marcar.
+          </span>
+        </label>
         <label class="flex items-start gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700 sm:col-span-2">
           <input v-model="form.cotizaIvm" type="checkbox" class="mt-0.5 size-4" />
           <span>
@@ -758,6 +769,7 @@ const etiqueta = (lista, v) => lista.find((x) => x.valor === v)?.etiqueta ?? v;
               <span v-if="e.sector === 'comercio'" class="ml-2 rounded-full bg-orange-50 px-2 py-0.5 text-xs font-medium text-orange-700">Comercio</span>
               <span v-if="e.esDeTienda" class="ml-2 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">Tienda</span>
               <span v-if="e.cotizaIvm === false" class="ml-2 rounded-full bg-teal-50 px-2 py-0.5 text-xs font-medium text-teal-700" title="Pensionado que sigue trabajando: no cotiza IVM">Pensionado</span>
+              <span v-if="e.esPrueba" class="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800" title="Solo para probar: no entra a planillas ni genera asistencia">De prueba</span>
               <span v-if="e.esConfianza" class="ml-2 rounded-full bg-violet-50 px-2 py-0.5 text-xs font-medium text-violet-700" title="Sin jornada fija: fuera del control del reloj, se le paga siempre la jornada completa">De confianza</span>
               <span v-if="e.activo && !e.marcaReloj && !e.esConfianza" class="ml-2 rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">No usa el reloj</span>
             </p>

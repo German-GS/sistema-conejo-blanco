@@ -184,8 +184,8 @@ export class PlanillaController {
   }
 
   @Post('empleados')
-  crearEmpleado(@Body() dto: CrearEmpleadoDto) {
-    return this.empleados.crear(dto);
+  crearEmpleado(@Body() dto: CrearEmpleadoDto, @CurrentUser() usuario: UsuarioAutenticado) {
+    return this.empleados.crear(dto, usuario);
   }
 
   // Solo el administrador del sistema: borra al empleado con todo su historial (datos de prueba).
@@ -195,8 +195,8 @@ export class PlanillaController {
   }
 
   @Patch('empleados/:id')
-  actualizarEmpleado(@Param('id', ParseUUIDPipe) id: string, @Body() dto: ActualizarEmpleadoDto) {
-    return this.empleados.actualizar(id, dto);
+  actualizarEmpleado(@Param('id', ParseUUIDPipe) id: string, @Body() dto: ActualizarEmpleadoDto, @CurrentUser() usuario: UsuarioAutenticado) {
+    return this.empleados.actualizar(id, dto, usuario);
   }
 
   @Post('empleados/:id/cesar')

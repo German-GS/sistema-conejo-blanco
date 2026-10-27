@@ -449,7 +449,7 @@ export class InformesService {
   // Empleados con lo que se les paga hoy (según su ficha): salario pactado, cada cuánto, y su equivalente
   // por semana y por mes. No es lo pagado en una planilla (eso está en «Libro de planilla»).
   private async empleados(): Promise<Informe> {
-    const lista = await this.dataSource.getRepository(Empleado).find({ order: { nombre: 'ASC' } });
+    const lista = (await this.dataSource.getRepository(Empleado).find({ order: { nombre: 'ASC' } })).filter((e) => !e.esPrueba);
     const SEMANAS_POR_MES = 52 / 12; // semanas por mes
     const filas = lista.map((e) => {
       const monto = Number(e.montoSalario);

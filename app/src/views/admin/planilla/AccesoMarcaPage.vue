@@ -113,6 +113,7 @@ const copiar = async (texto) => {
         <div class="min-w-48">
           <p class="text-sm font-semibold text-slate-900">
             {{ f.nombre }}
+            <span v-if="f.esPrueba" class="ml-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800">De prueba</span>
             <span class="ml-1 rounded-full px-2 py-0.5 text-xs font-semibold" :class="ESTADOS[f.estado].clase">{{ ESTADOS[f.estado].texto }}</span>
           </p>
           <p class="text-xs text-slate-500">

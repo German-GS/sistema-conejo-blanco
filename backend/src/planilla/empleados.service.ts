@@ -18,6 +18,7 @@ import { PlanillaLinea } from './planilla-linea.entity.js';
 import { EstadoPlanilla } from './planilla.enums.js';
 import { estimarLiquidacion, ETIQUETAS_CESE, type TipoCese } from './liquidacion.js';
 import { hoyISO } from '../common/utils/fecha.util.js';
+import { Rol } from '../common/enums/rol.enum.js';
 import { ausentesDelArchivo, leerEmpleadosExcel, planificarImportacion, type ResultadoFila } from './importar-empleados.js';
 import { BitacoraService } from '../bitacora/bitacora.service.js';
 import type { UsuarioAutenticado } from '../auth/usuario-autenticado.interface.js';
@@ -138,7 +139,9 @@ export class EmpleadosService implements OnModuleInit {
       throw new BadRequestException(err instanceof Error ? err.message : 'No se pudo leer el archivo.');
     }
     if (filas.length === 0) throw new BadRequestException('El archivo no trae empleados.');
-    const existentes = await this.empleadoRepo.find();
+    const todos = await this.empleadoRepo.find();
+    // El empleado de prueba no es del Excel: no se compara ni se propone como «ausente».
+    const existentes = todos.filter((e) => !e.esPrueba);
     const plan = planificarImportacion(filas, existentes);
     const resumen = (p: ResultadoFila[]) => ({
       total: p.length,
@@ -174,7 +177,7 @@ export class EmpleadosService implements OnModuleInit {
       }
     }
 
-    const usados = new Set(existentes.map((e) => e.numeroReloj));
+    const usados = new Set(todos.map((e) => e.numeroReloj));
     for (const x of plan) {
       const f = x.fila;
       if (x.accion === 'crear') {
@@ -204,14 +207,14 @@ export class EmpleadosService implements OnModuleInit {
           formaPago: f.formaPago ?? undefined,
           iban: f.iban ?? undefined,
           identificadorBp: f.identificadorBp ?? undefined,
-        } as CrearEmpleadoDto);
+        } as CrearEmpleadoDto, usuario);
       } else if (x.accion === 'actualizar' && x.existente) {
         const dto: Record<string, unknown> = {};
         for (const c of x.cambios) {
           if (c.campo === 'monto') dto.montoSalario = f.monto;
           else dto[c.campo] = (f as unknown as Record<string, unknown>)[c.campo];
         }
-        await this.actualizar(x.existente.id, dto as ActualizarEmpleadoDto);
+        await this.actualizar(x.existente.id, dto as ActualizarEmpleadoDto, usuario);
       }
     }
     const bajas: string[] = [];
@@ -265,7 +268,17 @@ export class EmpleadosService implements OnModuleInit {
     }
   }
 
-  async crear(dto: CrearEmpleadoDto): Promise<Empleado> {
+  // Solo el administrador del sistema crea o convierte empleados de prueba: así nadie esconde a un empleado real de la planilla.
+  private async validarEsPrueba(dto: { esPrueba?: boolean }, usuario: Pick<UsuarioAutenticado, 'rol'>, empleado?: Empleado) {
+    if (dto.esPrueba === undefined || dto.esPrueba === (empleado?.esPrueba ?? false)) return;
+    if (usuario.rol !== Rol.SISTEMA) throw new ForbiddenException('Solo el administrador del sistema puede marcar o desmarcar un empleado de prueba.');
+    if (dto.esPrueba && empleado && (await this.dataSource.getRepository(PlanillaLinea).count({ where: { empleadoId: empleado.id } })) > 0) {
+      throw new BadRequestException('Este empleado ya tiene planillas pagadas: no puede ser de prueba.');
+    }
+  }
+
+  async crear(dto: CrearEmpleadoDto, usuario: Pick<UsuarioAutenticado, 'rol'>): Promise<Empleado> {
+    await this.validarEsPrueba(dto, usuario);
     this.validarSalario(dto.tipoSalario, dto.frecuenciaPago);
     const horarioSemanal = this.validarHorario(dto.horarioSemanal);
     const numeroReloj = normalizarNumeroReloj(dto.numeroReloj);
@@ -282,6 +295,7 @@ export class EmpleadosService implements OnModuleInit {
         puesto: puestoElegido?.nombre ?? (dto.puesto?.trim() || null),
         departamento: dto.departamento?.trim() || null,
         esConfianza: dto.esConfianza ?? puestoElegido?.esConfianza ?? false,
+        esPrueba: dto.esPrueba === true,
         // El personal de tienda es de comercio, salvo que se indique otra cosa.
         sector: dto.sector ?? (dto.esDeTienda ? 'comercio' : (puestoElegido?.sector ?? 'industria')),
         fechaIngreso: dto.fechaIngreso ?? null,
@@ -293,8 +307,9 @@ export class EmpleadosService implements OnModuleInit {
     );
   }
 
-  async actualizar(id: string, dto: ActualizarEmpleadoDto): Promise<Empleado> {
+  async actualizar(id: string, dto: ActualizarEmpleadoDto, usuario: Pick<UsuarioAutenticado, 'rol'>): Promise<Empleado> {
     const empleado = await this.buscarOFallar(id);
+    await this.validarEsPrueba(dto, usuario, empleado);
     const tipo = dto.tipoSalario ?? empleado.tipoSalario;
     const frecuencia = dto.frecuenciaPago ?? empleado.frecuenciaPago;
     this.validarSalario(tipo, frecuencia);

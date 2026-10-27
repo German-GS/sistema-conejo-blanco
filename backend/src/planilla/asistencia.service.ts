@@ -146,7 +146,7 @@ export class AsistenciaService implements OnModuleInit {
     } catch (err) {
       throw new BadRequestException(err instanceof Error ? err.message : 'No se pudo leer el archivo del reloj.');
     }
-    const empleados = await this.empleadoRepo.find({ where: { activo: true }, order: { nombre: 'ASC' } });
+    const empleados = (await this.empleadoRepo.find({ where: { activo: true }, order: { nombre: 'ASC' } })).filter((e) => !e.esPrueba);
     const porNumero = new Map(empleados.map((e) => [e.numeroReloj, e]));
     const yaElegidos = new Set<string>();
 
@@ -262,7 +262,8 @@ export class AsistenciaService implements OnModuleInit {
     for (const presente of lectura.presentes) {
       const numero = normalizarNumeroReloj(presente.numero);
       const empleado = porNumero.get(numero);
-      if (empleado?.esDeTienda) omitidosTienda.push(empleado.nombre);
+      if (empleado?.esPrueba) omitidosSinReloj.push(empleado.nombre);
+      else if (empleado?.esDeTienda) omitidosTienda.push(empleado.nombre);
       else if (empleado && exentoDeReloj(empleado)) omitidosSinReloj.push(empleado.nombre);
       else if (empleado) presentesConocidos.set(numero, empleado);
       else desconocidos.push({ numero, nombre: presente.nombre });
@@ -315,7 +316,7 @@ export class AsistenciaService implements OnModuleInit {
       }
 
       const sinArchivo = empleados
-        .filter((e) => e.activo && !e.esDeTienda && !exentoDeReloj(e) && !presentesConocidos.has(e.numeroReloj))
+        .filter((e) => e.activo && !e.esPrueba && !e.esDeTienda && !exentoDeReloj(e) && !presentesConocidos.has(e.numeroReloj))
         .map((e) => ({ numero: e.numeroReloj, nombre: e.nombre }));
 
       importacion.resumen = {
@@ -480,8 +481,8 @@ export class AsistenciaService implements OnModuleInit {
       const nombre = empleado.nombre;
       const omitir = (motivo: string) => resultados.push({ empleadoId: empleado.id, nombre, fecha: d.fecha, resultado: 'omitido', motivo });
       if (Number.isNaN(Date.parse(d.fecha))) throw new BadRequestException(`La fecha ${d.fecha} no es válida.`);
-      if (exentoDeReloj(empleado) || empleado.esDeTienda) {
-        omitir('No usa el reloj (personal de tienda o puesto de confianza).');
+      if (exentoDeReloj(empleado) || empleado.esDeTienda || empleado.esPrueba) {
+        omitir(empleado.esPrueba ? 'Es un empleado de prueba: no genera asistencia.' : 'No usa el reloj (personal de tienda o puesto de confianza).');
         continue;
       }
       if (d.marcas.length === 0 && !d.ausente) continue; // nada anotado ese día
@@ -524,6 +525,7 @@ export class AsistenciaService implements OnModuleInit {
   async sumarMarcaDelCelular(empleado: Empleado, fecha: string, hora: string): Promise<{ sumada: boolean; motivo?: string; marcas: string[] }> {
     const existente = await this.diaRepo.findOneBy({ empleadoId: empleado.id, fecha });
     const actuales = existente?.marcas ?? [];
+    if (empleado.esPrueba) return { sumada: false, motivo: 'Empleado de prueba: la marca queda registrada pero no genera asistencia ni planilla.', marcas: actuales };
     if (empleado.esDeTienda) return { sumada: false, motivo: 'Personal de tienda: sus horas se anotan en «Horas de tienda».', marcas: actuales };
     if (existente?.resolucionTipo) return { sumada: false, motivo: 'Este día ya tiene una decisión de administración.', marcas: actuales };
     if (await this.diaEnPlanillaCerrada(empleado.id, fecha)) return { sumada: false, motivo: 'Este día ya está en una planilla aprobada.', marcas: actuales };

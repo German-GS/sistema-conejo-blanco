@@ -83,7 +83,7 @@ async function cargar() {
     const hasta = sumar(lunes.value, 5);
     const [lista, dias] = await Promise.all([api.get('/planilla/empleados'), api.get(`/planilla/asistencia/dias?desde=${lunes.value}&hasta=${hasta}`)]);
     // Quienes usan el reloj de la fábrica: activos, que no son de tienda ni de confianza.
-    empleados.value = lista.filter((e) => e.activo && !e.fechaCese && !e.esDeTienda && !e.esConfianza && e.marcaReloj !== false);
+    empleados.value = lista.filter((e) => e.activo && !e.fechaCese && !e.esDeTienda && !e.esConfianza && !e.esPrueba && e.marcaReloj !== false);
     existentes.value = dias;
     for (const k of Object.keys(valores)) delete valores[k];
     for (const k of Object.keys(original)) delete original[k];

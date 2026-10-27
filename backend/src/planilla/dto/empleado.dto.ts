@@ -134,6 +134,11 @@ export class CrearEmpleadoDto {
   @IsBoolean()
   esConfianza?: boolean;
 
+  // Solo el administrador del sistema puede marcarlo (ver EmpleadosService).
+  @IsOptional()
+  @IsBoolean()
+  esPrueba?: boolean;
+
   // Minutos de almuerzo que se descuentan si no marca (0–180).
   @IsOptional()
   @IsInt()
@@ -263,6 +268,11 @@ export class ActualizarEmpleadoDto {
   @IsOptional()
   @IsBoolean()
   esConfianza?: boolean;
+
+  // Solo el administrador del sistema puede marcarlo (ver EmpleadosService).
+  @IsOptional()
+  @IsBoolean()
+  esPrueba?: boolean;
 
   // Minutos de almuerzo que se descuentan si no marca (0–180).
   @IsOptional()

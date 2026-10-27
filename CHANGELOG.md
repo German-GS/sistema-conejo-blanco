@@ -7,6 +7,12 @@ Versionado `MAYOR.MENOR.PARCHE`:
 
 La versión se cambia en `app/package.json` y `backend/package.json` (el pie de página y el panel del sistema la leen solos).
 
+## 1.20.0 — 27 oct 2026 — Empleado de prueba para probar la marca
+- En la ficha del empleado, casilla **«Empleado de prueba»** (solo la ve y la puede marcar el administrador del sistema; no se puede en alguien que ya tiene planillas pagadas). Sirve para probar cómo marca el personal (celular, PIN y QR) sin dejar rastro:
+  - **Nunca entra a una planilla**, no genera días de asistencia, no sale en el informe de empleados ni en la importación del reloj o del Excel de empleados.
+  - Sus marcas del celular **sí quedan registradas** y se ven en «Marcas del celular», con el aviso «no genera asistencia ni planilla»; no se suman a ningún día. «Marcas a mano» también lo omite.
+  - Lleva la insignia **«De prueba»** en Empleados y en «Celulares y PIN».
+
 ## 1.19.0 — 27 oct 2026 — Marcar desde el celular: PIN, celular único y QR que cambia
 - **Un celular y un PIN por empleado.** Nueva pantalla del administrador del sistema: Planilla → «Celulares y PIN». Le da a cada empleado un **código de activación de un solo uso** (vale 24 horas, se muestra como QR y enlace). El empleado lo abre en **su** celular (`/marcar`), elige un **PIN de 6 números que solo él conoce** (no se aceptan 123456, 111111, etc.) y ese celular queda registrado.
 - **El celular es la llave.** Al activarse, el celular genera una llave de seguridad que **no se puede sacar de él**; cada verificación va firmada con esa llave sobre un reto de un solo uso (60 s). Copiar el PIN, el enlace o una captura no sirve desde otro aparato. Una repetición del mismo envío tampoco pasa.

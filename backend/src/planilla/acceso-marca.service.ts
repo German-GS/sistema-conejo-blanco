@@ -57,6 +57,7 @@ export class AccesoMarcaService {
           empleadoId: e.id,
           nombre: e.nombre,
           departamento: e.departamento,
+          esPrueba: e.esPrueba,
           estado: this.estado(a),
           dispositivo: a?.llavePublica ? a.dispositivoEtiqueta : null,
           registradoEn: a?.llavePublica ? a.registradoEn : null,

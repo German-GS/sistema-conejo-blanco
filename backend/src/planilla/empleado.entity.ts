@@ -93,6 +93,11 @@ export class Empleado {
   @Column({ type: 'boolean', name: 'es_confianza', default: false })
   esConfianza: boolean;
 
+  // Empleado de demostración (lo marca solo el administrador del sistema): sirve para probar cómo marca el personal. Nunca entra a una
+  // planilla, ni genera días de asistencia, ni sale en informes; sus marcas del celular quedan registradas pero no se suman a nada.
+  @Column({ type: 'boolean', name: 'es_prueba', default: false })
+  esPrueba: boolean;
+
   // Trabaja en una tienda: no marca en el reloj de la fábrica, así que sus
   // horas se meten a mano por día (Asistencia → Horas de tienda). El archivo
   // del reloj lo omite, y la planilla avisa cuando faltan sus horas.

@@ -154,6 +154,7 @@ export class PlanillasService {
     const empleados = (
       await this.empleadoRepo.find({ where: { frecuenciaPago: planilla.frecuencia }, order: { nombre: 'ASC' } })
     )
+      .filter((e) => !e.esPrueba)
       .filter((e) => (e.fechaCese ? e.fechaCese >= planilla.fechaDesde : e.activo))
       .filter((e) => !e.fechaIngreso || e.fechaIngreso <= planilla.fechaHasta);
     if (empleados.length === 0) {
