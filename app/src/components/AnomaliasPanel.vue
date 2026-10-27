@@ -5,8 +5,9 @@ import { exito, fallo } from '../lib/avisos.js';
 import { formatearFecha } from '../lib/format.js';
 import Cargando from './Cargando.vue';
 
-// Anomalías de un empleado (almuerzos fuera de lo normal, tardanzas…). No cambian el pago: dejan constancia para que gerencia decida
-// si emite una carta de amonestación. Las de almuerzo salen solas de las marcas; las demás se anotan a mano.
+// Anomalías de un empleado. No cambian el pago: dejan constancia para que gerencia decida si emite una carta de amonestación.
+// Salen solas de la asistencia ya registrada: llegadas tarde, salidas antes de la hora, ausencias injustificadas y almuerzos fuera de lo normal.
+// Lo demás se anota a mano. Las que se justifican (o se corrigen la asistencia) desaparecen solas mientras estén pendientes.
 const props = defineProps({ empleado: { type: Object, required: true } });
 const emit = defineEmits(['cambio', 'cerrar']);
 
@@ -24,6 +25,15 @@ const ESTADOS = {
   descartada: { texto: 'Descartada', clase: 'bg-slate-100 text-slate-600' },
 };
 const etiqueta = (t) => TIPOS.find((x) => x.valor === t)?.etiqueta ?? t;
+// Las que normalmente justifican una carta de amonestación (el almuerzo solo deja constancia).
+const PUEDE_LLEVAR_CARTA = ['tardanza', 'salida_temprana', 'ausencia'];
+const pendientes = computed(() => lista.value.filter((a) => a.estado === 'pendiente'));
+const resumenPendientes = computed(() => {
+  const c = {};
+  for (const a of pendientes.value) c[a.tipo] = (c[a.tipo] ?? 0) + 1;
+  return Object.entries(c).map(([t, n]) => `${n} ${etiqueta(t).toLowerCase()}`).join(' · ');
+});
+const elegirPendientes = () => { for (const a of lista.value) elegidas[a.id] = a.estado === 'pendiente'; };
 
 const lista = ref([]);
 const cargando = ref(true);
@@ -106,13 +116,20 @@ async function carta() {
     <div class="flex items-start justify-between gap-2">
       <div>
         <p class="text-sm font-semibold text-slate-800">Anomalías de {{ empleado.nombre }}</p>
-        <p class="text-xs text-slate-600">Dejan constancia, no cambian el pago. Elija las que lleve la carta de amonestación (es un borrador: revíselo con el asesor legal antes de entregarlo).</p>
+        <p class="text-xs text-slate-600">
+          Salen solas de la asistencia: llegadas tarde, salidas antes de la hora, ausencias injustificadas y almuerzos fuera de lo normal. Dejan constancia, no cambian el pago.
+          Marque las que lleve la <strong>carta de amonestación</strong> (es un borrador: revíselo con el asesor legal antes de entregarlo) o descarte las que no correspondan.
+        </p>
       </div>
       <button type="button" class="text-sm font-semibold text-slate-500 underline" @click="emit('cerrar')">Cerrar</button>
     </div>
 
     <Cargando v-if="cargando" texto="Cargando…" compacto />
-    <p v-else-if="lista.length === 0" class="text-sm text-slate-500">Sin anomalías registradas.</p>
+    <p v-else-if="lista.length === 0" class="text-sm text-slate-500">Sin anomalías: en la asistencia registrada no hay llegadas tarde, salidas antes de hora ni ausencias injustificadas.</p>
+    <p v-if="!cargando && pendientes.length" class="rounded-lg bg-amber-50 p-2 text-xs font-medium text-amber-900">
+      {{ pendientes.length }} pendiente(s) por decidir: {{ resumenPendientes }}. Puede generar una carta de amonestación con las que marque.
+      <button type="button" class="ml-1 font-semibold underline" @click="elegirPendientes">Marcar todas las pendientes</button>
+    </p>
     <ul v-else class="flex flex-col gap-1.5">
       <li v-for="a in lista" :key="a.id" class="flex flex-wrap items-start gap-2 rounded-lg border border-slate-200 bg-white p-2 text-sm">
         <input v-model="elegidas[a.id]" type="checkbox" class="mt-1 size-4" :disabled="a.estado === 'descartada'" :aria-label="`Incluir en la carta: ${etiqueta(a.tipo)} ${a.fecha}`" />
@@ -120,7 +137,8 @@ async function carta() {
           <p class="font-semibold text-slate-900">
             {{ formatearFecha(a.fecha) }} · {{ etiqueta(a.tipo) }}
             <span class="ml-1 rounded-full px-2 py-0.5 text-xs font-semibold" :class="ESTADOS[a.estado].clase">{{ ESTADOS[a.estado].texto }}</span>
-            <span v-if="a.origen === 'automatica'" class="ml-1 text-xs font-normal text-slate-500">(detectada de las marcas)</span>
+            <span v-if="a.origen === 'automatica'" class="ml-1 text-xs font-normal text-slate-500">(detectada de la asistencia)</span>
+            <span v-if="a.estado === 'pendiente' && PUEDE_LLEVAR_CARTA.includes(a.tipo)" class="ml-1 rounded-full bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-700">Puede llevar carta</span>
           </p>
           <p class="text-xs text-slate-600">{{ a.detalle }}</p>
           <p v-if="a.nota" class="text-xs text-slate-500">{{ a.nota }}</p>

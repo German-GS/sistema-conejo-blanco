@@ -6,7 +6,7 @@ import PDFDocument from 'pdfkit';
 import { ConfiguracionService } from '../configuracion/configuracion.service.js';
 import { AnomaliaEmpleado, ETIQUETAS_ANOMALIA, type EstadoAnomalia, type TipoAnomalia } from './anomalia-empleado.entity.js';
 import { Empleado } from './empleado.entity.js';
-import { detectarAnomaliasAlmuerzo } from './anomalias.js';
+import { detectarAnomaliasAlmuerzo, type AnomaliaDetectada } from './anomalias.js';
 import type { Parametros } from './calculo.js';
 
 const FUENTE = join(process.cwd(), 'assets', 'fonts', 'DejaVuSansCondensed.ttf');
@@ -50,6 +50,24 @@ export class AnomaliasService {
         await repo.save(repo.create({ empleadoId: empleado.id, fecha, tipo: d.tipo, detalle: d.detalle, minutos: d.minutos, origen: 'automatica', estado: 'pendiente' }));
       }
     }
+  }
+
+  // Deja al día las anomalías automáticas de un empleado para los tipos indicados: `porFecha` trae lo detectado hoy en cada día. Agrega lo
+  // nuevo, actualiza o quita lo pendiente que ya no aplica (ej. la ausencia se justificó) y respeta lo que una persona ya decidió.
+  async aplicarDetectadas(empleadoId: string, tipos: TipoAnomalia[], porFecha: Map<string, AnomaliaDetectada[]>): Promise<void> {
+    const existentes = await this.repo.find({ where: { empleadoId, origen: 'automatica', tipo: In(tipos) } });
+    const llave = (fecha: string, tipo: string) => `${fecha}|${tipo}`;
+    const hay = new Map(existentes.map((e) => [llave(e.fecha, e.tipo), e]));
+    const detectadasKeys = new Set<string>();
+    for (const [fecha, lista] of porFecha) {
+      for (const d of lista) {
+        detectadasKeys.add(llave(fecha, d.tipo));
+        const e = hay.get(llave(fecha, d.tipo));
+        if (!e) await this.repo.save(this.repo.create({ empleadoId, fecha, tipo: d.tipo, detalle: d.detalle, minutos: d.minutos, origen: 'automatica', estado: 'pendiente' }));
+        else if (e.estado === 'pendiente' && (e.detalle !== d.detalle || e.minutos !== d.minutos)) await this.repo.update({ id: e.id }, { detalle: d.detalle, minutos: d.minutos });
+      }
+    }
+    for (const e of existentes) if (e.estado === 'pendiente' && !detectadasKeys.has(llave(e.fecha, e.tipo))) await this.repo.delete({ id: e.id });
   }
 
   listar(f: FiltrosAnomalias): Promise<AnomaliaEmpleado[]> {

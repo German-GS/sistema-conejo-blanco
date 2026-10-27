@@ -463,15 +463,18 @@ export class PlanillaController {
 
   // ---- Anomalías de los empleados (almuerzos fuera de lo normal, tardanzas…) y carta de amonestación ----
   @Get('anomalias')
-  listarAnomalias(@Query('empleadoId') empleadoId?: string, @Query('estado') estado?: string) {
+  async listarAnomalias(@Query('empleadoId') empleadoId?: string, @Query('estado') estado?: string) {
     const estados = ['pendiente', 'carta_emitida', 'descartada'];
     if (empleadoId && !/^[0-9a-f-]{36}$/i.test(empleadoId)) throw new BadRequestException('El empleado no es válido.');
     if (estado && !estados.includes(estado)) throw new BadRequestException('El estado no es válido.');
+    // Las llegadas tarde, salidas antes de hora y ausencias injustificadas salen solas de la asistencia: se ponen al día al abrirlas.
+    if (empleadoId) await this.asistencia.sincronizarAnomaliasEmpleado(empleadoId);
     return this.anomalias.listar({ empleadoId: empleadoId || undefined, estado: (estado as 'pendiente') || undefined });
   }
 
   @Get('anomalias/pendientes-por-empleado')
-  anomaliasPendientes() {
+  async anomaliasPendientes() {
+    for (const e of await this.empleados.listar()) if (e.activo) await this.asistencia.sincronizarAnomaliasEmpleado(e.id);
     return this.anomalias.pendientesPorEmpleado();
   }
 

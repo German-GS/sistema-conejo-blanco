@@ -451,7 +451,7 @@ export function aplicarResolucion(
   if (tipo === TipoResolucionDia.ALMUERZO_MANUAL) {
     // El día trae entrada y salida: administración dice cuánto almorzó.
     if (datos.almuerzoMinutos === undefined) throw new Error('Indique cuántos minutos de almuerzo.');
-    const r = clasificarDia(datos.marcas ?? [], tipoDia, p, datos.almuerzoMinutos, esperadoMinutos(fecha, horario, p), opcionesEmpleado(horario, p, fecha));
+    const r = clasificarDia(datos.marcas ?? [], tipoDia, p, datos.almuerzoMinutos, esperadoMinutos(fecha, horario, p), { ...opcionesEmpleado(horario, p, fecha), decidido: true });
     if (r.estado !== EstadoDia.OK || r.marcas.length !== 2) {
       throw new Error('El almuerzo solo se ajusta en días con entrada y salida (sin marcas de almuerzo).');
     }
@@ -459,8 +459,9 @@ export function aplicarResolucion(
     return r;
   }
   if (tipo === TipoResolucionDia.HORAS_JUSTIFICADAS || tipo === TipoResolucionDia.HORAS_INJUSTIFICADAS) {
-    const r = clasificarDia(datos.marcas ?? [], tipoDia, p, datos.almuerzoMinutos, esperadoMinutos(fecha, horario, p), opcionesEmpleado(horario, p, fecha));
-    if (r.estado !== EstadoDia.OK) throw new Error('Este día no tiene marcas completas: resolvelo con hora manual.');
+    // «decidido»: el día ya está en estado correcto (por eso se ofrece esta decisión): no se vuelve a sospechar de la salida temprana.
+    const r = clasificarDia(datos.marcas ?? [], tipoDia, p, datos.almuerzoMinutos, esperadoMinutos(fecha, horario, p), { ...opcionesEmpleado(horario, p, fecha), decidido: true });
+    if (r.estado !== EstadoDia.OK) throw new Error('Este día tiene una marca por confirmar (el sistema sospecha que falta la entrada o la salida): primero confirme la hora con «Se anotó hora manual».');
     if (r.minutosFaltantes === 0) throw new Error('Este día no tiene horas faltantes.');
     r.minutosDescontar = tipo === TipoResolucionDia.HORAS_JUSTIFICADAS ? 0 : r.minutosFaltantes;
     return r;

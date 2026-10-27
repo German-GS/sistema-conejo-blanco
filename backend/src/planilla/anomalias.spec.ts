@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { PARAMETROS_POR_DEFECTO } from './parametros-por-defecto.js';
-import { detectarAnomaliasAlmuerzo } from './anomalias.js';
+import { detectarAnomaliasAlmuerzo, detectarAnomaliasDeDia, type DiaParaAnomalias } from './anomalias.js';
 
 const p = Object.fromEntries(PARAMETROS_POR_DEFECTO.map((x) => [x.nombre, x.valor]));
 
@@ -32,5 +32,52 @@ describe('detectarAnomaliasAlmuerzo', () => {
 
   it('sin almuerzo esperado (0) no hay nada que medir', () => {
     expect(detectarAnomaliasAlmuerzo(['08:00', '12:00', '12:05', '17:00'], p, 0)).toEqual([]);
+  });
+});
+
+describe('anomalías de un día frente al horario', () => {
+  const tramo = { entrada: '08:00', salida: '17:00' };
+  const dia = (marcas: string[], extra: Partial<DiaParaAnomalias> = {}): DiaParaAnomalias => ({ tipoDia: 'ordinario', estado: 'ok', descuenta: false, marcas, resolucionTipo: null, ...extra });
+  const detectar = (d: DiaParaAnomalias) => detectarAnomaliasDeDia(d, tramo, 480, p);
+
+  it('llegada tarde: pasada la tolerancia de 10 minutos', () => {
+    expect(detectar(dia(['08:10', '12:00', '13:00', '17:00']))).toEqual([]);
+    const r = detectar(dia(['08:25', '12:00', '13:00', '17:00']));
+    expect(r).toHaveLength(1);
+    expect(r[0]).toMatchObject({ tipo: 'tardanza', minutos: 25 });
+    expect(r[0].detalle).toContain('08:25');
+  });
+
+  it('salida antes de la hora (se fue a mediodía)', () => {
+    const r = detectar(dia(['08:00', '12:00']));
+    expect(r).toHaveLength(1);
+    expect(r[0]).toMatchObject({ tipo: 'salida_temprana', minutos: 300 });
+  });
+
+  it('llegó tarde y se fue antes: dos anomalías', () => {
+    expect(detectar(dia(['09:00', '16:00'])).map((x) => x.tipo)).toEqual(['tardanza', 'salida_temprana']);
+  });
+
+  it('ausencia injustificada (sin marcas y sin decisión, o decidida como injustificada)', () => {
+    expect(detectar(dia([], { estado: 'ausencia', descuenta: true }))[0]).toMatchObject({ tipo: 'ausencia', minutos: 480 });
+    expect(detectar(dia([], { estado: 'ausencia', descuenta: true, resolucionTipo: 'ausencia_injustificada' }))).toHaveLength(1);
+  });
+
+  it('entrar y salir más temprano cumpliendo todas las horas no es salir antes de la hora', () => {
+    expect(detectar(dia(['07:00', '12:00', '13:00', '16:00']))).toEqual([]); // 9 h de 8 a 17: horario corrido una hora
+    expect(detectar(dia(['07:00', '12:00', '13:00', '15:30'])).map((x) => x.tipo)).toEqual(['salida_temprana']); // faltó tiempo de verdad
+  });
+
+  it('lo justificado no se amonesta: ausencia justificada, incapacidad, día libre', () => {
+    expect(detectar(dia([], { estado: 'ausencia', descuenta: false, resolucionTipo: 'ausencia_justificada' }))).toEqual([]);
+    expect(detectar(dia([], { estado: 'ausencia', descuenta: false, resolucionTipo: 'incapacidad' }))).toEqual([]);
+    expect(detectar(dia(['08:00', '12:00'], { resolucionTipo: 'horas_justificadas' }))).toEqual([]);
+  });
+
+  it('no cuenta: marcas por confirmar, feriados, domingos y días sin horario', () => {
+    expect(detectar(dia(['08:00', '12:00'], { estado: 'marca_faltante' }))).toEqual([]);
+    expect(detectar(dia(['10:00', '12:00'], { tipoDia: 'feriado' }))).toEqual([]);
+    expect(detectar(dia([], { estado: 'ausencia', descuenta: true, tipoDia: 'domingo' }))).toEqual([]);
+    expect(detectarAnomaliasDeDia(dia(['10:00', '12:00']), null, 0, p)).toEqual([]);
   });
 });

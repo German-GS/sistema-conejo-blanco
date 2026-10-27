@@ -1,9 +1,9 @@
 import { Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn, type Relation } from 'typeorm';
 import { Empleado } from './empleado.entity.js';
 
-// Un préstamo del empleado en el Banco Popular que la empresa descuenta por planilla. El banco manda cada mes cuánto descontar: esa es la
-// cuota mensual, y la planilla semanal la reparte entre los sábados del mes (4 o 5). No es plata prestada por la empresa: no sale de caja
-// ni es una cuenta por cobrar; lo descontado se le debe al banco.
+// Un préstamo del Banco Popular o un embargo que la empresa descuenta por planilla. Se anota el monto y cada cuánto se descuenta (semana,
+// quincena o mes); si el período es más largo que la planilla, se reparte entre los sábados. No es plata prestada por la empresa: no sale de
+// caja ni es una cuenta por cobrar; lo descontado se le debe al banco o al juzgado.
 @Entity({ name: 'planilla_deducciones_externas' })
 export class DeduccionExterna {
   @PrimaryGeneratedColumn('uuid')
@@ -16,16 +16,20 @@ export class DeduccionExterna {
   @Column({ type: 'uuid', name: 'empleado_id' })
   empleadoId: string;
 
-  // Por ahora solo préstamos del Banco Popular (los embargos se dejan como están).
+  // Préstamo del Banco Popular o embargo judicial: en ambos solo importa cuánto se descuenta y cada cuánto.
   @Column({ type: 'varchar', length: 30, default: 'prestamo_banco_popular' })
-  tipo: 'prestamo_banco_popular';
+  tipo: 'prestamo_banco_popular' | 'embargo';
 
-  // Número de operación o nota para reconocerlo en la orden del banco.
-  @Column({ type: 'varchar', length: 160 })
+  // Número de operación, expediente o nota para reconocerlo (opcional).
+  @Column({ type: 'varchar', length: 160, default: '' })
   descripcion: string;
 
+  // Monto a descontar, por semana, quincena o mes según `periodicidad` (la columna se llama cuota_mensual por su origen: antes solo había mensual).
   @Column({ type: 'decimal', precision: 12, scale: 2, name: 'cuota_mensual' })
-  cuotaMensual: string;
+  monto: string;
+
+  @Column({ type: 'varchar', length: 10, default: 'mes' })
+  periodicidad: 'semana' | 'quincena' | 'mes';
 
   // Período en que se descuenta (hasta = null: sin fecha de fin, mientras esté activo).
   @Column({ type: 'date', name: 'fecha_desde' })

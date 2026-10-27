@@ -141,7 +141,7 @@ export class InformesService {
         { clave: 'bancoPopular', etiqueta: 'Banco Popular', tipo: 'moneda' },
         { clave: 'renta', etiqueta: 'Renta', tipo: 'moneda' },
         { clave: 'deudas', etiqueta: 'Deudas', tipo: 'moneda' },
-        { clave: 'prestamosBanco', etiqueta: 'Préstamos Banco Popular', tipo: 'moneda' },
+        { clave: 'prestamosBanco', etiqueta: 'Préstamos y embargos', tipo: 'moneda' },
         { clave: 'neto', etiqueta: 'Neto', tipo: 'moneda' },
       ],
       filas,

@@ -8,7 +8,10 @@ import { formatearFecha } from '../../../lib/format.js';
 
 // Marcas anotadas a mano mientras el reloj de huella no funciona. Solo administrador del sistema y gerencia general.
 // Cada día tiene hasta 4 horas: entrada, salida a almuerzo, regreso y salida. Pasan por las mismas reglas que las del reloj.
-const DIAS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+const DIAS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+// El personal de tienda trabaja también el domingo y tiene días libres que se pagan; la fábrica, de lunes a sábado.
+const MOTIVO_DIA_LIBRE = 'Día libre (se paga)';
+const diasDe = (e) => (e.esDeTienda ? 7 : 6);
 const COLUMNAS = ['Entrada', 'Salida almuerzo', 'Regreso almuerzo', 'Salida'];
 
 const empleados = ref([]);
@@ -37,7 +40,7 @@ const hoy = () => {
 // Arranca en la semana pasada: es la que casi siempre falta anotar.
 const lunes = ref(lunesDe(sumar(hoy(), -7)));
 
-// Lo escrito: valores[empleadoId][fecha] = { m: ['', '', '', ''], ausente: false }
+// Lo escrito: valores[empleadoId][fecha] = { m: ['', '', '', ''], ausente: false, libre: false }
 const valores = reactive({});
 const original = reactive({});
 
@@ -47,6 +50,7 @@ const filtrados = computed(() => {
 });
 const departamentos = computed(() => [...new Set(empleados.value.map((e) => e.departamento ?? 'Sin departamento'))].sort());
 const fechas = computed(() => DIAS.map((_, i) => sumar(lunes.value, i)));
+const semanaDe = (e) => fechas.value.slice(0, diasDe(e));
 
 // «800» → 08:00, «1305» → 13:05, «8:5» → 08:05. Vacío si no se entiende.
 function normalizarHora(texto) {
@@ -71,19 +75,22 @@ function alSalir(e, fecha, i, ev) {
 
 function celdaDe(empleadoId, fecha) {
   valores[empleadoId] ??= {};
-  return (valores[empleadoId][fecha] ??= { m: ['', '', '', ''], ausente: false });
+  return (valores[empleadoId][fecha] ??= { m: ['', '', '', ''], ausente: false, libre: false });
 }
-const esSabado = (i) => i === 5;
+const esSabado = (e, i) => i === 5 && !e.esDeTienda;
+// «No vino» y «Libre» no pueden ir juntos ni con horas.
+const marcarAusente = (c) => { if (c.ausente) c.libre = false; };
+const marcarLibre = (c) => { if (c.libre) { c.ausente = false; c.m = ['', '', '', '']; } };
 
 async function cargar() {
   cargando.value = true;
   error.value = '';
   resultados.value = null;
   try {
-    const hasta = sumar(lunes.value, 5);
+    const hasta = sumar(lunes.value, 6);
     const [lista, dias] = await Promise.all([api.get('/planilla/empleados'), api.get(`/planilla/asistencia/dias?desde=${lunes.value}&hasta=${hasta}`)]);
-    // Quienes usan el reloj de la fábrica: activos, que no son de tienda ni de confianza.
-    empleados.value = lista.filter((e) => e.activo && !e.fechaCese && !e.esDeTienda && !e.esConfianza && !e.esPrueba && e.marcaReloj !== false);
+    // Activos que no son de confianza ni de prueba: los de la fábrica (que usan el reloj) y el personal de tienda.
+    empleados.value = lista.filter((e) => e.activo && !e.fechaCese && !e.esConfianza && !e.esPrueba && (e.esDeTienda || e.marcaReloj !== false));
     existentes.value = dias;
     for (const k of Object.keys(valores)) delete valores[k];
     for (const k of Object.keys(original)) delete original[k];
@@ -93,8 +100,9 @@ async function cargar() {
       // Con 2 o 3 marcas se ordenan a su lugar natural: entrada, …, salida.
       if (d.marcas?.length === 2) c.m = [d.marcas[0], '', '', d.marcas[1]];
       if (d.marcas?.length === 3) c.m = [d.marcas[0], d.marcas[1], '', d.marcas[2]];
+      c.libre = d.resolucionTipo === 'ausencia_justificada' && d.resolucionMotivo === MOTIVO_DIA_LIBRE;
       c.ausente = d.estado === 'ausencia' && d.marcas.length === 0 && !d.resolucionTipo;
-      original[`${d.empleadoId}|${d.fecha}`] = JSON.stringify([c.m, c.ausente]);
+      original[`${d.empleadoId}|${d.fecha}`] = JSON.stringify([c.m, c.ausente, c.libre]);
     }
   } catch (err) {
     error.value = err instanceof ApiError ? err.message : 'No se pudieron cargar los datos.';
@@ -123,13 +131,13 @@ const hhmm = (min) => `${Math.floor(min / 60)}:${String(min % 60).padStart(2, '0
 function cambios() {
   const dias = [];
   for (const e of empleados.value) {
-    for (const f of fechas.value) {
+    for (const f of semanaDe(e)) {
       const c = valores[e.id]?.[f];
       if (!c) continue;
       const marcas = c.m.filter(Boolean);
-      if (marcas.length === 0 && !c.ausente) continue;
-      if (original[`${e.id}|${f}`] === JSON.stringify([c.m, c.ausente])) continue;
-      dias.push({ empleadoId: e.id, fecha: f, marcas, ausente: c.ausente && marcas.length === 0 });
+      if (marcas.length === 0 && !c.ausente && !c.libre) continue;
+      if (original[`${e.id}|${f}`] === JSON.stringify([c.m, c.ausente, c.libre])) continue;
+      dias.push({ empleadoId: e.id, fecha: f, marcas, ausente: c.ausente && !c.libre && marcas.length === 0, ...(c.libre && marcas.length === 0 ? { libre: true } : {}) });
     }
   }
   return dias;
@@ -173,7 +181,7 @@ async function guardar() {
     <p class="text-sm text-slate-600">
       Mientras el reloj de huella no funcione, anote aquí las horas de cada día: <strong>entrada, salida a almuerzo, regreso y salida</strong>.
       Escriba la hora como 8:00 o 1305. Pasan por las mismas reglas que las del reloj (tolerancia, almuerzo fijo, marcas que faltan) y quedan
-      registradas como anotadas a mano, con quién las anotó. Un día sin horas se ignora, salvo que marque «No vino». No se cambian los días que
+      registradas como anotadas a mano, con quién las anotó. Un día sin horas se ignora, salvo que marque «No vino» (se descuenta) o, en personal de tienda, «Libre (se paga)». El personal de tienda también tiene la fila del domingo. No se cambian los días que
       ya tienen una decisión ni los de planillas aprobadas.
     </p>
     <p v-if="error" class="text-sm font-medium text-red-600">{{ error }}</p>
@@ -204,14 +212,17 @@ async function guardar() {
     <Cargando v-if="cargando" texto="Cargando…" compacto />
     <p v-else-if="filtrados.length === 0" class="text-sm text-slate-500">No hay colaboradores con ese filtro.</p>
     <section v-for="e in filtrados" v-else :key="e.id" class="card flex flex-col gap-2">
-      <p class="text-base font-semibold text-slate-900">{{ e.nombre }} <span class="text-sm font-normal text-slate-500">· {{ e.departamento ?? 'Sin departamento' }}</span></p>
+      <p class="text-base font-semibold text-slate-900">
+        {{ e.nombre }} <span class="text-sm font-normal text-slate-500">· {{ e.departamento ?? 'Sin departamento' }}</span>
+        <span v-if="e.esDeTienda" class="ml-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700" title="Personal de tienda: trabaja también el domingo y puede tener días libres que se pagan">Tienda</span>
+      </p>
       <div class="overflow-x-auto">
         <table class="min-w-full text-sm">
           <thead class="text-left text-xs font-semibold text-slate-600">
-            <tr><th class="px-2 py-1">Día</th><th v-for="c in COLUMNAS" :key="c" class="px-2">{{ c }}</th><th class="px-2">No vino</th><th class="px-2">Resultado</th></tr>
+            <tr><th class="px-2 py-1">Día</th><th v-for="c in COLUMNAS" :key="c" class="px-2">{{ c }}</th><th class="px-2">No vino</th><th v-if="e.esDeTienda" class="px-2" title="Día libre que se paga: no se descuenta">Libre (se paga)</th><th class="px-2">Resultado</th></tr>
           </thead>
           <tbody>
-            <tr v-for="(dia, i) in DIAS" :key="dia" class="border-t border-slate-100">
+            <tr v-for="(dia, i) in DIAS.slice(0, diasDe(e))" :key="dia" class="border-t border-slate-100">
               <td class="whitespace-nowrap px-2 py-1 font-medium">{{ dia }} {{ formatearFecha(fechas[i]).slice(0, 5) }}</td>
               <td v-for="(c, k) in COLUMNAS" :key="c" class="px-1 py-1">
                 <input
@@ -221,20 +232,21 @@ async function guardar() {
                   maxlength="5"
                   placeholder="--:--"
                   class="input w-20 text-center"
-                  :class="esSabado(i) && (k === 1 || k === 2) ? 'bg-slate-100' : ''"
-                  :disabled="celdaDe(e.id, fechas[i]).ausente"
+                  :class="esSabado(e, i) && (k === 1 || k === 2) ? 'bg-slate-100' : ''"
+                  :disabled="celdaDe(e.id, fechas[i]).ausente || celdaDe(e.id, fechas[i]).libre"
                   :aria-label="`${e.nombre}, ${dia}, ${c}`"
                   @blur="alSalir(e, fechas[i], k, $event)"
                   @change="celdaDe(e.id, fechas[i]).m[k] = $event.target.value"
                 />
               </td>
-              <td class="px-2"><input v-model="celdaDe(e.id, fechas[i]).ausente" type="checkbox" class="size-4" :aria-label="`${e.nombre} no vino el ${dia}`" /></td>
+              <td class="px-2"><input v-model="celdaDe(e.id, fechas[i]).ausente" type="checkbox" class="size-4" :aria-label="`${e.nombre} no vino el ${dia}`" @change="marcarAusente(celdaDe(e.id, fechas[i]))" /></td>
+              <td v-if="e.esDeTienda" class="px-2"><input v-model="celdaDe(e.id, fechas[i]).libre" type="checkbox" class="size-4" :aria-label="`${e.nombre} libre el ${dia}`" @change="marcarLibre(celdaDe(e.id, fechas[i]))" /></td>
               <td class="whitespace-nowrap px-2 text-xs">
                 <template v-if="diaGuardado(e.id, fechas[i])">
                   <span :class="ESTADOS[diaGuardado(e.id, fechas[i]).estado]?.[1]">{{ ESTADOS[diaGuardado(e.id, fechas[i]).estado]?.[0] }}</span>
                   <template v-if="diaGuardado(e.id, fechas[i]).minutosNetos"> · {{ hhmm(diaGuardado(e.id, fechas[i]).minutosNetos) }} h</template>
                   <span v-if="diaGuardado(e.id, fechas[i]).origen === 'manual'" class="ml-1 rounded-full bg-blue-50 px-1.5 py-0.5 text-blue-700">a mano</span>
-                  <span v-if="diaGuardado(e.id, fechas[i]).resolucionTipo" class="ml-1 text-slate-500">(decidido)</span>
+                  <span v-if="diaGuardado(e.id, fechas[i]).resolucionTipo" class="ml-1 text-slate-500">({{ diaGuardado(e.id, fechas[i]).resolucionMotivo === MOTIVO_DIA_LIBRE ? 'libre pagado' : 'decidido' }})</span>
                 </template>
               </td>
             </tr>

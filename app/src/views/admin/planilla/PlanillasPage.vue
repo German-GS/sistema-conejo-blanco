@@ -465,7 +465,7 @@ const fechaCorta = (f) => formatearFecha(f).slice(0, 5);
             <p>SEM: {{ m(l.sem) }} · IVM: {{ m(l.ivm) }} · Banco Popular: {{ m(l.bancoPopular) }}</p>
             <p>Renta: {{ m(l.renta) }}</p>
             <p>Deudas descontadas: {{ m(l.deudasDescontadas) }}</p>
-            <p v-if="Number(l.deduccionesExternas) > 0">Préstamos del Banco Popular descontados: {{ m(l.deduccionesExternas) }}</p>
+            <p v-if="Number(l.deduccionesExternas) > 0">Préstamos y embargos descontados: {{ m(l.deduccionesExternas) }}</p>
             <p v-if="Number(l.viaticos) > 0">Viáticos (fuera del bruto): {{ m(l.viaticos) }}</p>
             <p>Cargas patronales: {{ m(l.cargasPatronales) }}</p>
             <p>Provisiones: {{ m(l.provisiones) }}</p>

@@ -50,6 +50,9 @@ export class DiaMarcasManualesDto {
 
   // Sin ninguna marca: true = no vino (queda como ausencia por resolver); false/vacío = no se anotó nada ese día.
   @IsOptional() ausente?: boolean;
+
+  // Solo personal de tienda: día libre que se paga (no es una ausencia; no se descuenta).
+  @IsOptional() libre?: boolean;
 }
 
 // Marcas anotadas a mano mientras el reloj de huella no funciona. Solo administrador del sistema y gerente general.

@@ -383,7 +383,7 @@ async function reactivar(e) {
   }
 }
 
-// ---- Préstamos del Banco Popular ----
+// ---- Préstamos del Banco Popular y embargos ----
 const prestamosDe = ref(null);
 
 // ---- Deudas con la empresa ----
@@ -797,7 +797,7 @@ const etiqueta = (lista, v) => lista.find((x) => x.valor === v)?.etiqueta ?? v;
           </div>
           <div class="flex gap-3 text-sm font-semibold text-blue-700">
             <button type="button" class="underline" @click="abrirDeudas(e)">Deudas</button>
-            <button type="button" class="underline" @click="prestamosDe = prestamosDe === e.id ? null : e.id">Préstamos banco</button>
+            <button type="button" class="underline" @click="prestamosDe = prestamosDe === e.id ? null : e.id">Préstamos y embargos</button>
             <button type="button" class="underline" @click="anomaliasDe = anomaliasDe === e.id ? null : e.id">
               Anomalías<span v-if="anomaliasPendientes[e.id]" class="ml-1 rounded-full bg-amber-100 px-1.5 py-0.5 text-xs text-amber-800">{{ anomaliasPendientes[e.id] }}</span>
             </button>

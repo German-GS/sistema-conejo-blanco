@@ -179,3 +179,23 @@ describe('marcas anotadas a mano: ya vienen confirmadas', () => {
     expect(dm(['08:00']).estado).not.toBe(EstadoDia.OK);
   });
 });
+
+describe('decidir sobre las horas faltantes de un día anotado a mano (salió a mediodía)', () => {
+  const resolver = (tipo: TipoResolucionDia) => aplicarResolucion(tipo, { marcas: ['08:00', '12:00'] }, LUNES, 'ordinario', emp, p);
+
+  it('justificar las horas no las descuenta y no vuelve a sospechar de la salida', () => {
+    const r = resolver(TipoResolucionDia.HORAS_JUSTIFICADAS);
+    expect(r.estado).toBe(EstadoDia.OK);
+    expect(r.minutosNetos).toBe(240);
+    expect(r.minutosDescontar).toBe(0);
+  });
+
+  it('no justificarlas descuenta las 4 horas que faltan', () => {
+    expect(resolver(TipoResolucionDia.HORAS_INJUSTIFICADAS).minutosDescontar).toBe(240);
+  });
+
+  it('ajustar el almuerzo también funciona en ese día', () => {
+    const r = aplicarResolucion(TipoResolucionDia.ALMUERZO_MANUAL, { marcas: ['08:00', '17:00'], almuerzoMinutos: 30 }, LUNES, 'ordinario', emp, p);
+    expect(r.estado).toBe(EstadoDia.OK);
+  });
+});

@@ -13,6 +13,7 @@ import { Empleado } from './empleado.entity.js';
 import { DeudaEmpleado } from './deuda-empleado.entity.js';
 import { DeduccionExterna } from './deduccion-externa.entity.js';
 import { cuotaExternaDelPeriodo } from './cuotas-externas.js';
+import { etiquetaDeduccion } from './deducciones-externas.service.js';
 import { ParametrosService } from './parametros.service.js';
 import { AsistenciaService } from './asistencia.service.js';
 import { calcularLinea, diaSemana, diasLaborables, type DiaParaPago } from './calculo.js';
@@ -247,13 +248,15 @@ export class PlanillasService {
 
       const deudas = await this.deudaRepo.find({ where: { empleadoId: empleado.id, activa: true }, order: { creadoEn: 'ASC' } });
 
-      // Préstamos del Banco Popular vigentes en el período: la cuota mensual repartida según cada cuánto se paga (semanal: sábados del mes).
+      // Embargos y préstamos del Banco Popular vigentes en el período: el monto (por semana, quincena o mes) repartido según cada cuánto se paga.
+      // Primero los embargos (orden de un juzgado) y luego los préstamos.
       const externas = (await this.externaRepo.find({ where: { empleadoId: empleado.id, activa: true }, order: { creadoEn: 'ASC' } }))
+        .sort((a, b) => Number(b.tipo === 'embargo') - Number(a.tipo === 'embargo'))
         .filter((x) => x.fechaDesde <= planilla.fechaHasta && (!x.fechaHasta || x.fechaHasta >= planilla.fechaDesde))
         .map((x) => ({
           id: x.id,
-          descripcion: x.descripcion,
-          cuota: cuotaExternaDelPeriodo(Number(x.cuotaMensual), planilla.frecuencia, planilla.fechaDesde, planilla.fechaHasta),
+          descripcion: etiquetaDeduccion(x),
+          cuota: cuotaExternaDelPeriodo(Number(x.monto), x.periodicidad, planilla.frecuencia, planilla.fechaDesde, planilla.fechaHasta),
           saldo: x.saldo != null ? Number(x.saldo) : null,
         }))
         .filter((x) => x.cuota > 0 && (x.saldo === null || x.saldo > 0));
@@ -571,7 +574,7 @@ export class PlanillasService {
     ];
     const encabezado = hoja.addRow([
       'Empleado', 'Cédula', 'Salario base', 'Desc. ausencias', 'Desc. horas faltantes', 'Hrs extra', 'Monto extra', 'Feriado/domingo',
-      'Bruto', 'SEM', 'IVM', 'Banco Popular', 'Renta', 'Deudas', 'Neto', 'Cargas patronales', 'Provisiones', 'Viáticos (incluidos en el neto)', 'Justificante de viáticos', 'Préstamos Banco Popular',
+      'Bruto', 'SEM', 'IVM', 'Banco Popular', 'Renta', 'Deudas', 'Neto', 'Cargas patronales', 'Provisiones', 'Viáticos (incluidos en el neto)', 'Justificante de viáticos', 'Préstamos y embargos',
     ]);
     encabezado.font = { bold: true };
     for (const l of planilla.lineas) {

@@ -6,6 +6,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { existsSync } from 'node:fs';
 import type { HorarioSemanal } from './horario.js';
 import { unirMarcas } from './marca-punto.js';
+import { detectarAnomaliasDeDia, type AnomaliaDetectada } from './anomalias.js';
 import { join } from 'node:path';
 import { Between, DataSource, In, Repository } from 'typeorm';
 import { DiaAsistencia } from './dia-asistencia.entity.js';
@@ -18,7 +19,7 @@ import { ParametrosService } from './parametros.service.js';
 import { leerMarcas, previsualizar, type Lectura, type Mapeo } from './lector-excel.js';
 import { esXls } from './lector-xls.js';
 import { leerTarjetaXls } from './lector-tarjeta.js';
-import { aplicarResolucion, clasificarDia, compensacionSemanal, diaSemana, esperadoMinutos, lunesDeSemana, normalizarNumeroReloj, opcionesEmpleado, type ResultadoDia, type TipoDia } from './calculo.js';
+import { aplicarResolucion, clasificarDia, compensacionSemanal, diaSemana, esperadoMinutos, horarioDelDia, lunesDeSemana, normalizarNumeroReloj, opcionesEmpleado, type ResultadoDia, type TipoDia } from './calculo.js';
 import { EstadoDia, EstadoPlanilla, TipoResolucionDia } from './planilla.enums.js';
 import { sumarDias } from '../common/utils/fecha.util.js';
 import type { Feriado } from './feriado.entity.js';
@@ -38,6 +39,8 @@ export interface FiltrosDias {
 // producción es el bucket). No se sirve como archivo público: ver main.ts.
 // Las horas de tienda se digitan a mano: quien las registra las verifica.
 const SUPERVISOR_TIENDA = 'Registro de tienda';
+// Texto con que «Marcas a mano» deja un día libre pagado del personal de tienda (así se reconoce al volver a editarlo).
+export const MOTIVO_DIA_LIBRE = 'Día libre (se paga)';
 
 export const CARPETA_JUSTIFICANTES = './uploads/justificantes';
 
@@ -332,6 +335,7 @@ export class AsistenciaService implements OnModuleInit {
       return manager.save(ImportacionMarcas, importacion);
     });
 
+    await this.sincronizarAnomaliasDe([...presentesConocidos.values()].map((e) => e.id));
     return importacion;
   }
 
@@ -481,33 +485,51 @@ export class AsistenciaService implements OnModuleInit {
       const nombre = empleado.nombre;
       const omitir = (motivo: string) => resultados.push({ empleadoId: empleado.id, nombre, fecha: d.fecha, resultado: 'omitido', motivo });
       if (Number.isNaN(Date.parse(d.fecha))) throw new BadRequestException(`La fecha ${d.fecha} no es válida.`);
-      if (exentoDeReloj(empleado) || empleado.esDeTienda || empleado.esPrueba) {
-        omitir(empleado.esPrueba ? 'Es un empleado de prueba: no genera asistencia.' : 'No usa el reloj (personal de tienda o puesto de confianza).');
+      // El personal de tienda no usa el reloj, pero sus horas también se anotan aquí; los de confianza y los de prueba no.
+      if (empleado.esPrueba || empleado.esConfianza || (empleado.marcaReloj === false && !empleado.esDeTienda)) {
+        omitir(empleado.esPrueba ? 'Es un empleado de prueba: no genera asistencia.' : 'No usa el reloj (puesto de confianza o sin reloj).');
         continue;
       }
-      if (d.marcas.length === 0 && !d.ausente) continue; // nada anotado ese día
+      if (d.libre && !empleado.esDeTienda) {
+        omitir('El día libre pagado solo aplica al personal de tienda.');
+        continue;
+      }
+      if (d.marcas.length === 0 && !d.ausente && !d.libre) continue; // nada anotado ese día
       if (await this.diaEnPlanillaCerrada(empleado.id, d.fecha)) {
         omitir('Ya está en una planilla aprobada.');
         continue;
       }
       const existente = await this.diaRepo.findOneBy({ empleadoId: empleado.id, fecha: d.fecha });
-      if (existente?.resolucionTipo) {
+      // Un día libre anotado aquí se puede cambiar aquí; cualquier otra decisión de administración no se pisa.
+      const eraLibre = existente?.resolucionTipo === TipoResolucionDia.AUSENCIA_JUSTIFICADA && existente.resolucionMotivo === MOTIVO_DIA_LIBRE;
+      if (existente?.resolucionTipo && !eraLibre) {
         omitir('Ya tiene una decisión de administración.');
         continue;
       }
       const emp = conHorario(empleado, base);
       const tipoDia = tipoDeDia(d.fecha, feriados, emp.horarioSemanal);
+      if (d.libre && d.marcas.length === 0) {
+        // Día libre pagado (tienda): ausencia justificada, no se descuenta.
+        const libre = aplicarResolucion(TipoResolucionDia.AUSENCIA_JUSTIFICADA, {}, d.fecha, tipoDia, emp, p);
+        const diaLibre = existente ?? this.diaRepo.create({ empleadoId: empleado.id, fecha: d.fecha });
+        Object.assign(diaLibre, aCampos(libre, tipoDia), { marcas: [], importacionId: null, origen: 'manual', registradoPorId: usuario.id, registradoEn: new Date(), resolucionTipo: TipoResolucionDia.AUSENCIA_JUSTIFICADA, resolucionMotivo: MOTIVO_DIA_LIBRE, justificante: null, supervisor: null });
+        const salvado = await this.diaRepo.save(diaLibre);
+        await this.resolucionRepo.save(this.resolucionRepo.create({ diaId: salvado.id, tipo: TipoResolucionDia.AUSENCIA_JUSTIFICADA, motivo: MOTIVO_DIA_LIBRE, usuarioId: usuario.id, supervisor: null, detalle: { origen: 'marcas_manuales' } }));
+        resultados.push({ empleadoId: empleado.id, nombre, fecha: d.fecha, resultado: 'guardado', estado: libre.estado, minutosNetos: 0, minutosFaltantes: 0 });
+        continue;
+      }
       const marcas = d.ausente ? [] : d.marcas;
       // Quien las anota ya las confirma: no se tratan como «marca que se olvidó» (una salida a mediodía es una salida a mediodía) y las horas que faltan sí se descuentan.
       const r = clasificarDia(marcas, tipoDia, p, undefined, esperadoMinutos(d.fecha, emp, p), { ...opcionesEmpleado(emp, p, d.fecha), verificado: true, decidido: true });
       const dia = existente ?? this.diaRepo.create({ empleadoId: empleado.id, fecha: d.fecha });
-      Object.assign(dia, aCampos(r, tipoDia), { marcas: r.marcas, importacionId: null, origen: 'manual', registradoPorId: usuario.id, registradoEn: new Date() });
+      Object.assign(dia, aCampos(r, tipoDia), { marcas: r.marcas, importacionId: null, origen: 'manual', registradoPorId: usuario.id, registradoEn: new Date(), ...(eraLibre ? { resolucionTipo: null, resolucionMotivo: null } : {}) });
       await this.diaRepo.save(dia);
       await this.anomalias.sincronizarAlmuerzo(empleado, d.fecha, r.estado === EstadoDia.OK ? r.marcas : [], p);
       resultados.push({ empleadoId: empleado.id, nombre, fecha: d.fecha, resultado: 'guardado', estado: r.estado, minutosNetos: r.minutosNetos, minutosFaltantes: r.minutosFaltantes });
     }
 
     const guardados = resultados.filter((x) => x.resultado === 'guardado').length;
+    if (guardados > 0) await this.sincronizarAnomaliasDe(dto.dias.map((d) => d.empleadoId));
     if (guardados > 0) {
       const fechas = resultados.filter((x) => x.resultado === 'guardado').map((x) => x.fecha).sort();
       await this.bitacoraGeneral.registrar({
@@ -519,6 +541,32 @@ export class AsistenciaService implements OnModuleInit {
       });
     }
     return { guardados, omitidos: resultados.length - guardados, resultados };
+  }
+
+  // Igual que sincronizarAnomaliasEmpleado para varios, sin romper la operación principal si algo falla (es solo constancia).
+  private async sincronizarAnomaliasDe(ids: string[]): Promise<void> {
+    for (const id of new Set(ids)) {
+      try {
+        await this.sincronizarAnomaliasEmpleado(id);
+      } catch (err) {
+        new Logger(AsistenciaService.name).warn(`No se pudieron actualizar las anomalías: ${err instanceof Error ? err.message : err}`);
+      }
+    }
+  }
+
+  // Detecta, de la asistencia ya registrada de un empleado, las llegadas tarde, salidas antes de hora y ausencias injustificadas, y las deja
+  // como anomalías pendientes (sin cambiar el pago). Se vuelve a calcular completo cada vez: lo que cambió o se justificó se actualiza.
+  async sincronizarAnomaliasEmpleado(empleadoId: string): Promise<void> {
+    const empleado = await this.empleadoRepo.findOneBy({ id: empleadoId });
+    if (!empleado || empleado.esConfianza || empleado.esPrueba) return;
+    const p = await this.parametros.mapa();
+    const emp = conHorario(empleado, await this.parametros.horarioBase());
+    const porFecha = new Map<string, AnomaliaDetectada[]>();
+    for (const dia of await this.diaRepo.find({ where: { empleadoId } })) {
+      const tramo = dia.tipoDia === 'ordinario' ? horarioDelDia(emp, dia.fecha) : null;
+      porFecha.set(dia.fecha, detectarAnomaliasDeDia({ tipoDia: dia.tipoDia, estado: dia.estado, descuenta: dia.descuenta, marcas: dia.marcas, resolucionTipo: dia.resolucionTipo }, tramo, esperadoMinutos(dia.fecha, emp, p), p));
+    }
+    await this.anomalias.aplicarDetectadas(empleadoId, ['tardanza', 'salida_temprana', 'ausencia'], porFecha);
   }
 
   // Suma una marca hecha desde el celular a las del día y vuelve a interpretar el día con las mismas reglas del reloj.
@@ -557,6 +605,11 @@ export class AsistenciaService implements OnModuleInit {
 
     if (dto.justificante && !existsSync(join(CARPETA_JUSTIFICANTES, dto.justificante))) {
       throw new BadRequestException('El comprobante no se encontró: subilo de nuevo.');
+    }
+
+    // Descontar o justificar horas faltantes solo tiene sentido en un día con marcas completas (si no, se resuelve con hora manual).
+    if ([TipoResolucionDia.HORAS_JUSTIFICADAS, TipoResolucionDia.HORAS_INJUSTIFICADAS, TipoResolucionDia.ALMUERZO_MANUAL].includes(dto.tipo) && dia.estado !== EstadoDia.OK) {
+      throw new BadRequestException('Este día tiene una marca por confirmar (el sistema sospecha que falta la entrada o la salida): primero confirme la hora con «Se anotó hora manual».');
     }
 
     const p = await this.parametros.mapa();
@@ -626,6 +679,7 @@ export class AsistenciaService implements OnModuleInit {
         }),
       );
     });
+    await this.sincronizarAnomaliasDe([dia.empleadoId]);
     return dia;
   }
 

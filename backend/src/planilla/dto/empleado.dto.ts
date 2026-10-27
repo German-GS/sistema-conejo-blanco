@@ -336,20 +336,29 @@ export class CesarEmpleadoDto {
   motivo: string;
 }
 
-// Préstamo del Banco Popular que se le descuenta al empleado por planilla.
+// Préstamo del Banco Popular o embargo que se le descuenta al empleado por planilla: un monto y cada cuánto.
 export class GuardarDeduccionExternaDto {
-  @IsString()
-  @MinLength(2)
-  @MaxLength(160)
-  descripcion: string;
+  @IsIn(['prestamo_banco_popular', 'embargo'])
+  tipo: 'prestamo_banco_popular' | 'embargo';
 
   @IsNumber({ maxDecimalPlaces: 2 })
   @IsPositive()
   @Max(100_000_000)
-  cuotaMensual: number;
+  monto: number;
 
+  @IsIn(['semana', 'quincena', 'mes'])
+  periodicidad: 'semana' | 'quincena' | 'mes';
+
+  // Número de operación, expediente o nota (opcional).
+  @IsOptional()
+  @IsString()
+  @MaxLength(160)
+  descripcion?: string;
+
+  // Desde cuándo (vacío = hoy) y hasta cuándo (opcional).
+  @IsOptional()
   @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'La fecha de inicio debe ser YYYY-MM-DD.' })
-  fechaDesde: string;
+  fechaDesde?: string;
 
   @IsOptional()
   @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'La fecha de fin debe ser YYYY-MM-DD.' })
