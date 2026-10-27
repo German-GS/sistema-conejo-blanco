@@ -355,10 +355,10 @@ export class GuardarDeduccionExternaDto {
   @MaxLength(160)
   descripcion?: string;
 
-  // Desde cuándo (vacío = hoy) y hasta cuándo (opcional).
+  // Desde cuándo (vacío = desde siempre: aplica a cualquier planilla que se arme) y hasta cuándo (opcional).
   @IsOptional()
   @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'La fecha de inicio debe ser YYYY-MM-DD.' })
-  fechaDesde?: string;
+  fechaDesde?: string | null;
 
   @IsOptional()
   @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'La fecha de fin debe ser YYYY-MM-DD.' })

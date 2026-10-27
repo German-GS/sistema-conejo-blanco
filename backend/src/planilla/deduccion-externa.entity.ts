@@ -31,9 +31,9 @@ export class DeduccionExterna {
   @Column({ type: 'varchar', length: 10, default: 'mes' })
   periodicidad: 'semana' | 'quincena' | 'mes';
 
-  // Período en que se descuenta (hasta = null: sin fecha de fin, mientras esté activo).
-  @Column({ type: 'date', name: 'fecha_desde' })
-  fechaDesde: string;
+  // Período en que se descuenta. Sin fecha de inicio (null) vale para cualquier planilla desde siempre; sin fecha de fin (null), mientras esté activo.
+  @Column({ type: 'date', name: 'fecha_desde', nullable: true })
+  fechaDesde: string | null;
 
   @Column({ type: 'date', name: 'fecha_hasta', nullable: true })
   fechaHasta: string | null;

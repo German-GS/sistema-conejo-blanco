@@ -7,6 +7,9 @@ Versionado `MAYOR.MENOR.PARCHE`:
 
 La versión se cambia en `app/package.json` y `backend/package.json` (el pie de página y el panel del sistema la leen solos).
 
+## 1.23.2 — 28 oct 2026 — Los préstamos y embargos no se descontaban en la planilla de la semana pasada
+- **Corrección:** el formulario de «Préstamos y embargos» ponía por defecto «se descuenta desde» el **día en que se anotaba**, y una planilla de una semana anterior (que es lo normal: se arma después) veía el descuento como «todavía no empieza» y no lo aplicaba. Resultado: el libro de salarios salía con 0 en «Préstamos y embargos». Ahora **«desde» es opcional y vacío = aplica a cualquier planilla que se arme** (también a la semana pasada); solo se pone una fecha si el descuento empieza después. Los préstamos que ya se anotaron con el «desde» automático se corrigen solos al arrancar el servidor (una sola vez; no toca fechas puestas a propósito). Después hay que usar **Recalcular** en la planilla en borrador.
+
 ## 1.23.1 — 28 oct 2026 — «Días sin marcas» según el horario de cada persona
 - **Corrección:** el aviso «N empleado(s) no tienen marcas del reloj en este período» de la planilla contaba **todos los sábados** como días que debieron tener marcas, aunque la persona no trabaje los sábados (ej. 50 h de lunes a viernes). Ahora solo cuentan los días de **su propio horario por día** (o el de la fábrica si no tiene propio): quien no trabaja los sábados no los debe, y quien trabaja domingos como día normal sí los tiene. No cambiaba ningún monto, pero obligaba a marcar «Pagar igual la jornada completa» para aprobar. Para que desaparezca de una planilla en borrador, use **Recalcular**.
 

@@ -2,7 +2,7 @@
 import { computed, onMounted, reactive, ref } from 'vue';
 import { api, ApiError } from '../lib/api.js';
 import { exito } from '../lib/avisos.js';
-import { fechaHoyISO, formatearColones, formatearFecha } from '../lib/format.js';
+import { formatearColones, formatearFecha } from '../lib/format.js';
 
 // Préstamos del Banco Popular y embargos del empleado: se anota solo cuánto se descuenta y cada cuánto (semana, quincena o mes), tal como lo
 // manda el banco o el juzgado. La planilla lo reparte sola entre las semanas (los sábados del mes o de la quincena). No es plata de la empresa.
@@ -38,8 +38,8 @@ function abrir(p) {
   editando.value = p ?? {};
   error.value = '';
   Object.assign(form, p
-    ? { tipo: p.tipo, monto: Number(p.monto), periodicidad: p.periodicidad, descripcion: p.descripcion ?? '', fechaDesde: p.fechaDesde, fechaHasta: p.fechaHasta ?? '', saldo: p.saldo === null ? '' : Number(p.saldo), activa: p.activa }
-    : { tipo: 'prestamo_banco_popular', monto: '', periodicidad: 'mes', descripcion: '', fechaDesde: fechaHoyISO(), fechaHasta: '', saldo: '', activa: true });
+    ? { tipo: p.tipo, monto: Number(p.monto), periodicidad: p.periodicidad, descripcion: p.descripcion ?? '', fechaDesde: p.fechaDesde ?? '', fechaHasta: p.fechaHasta ?? '', saldo: p.saldo === null ? '' : Number(p.saldo), activa: p.activa }
+    : { tipo: 'prestamo_banco_popular', monto: '', periodicidad: 'mes', descripcion: '', fechaDesde: '', fechaHasta: '', saldo: '', activa: true });
 }
 
 async function guardar() {
@@ -51,7 +51,7 @@ async function guardar() {
       monto: Number(form.monto),
       periodicidad: form.periodicidad,
       descripcion: form.descripcion.trim(),
-      fechaDesde: form.fechaDesde || undefined,
+      fechaDesde: form.fechaDesde || null,
       fechaHasta: form.fechaHasta || null,
       saldo: form.saldo === '' || form.saldo === null ? null : Number(form.saldo),
       activa: form.activa,
@@ -97,7 +97,7 @@ const explicacion = computed(() => {
           <button type="button" class="font-semibold text-blue-700 underline" @click="abrir(p)">Editar</button>
         </div>
         <p class="text-xs text-slate-700">
-          <strong>{{ formatearColones(p.monto) }} {{ PERIODOS[p.periodicidad] }}</strong> · desde {{ formatearFecha(p.fechaDesde) }}<template v-if="p.fechaHasta"> hasta {{ formatearFecha(p.fechaHasta) }}</template>
+          <strong>{{ formatearColones(p.monto) }} {{ PERIODOS[p.periodicidad] }}</strong><template v-if="p.fechaDesde"> · desde {{ formatearFecha(p.fechaDesde) }}</template><template v-else> · desde siempre</template><template v-if="p.fechaHasta"> hasta {{ formatearFecha(p.fechaHasta) }}</template>
           <template v-if="p.saldo !== null"> · saldo {{ formatearColones(p.saldo) }}</template>
         </p>
         <p class="mt-1 text-xs text-slate-600">
@@ -134,7 +134,11 @@ const explicacion = computed(() => {
         <summary class="cursor-pointer font-semibold text-slate-700">Más opciones (referencia, fechas, saldo)</summary>
         <div class="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div class="sm:col-span-2"><label class="label">Número de operación o expediente</label><input v-model="form.descripcion" class="input" maxlength="160" placeholder="opcional" /></div>
-          <div><label class="label">Se descuenta desde</label><input v-model="form.fechaDesde" type="date" class="input" /></div>
+          <div>
+            <label class="label">Se descuenta desde (opcional)</label>
+            <input v-model="form.fechaDesde" type="date" class="input" />
+            <p class="mt-1 text-xs text-slate-500">Vacío = aplica a cualquier planilla que se arme, también a la semana pasada. Ponga una fecha solo si el descuento empieza después.</p>
+          </div>
           <div><label class="label">Hasta (opcional)</label><input v-model="form.fechaHasta" type="date" class="input" /></div>
           <div><label class="label">Saldo pendiente (₡, opcional)</label><input v-model="form.saldo" type="number" min="0" step="0.01" class="input" placeholder="vacío = sin control de saldo" /></div>
           <label v-if="editando.id" class="flex items-center gap-2 self-end text-sm"><input v-model="form.activa" type="checkbox" class="size-4" /> Activo (se sigue descontando)</label>

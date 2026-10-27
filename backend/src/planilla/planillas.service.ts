@@ -254,7 +254,7 @@ export class PlanillasService {
       // Primero los embargos (orden de un juzgado) y luego los préstamos.
       const externas = (await this.externaRepo.find({ where: { empleadoId: empleado.id, activa: true }, order: { creadoEn: 'ASC' } }))
         .sort((a, b) => Number(b.tipo === 'embargo') - Number(a.tipo === 'embargo'))
-        .filter((x) => x.fechaDesde <= planilla.fechaHasta && (!x.fechaHasta || x.fechaHasta >= planilla.fechaDesde))
+        .filter((x) => (!x.fechaDesde || x.fechaDesde <= planilla.fechaHasta) && (!x.fechaHasta || x.fechaHasta >= planilla.fechaDesde))
         .map((x) => ({
           id: x.id,
           descripcion: etiquetaDeduccion(x),

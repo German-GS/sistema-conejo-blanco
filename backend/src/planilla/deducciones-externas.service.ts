@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException, type OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { BitacoraService } from '../bitacora/bitacora.service.js';
@@ -18,12 +18,26 @@ const ETIQUETA_PERIODO = { semana: 'por semana', quincena: 'por quincena', mes: 
 export const etiquetaDeduccion = (d: Pick<DeduccionExterna, 'tipo' | 'descripcion'>): string => `${ETIQUETA_TIPO[d.tipo]}${d.descripcion?.trim() ? ` ${d.descripcion.trim()}` : ''}`;
 
 @Injectable()
-export class DeduccionesExternasService {
+export class DeduccionesExternasService implements OnModuleInit {
   constructor(
     @InjectRepository(DeduccionExterna) private readonly repo: Repository<DeduccionExterna>,
     @InjectRepository(Empleado) private readonly empleados: Repository<Empleado>,
     private readonly bitacora: BitacoraService,
   ) {}
+
+  // En la 1.23.0 el formulario ponía «desde» = el día en que se anotaba, y una planilla de una semana anterior no veía el descuento. A lo anotado
+  // antes de este arreglo con ese «desde» automático se le quita la fecha de inicio (una sola vez: no toca lo anotado después).
+  async onModuleInit() {
+    try {
+      await this.repo.query(
+        // «Desde» automático = el día en que se anotó (en hora de Costa Rica, que puede ser el día anterior a la fecha en UTC): se compara por día, sin depender del huso del servidor.
+        `UPDATE planilla_deducciones_externas SET fecha_desde = NULL
+         WHERE fecha_desde IS NOT NULL AND creado_en < '2026-10-27 22:00:00' AND fecha_desde BETWEEN creado_en::date - 1 AND creado_en::date`,
+      );
+    } catch (err) {
+      new Logger(DeduccionesExternasService.name).warn(`No se pudo normalizar la fecha de inicio de los descuentos: ${err instanceof Error ? err.message : err}`);
+    }
+  }
 
   // Con lo que se descontaría cada semana del mes en curso, para que quien digita vea el efecto de lo que anotó.
   async listar(empleadoId: string) {
@@ -36,15 +50,15 @@ export class DeduccionesExternasService {
     }));
   }
 
-  private validar(dto: GuardarDeduccionExternaDto, desde: string) {
-    if (dto.fechaHasta && dto.fechaHasta < desde) throw new BadRequestException('La fecha de fin no puede ser anterior a la de inicio.');
+  private validar(dto: GuardarDeduccionExternaDto, desde: string | null) {
+    if (dto.fechaHasta && desde && dto.fechaHasta < desde) throw new BadRequestException('La fecha de fin no puede ser anterior a la de inicio.');
     if (dto.tipo === 'prestamo_banco_popular' && dto.periodicidad === 'quincena') throw new BadRequestException('Un préstamo del banco se descuenta por semana o por mes.');
   }
 
   async crear(empleadoId: string, dto: GuardarDeduccionExternaDto, actor: Actor) {
     const empleado = await this.empleados.findOneBy({ id: empleadoId });
     if (!empleado) throw new NotFoundException('El empleado no existe.');
-    const desde = dto.fechaDesde ?? hoyISO();
+    const desde = dto.fechaDesde || null;
     this.validar(dto, desde);
     const guardada = await this.repo.save(
       this.repo.create({
@@ -66,7 +80,7 @@ export class DeduccionesExternasService {
   async actualizar(id: string, dto: GuardarDeduccionExternaDto, actor: Actor) {
     const d = await this.repo.findOne({ where: { id }, relations: { empleado: true } });
     if (!d) throw new NotFoundException('El descuento no existe.');
-    const desde = dto.fechaDesde ?? d.fechaDesde;
+    const desde = dto.fechaDesde === undefined ? d.fechaDesde : dto.fechaDesde || null;
     this.validar(dto, desde);
     const antes = `₡${d.monto} ${ETIQUETA_PERIODO[d.periodicidad]}, ${d.activa ? 'activo' : 'inactivo'}`;
     Object.assign(d, {
