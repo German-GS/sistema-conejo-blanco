@@ -56,9 +56,9 @@ const HojaAlistamientoPage = () => import('../views/pedidos/HojaAlistamientoPage
 const routes = [
   { path: '/login', name: 'login', component: LoginPage, meta: { publica: true } },
   // Celular del empleado: sin cuenta del sistema (se activa con un código y se prueba con celular + PIN).
-  { path: '/marcar', name: 'marcar', component: MarcarPage, meta: { publica: true } },
+  { path: '/marcar', name: 'marcar', component: MarcarPage, meta: { publica: true, sinInactividad: true } },
   // Pantalla fija de un punto de marca (tablet en la empresa) con el QR que cambia cada 30 s.
-  { path: '/punto', name: 'punto-pantalla', component: PantallaPuntoPage, meta: { publica: true } },
+  { path: '/punto', name: 'punto-pantalla', component: PantallaPuntoPage, meta: { publica: true, sinInactividad: true } },
   { path: '/cambiar-clave', name: 'cambiar-clave', component: CambiarClavePage },
   // Punto de venta de la tienda: pantalla completa, funciona sin internet.
   { path: '/pos', name: 'pos', component: PosPage, meta: { usaPOS: true } },

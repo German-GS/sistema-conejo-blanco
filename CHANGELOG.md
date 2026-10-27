@@ -7,6 +7,10 @@ Versionado `MAYOR.MENOR.PARCHE`:
 
 La versión se cambia en `app/package.json` y `backend/package.json` (el pie de página y el panel del sistema la leen solos).
 
+## 1.20.1 — 27 oct 2026 — La pantalla del punto ya no pide «¿Sigue ahí?» y tiene modo pantalla completa
+- **Sin cierre por inactividad en las pantallas de marca** (`/punto` y `/marcar`): no usan la sesión del sistema, así que el aviso «¿Sigue ahí? Su sesión se cerrará…» ya no aparece sobre el QR aunque el navegador tenga una sesión abierta. El resto del sistema conserva su control de inactividad.
+- **Pantalla completa y bloqueo** en la pantalla del punto: un botón la pone en pantalla completa, la mantiene encendida e ignora los toques (nadie cierra o cambia la página por accidente). **Para salir hay que mantener presionada la hora 3 segundos** (o Esc en un teclado). La pantalla cubre también el pie de página. En un iPad sin pantalla completa real se avisa cómo ocultar las barras con «Añadir a pantalla de inicio».
+
 ## 1.20.0 — 27 oct 2026 — Empleado de prueba para probar la marca
 - En la ficha del empleado, casilla **«Empleado de prueba»** (solo la ve y la puede marcar el administrador del sistema; no se puede en alguien que ya tiene planillas pagadas). Sirve para probar cómo marca el personal (celular, PIN y QR) sin dejar rastro:
   - **Nunca entra a una planilla**, no genera días de asistencia, no sale en el informe de empleados ni en la importación del reloj o del Excel de empleados.

@@ -21,6 +21,14 @@ let consulta = null;
 let bloqueoPantalla = null;
 let vence = 0;
 
+// Modo quiosco: pantalla completa + pantalla encendida + toques ignorados. Se sale manteniendo presionada la hora 3 segundos (o con Esc).
+const bloqueada = ref(false);
+const progresoSalida = ref(0);
+const SOSTENER_MS = 3000;
+let sosteniendo = null;
+const fullscreenSoportado = !!(document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen);
+const enFullscreen = () => !!(document.fullscreenElement || document.webkitFullscreenElement);
+
 const credencial = () => {
   try {
     return JSON.parse(localStorage.getItem(CLAVE) ?? 'null');
@@ -74,7 +82,48 @@ async function mantenerEncendida() {
   }
 }
 
+async function bloquear() {
+  bloqueada.value = true;
+  const el = document.documentElement;
+  try {
+    if (el.requestFullscreen) await el.requestFullscreen({ navigationUI: 'hide' });
+    else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+  } catch {
+    /* sin pantalla completa igual queda el bloqueo de toques */
+  }
+  mantenerEncendida();
+}
+
+function desbloquear() {
+  bloqueada.value = false;
+  progresoSalida.value = 0;
+  if (enFullscreen()) (document.exitFullscreen ?? document.webkitExitFullscreen)?.call(document);
+}
+
+// Si la persona sale de pantalla completa por su cuenta (Esc, gesto del sistema), se quita también el bloqueo.
+function alCambiarFullscreen() {
+  if (bloqueada.value && fullscreenSoportado && !enFullscreen()) desbloquear();
+}
+
+function empezarSalida() {
+  const inicio = Date.now();
+  clearInterval(sosteniendo);
+  sosteniendo = setInterval(() => {
+    progresoSalida.value = Math.min(100, ((Date.now() - inicio) / SOSTENER_MS) * 100);
+    if (progresoSalida.value >= 100) {
+      clearInterval(sosteniendo);
+      desbloquear();
+    }
+  }, 50);
+}
+function cancelarSalida() {
+  clearInterval(sosteniendo);
+  progresoSalida.value = 0;
+}
+
 onMounted(() => {
+  document.addEventListener('fullscreenchange', alCambiarFullscreen);
+  document.addEventListener('webkitfullscreenchange', alCambiarFullscreen);
   // El token llega en el enlace una sola vez: se guarda en esta tablet y se quita de la barra de direcciones.
   if (route.query.p && route.query.t) {
     localStorage.setItem(CLAVE, JSON.stringify({ puntoId: String(route.query.p), token: String(route.query.t) }));
@@ -87,6 +136,9 @@ onMounted(() => {
   document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && mantenerEncendida());
 });
 onBeforeUnmount(() => {
+  document.removeEventListener('fullscreenchange', alCambiarFullscreen);
+  document.removeEventListener('webkitfullscreenchange', alCambiarFullscreen);
+  clearInterval(sosteniendo);
   clearInterval(temporizador);
   clearTimeout(consulta);
   bloqueoPantalla?.release?.();
@@ -94,7 +146,8 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <main class="flex min-h-screen flex-col items-center justify-center gap-4 bg-white p-4 text-slate-900">
+  <!-- Cubre toda la ventana (también el pie de página del sistema) y, con el bloqueo, ignora los toques. -->
+  <main class="fixed inset-0 z-[60] flex select-none flex-col items-center justify-center gap-4 overflow-hidden bg-white p-4 text-slate-900" :class="bloqueada ? 'touch-none overscroll-none' : ''" @contextmenu.prevent>
     <p class="text-sm font-semibold uppercase tracking-widest text-slate-500">{{ nombre || 'Conejo Blanco' }}</p>
     <h1 class="text-center text-2xl font-bold sm:text-4xl">Escanee para marcar</h1>
     <div v-if="qr" class="flex flex-col items-center gap-3">
@@ -104,7 +157,21 @@ onBeforeUnmount(() => {
       </div>
     </div>
     <p v-if="error" class="max-w-md rounded-xl border border-red-300 bg-red-50 p-3 text-center text-sm font-medium text-red-700">{{ error }}</p>
-    <p class="text-3xl font-bold tabular-nums">{{ reloj }}</p>
+    <div class="flex flex-col items-center gap-1" :title="bloqueada ? 'Mantenga presionada la hora para salir' : ''">
+      <p
+        class="text-3xl font-bold tabular-nums"
+        @pointerdown="bloqueada && empezarSalida()"
+        @pointerup="cancelarSalida"
+        @pointerleave="cancelarSalida"
+        @pointercancel="cancelarSalida"
+      >{{ reloj }}</p>
+      <div v-if="progresoSalida > 0" class="h-1.5 w-32 overflow-hidden rounded-full bg-slate-200"><div class="h-full bg-red-600" :style="{ width: progresoSalida + '%' }"></div></div>
+    </div>
     <p class="max-w-md text-center text-xs text-slate-500">Abra la cámara de su celular, apunte al código y escriba su PIN. El código cambia solo cada 30 segundos.</p>
+    <template v-if="!bloqueada">
+      <button type="button" class="rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50" @click="bloquear">Pantalla completa y bloqueo</button>
+      <p v-if="!fullscreenSoportado" class="max-w-md text-center text-xs text-slate-500">Este navegador no tiene pantalla completa: bloquea los toques, pero para ocultar las barras use «Compartir → Añadir a pantalla de inicio» y abra el sistema desde ese ícono.</p>
+    </template>
+    <p v-else class="text-xs text-slate-400">Pantalla bloqueada · para salir mantenga presionada la hora durante 3 segundos</p>
   </main>
 </template>

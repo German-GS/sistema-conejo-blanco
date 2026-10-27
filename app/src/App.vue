@@ -1,6 +1,6 @@
 <script setup>
 import { ref, watch, onBeforeUnmount } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from './stores/auth.js';
 import AppFooter from './components/AppFooter.vue';
 import { iniciarControlInactividad, fijarMinutosInactividad } from './lib/inactividad.js';
@@ -14,6 +14,9 @@ import PaletaBusqueda from './components/PaletaBusqueda.vue';
 
 const auth = useAuthStore();
 const router = useRouter();
+const route = useRoute();
+const rutaLista = ref(false);
+router.isReady().then(() => (rutaLista.value = true));
 
 let detener = null;
 
@@ -40,21 +43,29 @@ async function reintentar() {
   }
 }
 
-// El control solo corre mientras hay sesión: arranca al iniciar sesión y se
-// apaga al salir (a mano o por inactividad).
+// Al iniciar sesión se carga el perfil y la configuración.
 watch(
   () => auth.autenticado,
   (autenticado) => {
-    detener?.();
-    detener = null;
     if (!autenticado) return;
     auth.refrescarPerfil();
     auth.cargarConfig().then(() => {
       fijarMinutosInactividad(auth.config.inactividadMinutos);
       if (auth.config.mantenimiento?.activo && !auth.esSistema) mantenimiento.value = auth.config.mantenimiento.mensaje;
     });
-    // El encargado de tienda no se desconecta por inactividad: la caja queda abierta durante su turno.
-    if (auth.esEncargadoTienda) return;
+  },
+  { immediate: true },
+);
+
+// El control de inactividad solo corre mientras hay sesión: arranca al iniciar sesión y se apaga al salir (a mano o por inactividad).
+// No corre en las pantallas fijas de marca (/punto, /marcar): no usan la sesión y una tablet encendida todo el día no debe pedir «¿Sigue ahí?».
+// El encargado de tienda tampoco se desconecta: la caja queda abierta durante su turno.
+watch(
+  () => [auth.autenticado, rutaLista.value, route.meta.sinInactividad === true, auth.esEncargadoTienda],
+  ([autenticado, lista, exenta, encargado]) => {
+    detener?.();
+    detener = null;
+    if (!autenticado || !lista || exenta || encargado) return;
     detener = iniciarControlInactividad(() => {
       auth.logout();
       router.push({ name: 'login', query: { expirada: '1' } });
