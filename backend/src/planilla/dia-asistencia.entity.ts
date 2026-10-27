@@ -104,9 +104,9 @@ export class DiaAsistencia {
   @Column({ type: 'boolean', default: true })
   verificado: boolean;
 
-  // De dónde vienen las marcas: 'reloj' (archivo del reloj de huella) o 'manual' (las anotó una persona autorizada).
+  // De dónde vienen las marcas: 'reloj' (archivo del reloj de huella), 'manual' (las anotó una persona autorizada) o 'app' (el empleado marcó desde su celular; se mezclan con las del reloj).
   @Column({ type: 'varchar', length: 10, default: 'reloj' })
-  origen: 'reloj' | 'manual';
+  origen: 'reloj' | 'manual' | 'app';
 
   @Column({ type: 'uuid', name: 'registrado_por_id', nullable: true })
   registradoPorId: string | null;

@@ -85,6 +85,9 @@ import { PuestoPlanilla } from './planilla/puesto.entity.js';
 import { ConfiguracionBancoPopular } from './planilla/configuracion-banco-popular.entity.js';
 import { PlanillaLinea } from './planilla/planilla-linea.entity.js';
 import { AnomaliaEmpleado } from './planilla/anomalia-empleado.entity.js';
+import { AccesoMarca } from './planilla/acceso-marca.entity.js';
+import { PuntoMarca } from './planilla/punto-marca.entity.js';
+import { MarcaApp } from './planilla/marca-app.entity.js';
 
 @Module({
   imports: [
@@ -150,6 +153,9 @@ import { AnomaliaEmpleado } from './planilla/anomalia-empleado.entity.js';
           Planilla,
           PlanillaLinea,
           AnomaliaEmpleado,
+          AccesoMarca,
+          PuntoMarca,
+          MarcaApp,
           ConfiguracionBancoPopular,
           PuestoPlanilla,
           HorarioBase,

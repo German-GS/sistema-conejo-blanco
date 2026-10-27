@@ -589,6 +589,7 @@ const hhmm = (min) => `${Math.floor(min / 60)}:${String(min % 60).padStart(2, '0
               <p class="text-sm font-semibold text-slate-900">
                 {{ nombreDia(d.fecha) }} {{ formatearFecha(d.fecha) }}
                 <span class="ml-1 rounded-full px-2 py-0.5 text-xs font-semibold" :class="ESTADOS[estadoVisual(d)].clase">{{ ESTADOS[estadoVisual(d)].texto }}</span>
+ <span v-if="d.origen === 'app'" class="ml-1 rounded-full bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-700" title="El empleado marcó desde su celular (puede incluir marcas del reloj)">Con celular</span>
                 <span v-if="d.origen === 'manual'" class="ml-1 rounded-full bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-700" title="Las horas las anotó una persona autorizada, no el reloj">Anotada a mano</span>
               </p>
               <p class="text-xs text-slate-500">

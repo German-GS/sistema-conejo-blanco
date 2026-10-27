@@ -30,7 +30,14 @@ export type AccionBitacora =
   | 'inventario_tienda_aumentado'
   | 'empleado_eliminado'
   | 'empleados_importados'
-  | 'marcas_manuales';
+  | 'marcas_manuales'
+  | 'marca_acceso_codigo'
+  | 'marca_acceso_liberado'
+  | 'marca_acceso_enrolado'
+  | 'marca_acceso_fallido'
+  | 'marca_acceso_bloqueado'
+  | 'marca_punto_guardado'
+  | 'marca_pantalla_generada';
 
 export interface EntradaBitacora {
   accion: AccionBitacora;

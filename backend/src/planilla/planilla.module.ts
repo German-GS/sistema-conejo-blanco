@@ -27,6 +27,12 @@ import { InformesService } from './informes.service.js';
 import { InformesController } from './informes.controller.js';
 import { AnomaliaEmpleado } from './anomalia-empleado.entity.js';
 import { AnomaliasService } from './anomalias.service.js';
+import { AccesoMarca } from './acceso-marca.entity.js';
+import { AccesoMarcaService } from './acceso-marca.service.js';
+import { PuntoMarca } from './punto-marca.entity.js';
+import { MarcaApp } from './marca-app.entity.js';
+import { MarcaAppService } from './marca-app.service.js';
+import { AccesoMarcaAdminController, MarcaPublicaController, MarcasAppController, PuntosMarcaAdminController } from './acceso-marca.controller.js';
 
 @Module({
   imports: [
@@ -47,9 +53,12 @@ import { AnomaliasService } from './anomalias.service.js';
       PuestoPlanilla,
       HorarioBase,
       AnomaliaEmpleado,
+      AccesoMarca,
+      PuntoMarca,
+      MarcaApp,
     ]),
   ],
-  providers: [ParametrosService, EmpleadosService, AsistenciaService, PlanillasService, InformesService, BancoPopularService, PuestosService, ColillaService, AnomaliasService],
-  controllers: [PlanillaController, InformesController],
+  providers: [ParametrosService, EmpleadosService, AsistenciaService, PlanillasService, InformesService, BancoPopularService, PuestosService, ColillaService, AnomaliasService, AccesoMarcaService, MarcaAppService],
+  controllers: [PlanillaController, InformesController, AccesoMarcaAdminController, MarcaPublicaController, MarcasAppController, PuntosMarcaAdminController],
 })
 export class PlanillaModule {}

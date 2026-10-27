@@ -25,6 +25,11 @@ const AccesosPage = () => import('../views/admin/AccesosPage.vue');
 const PedidosPage = () => import('../views/admin/PedidosPage.vue');
 const ConfiguracionPage = () => import('../views/admin/ConfiguracionPage.vue');
 const FacturasPage = () => import('../views/admin/FacturasPage.vue');
+const MarcarPage = () => import('../views/MarcarPage.vue');
+const PantallaPuntoPage = () => import('../views/PantallaPuntoPage.vue');
+const PuntosMarcaPage = () => import('../views/admin/planilla/PuntosMarcaPage.vue');
+const MarcasCelularPage = () => import('../views/admin/planilla/MarcasCelularPage.vue');
+const AccesoMarcaPage = () => import('../views/admin/planilla/AccesoMarcaPage.vue');
 const MarcasManualesPage = () => import('../views/admin/planilla/MarcasManualesPage.vue');
 const FacturacionElectronicaPage = () => import('../views/admin/FacturacionElectronicaPage.vue');
 const FacturaNuevaPage = () => import('../views/admin/FacturaNuevaPage.vue');
@@ -50,6 +55,10 @@ const HojaAlistamientoPage = () => import('../views/pedidos/HojaAlistamientoPage
 
 const routes = [
   { path: '/login', name: 'login', component: LoginPage, meta: { publica: true } },
+  // Celular del empleado: sin cuenta del sistema (se activa con un código y se prueba con celular + PIN).
+  { path: '/marcar', name: 'marcar', component: MarcarPage, meta: { publica: true } },
+  // Pantalla fija de un punto de marca (tablet en la empresa) con el QR que cambia cada 30 s.
+  { path: '/punto', name: 'punto-pantalla', component: PantallaPuntoPage, meta: { publica: true } },
   { path: '/cambiar-clave', name: 'cambiar-clave', component: CambiarClavePage },
   // Punto de venta de la tienda: pantalla completa, funciona sin internet.
   { path: '/pos', name: 'pos', component: PosPage, meta: { usaPOS: true } },
@@ -138,6 +147,9 @@ const routes = [
       // Planilla: salarios, exclusivo de Administración (gerente).
       { path: 'planilla/empleados', name: 'planilla-empleados', component: EmpleadosPlanillaPage, meta: { permiso: 'planilla.ver' } },
       { path: 'planilla/marcas-manuales', name: 'planilla-marcas-manuales', component: MarcasManualesPage, meta: { permiso: 'planilla.ver', soloMarcas: true } },
+      { path: 'planilla/puntos-marca', name: 'planilla-puntos-marca', component: PuntosMarcaPage, meta: { permiso: 'planilla.ver', soloSistema: true } },
+      { path: 'planilla/marcas-celular', name: 'planilla-marcas-celular', component: MarcasCelularPage, meta: { permiso: 'planilla.ver' } },
+      { path: 'planilla/acceso-marca', name: 'planilla-acceso-marca', component: AccesoMarcaPage, meta: { permiso: 'planilla.ver', soloSistema: true } },
       { path: 'planilla/asistencia', name: 'planilla-asistencia', component: AsistenciaPage, meta: { permiso: 'planilla.ver' } },
       { path: 'planilla/planillas', name: 'planilla-planillas', component: PlanillasPage, meta: { permiso: 'planilla.ver' } },
       { path: 'planilla/informes', name: 'planilla-informes', component: InformesPlanillaPage, meta: { permiso: 'planilla.ver' } },

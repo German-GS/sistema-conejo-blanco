@@ -5,6 +5,7 @@ import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundEx
 import { InjectRepository } from '@nestjs/typeorm';
 import { existsSync } from 'node:fs';
 import type { HorarioSemanal } from './horario.js';
+import { unirMarcas } from './marca-punto.js';
 import { join } from 'node:path';
 import { Between, DataSource, In, Repository } from 'typeorm';
 import { DiaAsistencia } from './dia-asistencia.entity.js';
@@ -296,7 +297,9 @@ export class AsistenciaService implements OnModuleInit {
             contadores.yaResueltos++;
             continue;
           }
-          const r = clasificarDia(marcas, tipoDia, p, undefined, esperadoMinutos(fecha, emp, p), opcionesEmpleado(emp, p, fecha));
+          // Si el empleado también marcó desde el celular ese día, se juntan las dos fuentes (el reloj no borra lo del celular).
+          const marcasDia = existente?.origen === 'app' ? unirMarcas(existente.marcas, marcas) : marcas;
+          const r = clasificarDia(marcasDia, tipoDia, p, undefined, esperadoMinutos(fecha, emp, p), opcionesEmpleado(emp, p, fecha));
           const dia = existente ?? manager.create(DiaAsistencia, { empleadoId: empleado.id, fecha });
           Object.assign(dia, aCampos(r, tipoDia), { marcas: r.marcas, importacionId: importacion.id });
           await manager.save(DiaAsistencia, dia);
@@ -514,6 +517,29 @@ export class AsistenciaService implements OnModuleInit {
       });
     }
     return { guardados, omitidos: resultados.length - guardados, resultados };
+  }
+
+  // Suma una marca hecha desde el celular a las del día y vuelve a interpretar el día con las mismas reglas del reloj.
+  // No toca días ya decididos por administración ni de planillas aprobadas: en ese caso devuelve por qué.
+  async sumarMarcaDelCelular(empleado: Empleado, fecha: string, hora: string): Promise<{ sumada: boolean; motivo?: string; marcas: string[] }> {
+    const existente = await this.diaRepo.findOneBy({ empleadoId: empleado.id, fecha });
+    const actuales = existente?.marcas ?? [];
+    if (empleado.esDeTienda) return { sumada: false, motivo: 'Personal de tienda: sus horas se anotan en «Horas de tienda».', marcas: actuales };
+    if (existente?.resolucionTipo) return { sumada: false, motivo: 'Este día ya tiene una decisión de administración.', marcas: actuales };
+    if (await this.diaEnPlanillaCerrada(empleado.id, fecha)) return { sumada: false, motivo: 'Este día ya está en una planilla aprobada.', marcas: actuales };
+
+    const p = await this.parametros.mapa();
+    const feriados = await this.parametros.mapaFeriados();
+    const emp = conHorario(empleado, await this.parametros.horarioBase());
+    const tipoDia = tipoDeDia(fecha, feriados, emp.horarioSemanal);
+    const marcas = unirMarcas(actuales, [hora]);
+    const r = clasificarDia(marcas, tipoDia, p, undefined, esperadoMinutos(fecha, emp, p), opcionesEmpleado(emp, p, fecha));
+    const dia = existente ?? this.diaRepo.create({ empleadoId: empleado.id, fecha });
+    // Un día anotado a mano sigue siendo «manual»: el archivo del reloj no lo pisa.
+    Object.assign(dia, aCampos(r, tipoDia), { marcas: r.marcas, origen: existente?.origen === 'manual' ? 'manual' : 'app' });
+    await this.diaRepo.save(dia);
+    await this.anomalias.sincronizarAlmuerzo(empleado, fecha, r.estado === EstadoDia.OK ? r.marcas : [], p);
+    return { sumada: true, marcas: r.marcas };
   }
 
   async resolver(diaId: string, dto: ResolverDiaDto, usuarioId: string): Promise<DiaAsistencia> {

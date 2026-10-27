@@ -108,3 +108,34 @@ Tres grupos, cuatro marcas con tipo explícito cada día: **entrada · salida a 
 
 ## Decisión final sobre el almuerzo (26-oct-2026)
 La empresa decidió **no rebajar** nada por un almuerzo corto o largo: el almuerzo siempre se descuenta como la hora fija. Los casos fuera de lo normal (menos de 30 min, o más de la hora + 10 min) se **anotan como anomalías del empleado** para decidir si se hace una carta de amonestación. Reemplaza lo escrito antes sobre «Resolver» y «tardanza del almuerzo».
+
+## Identidad del empleado: celular + PIN (1.19.0, 27-oct-2026)
+Decisión de la empresa: **un PIN por empleado y un solo celular registrado; solo el administrador del sistema puede reiniciar**.
+
+**Cómo está hecho**
+- Sin cuenta de usuario: el empleado no entra al sistema, solo a `/marcar`. Así una marca nunca abre acceso al resto de los datos.
+- **Activación:** el administrador genera un código de un solo uso (10 caracteres, 24 h; se guarda solo su huella). El empleado lo escribe en su celular (o escanea el QR) y elige su PIN de 6 números (el servidor solo guarda el hash; el administrador nunca lo ve).
+- **Celular como llave:** el celular crea un par de llaves ECDSA P-256 con WebCrypto; la privada se guarda en IndexedDB **como no exportable** y al servidor solo va la pública. Cada acción se firma sobre un **reto de un solo uso de 60 s** (HMAC del servidor, sin estado; el último reto usado se quema de forma atómica para que no se repita).
+- **PIN + firma en cada marca.** 5 fallos → bloqueo de 15 min. Cambiar de celular = código nuevo, que borra celular y PIN anteriores (`marca_acceso_codigo` en la bitácora).
+- Código: `backend/src/planilla/acceso-marca*.ts`, `app/src/lib/dispositivoMarca.js`, `app/src/views/MarcarPage.vue`.
+
+**Límites honestos (hay que decírselos a la empresa)**
+- En la web **no existe un identificador único e inamovible del aparato**. La llave no exportable es lo más fuerte que permite el navegador: no se puede copiar a otro celular, pero **si el empleado borra los datos del navegador, o iPhone limpia el almacenamiento de una página que no se usa en 7 días, la llave se pierde** y hay que dar un código nuevo. Mitigación: pedir que **instalen el sistema en la pantalla de inicio** (PWA instalada no se limpia así) y la app nativa de la etapa 3 resuelve esto del todo.
+- Un empleado puede **prestar su celular y su PIN**: eso ningún sistema lo evita; por eso la etapa siguiente suma el QR rotativo en la empresa + ubicación (+ selfie si hay abusos).
+
+
+## Pantalla del punto y marcar con QR (1.19.0, 27-oct-2026)
+**Hecho**
+- **Puntos de marca** (`planilla_puntos_marca`): nombre, tipo (empresa/tienda), coordenadas, radio (100 m por defecto), si exige QR. Solo el administrador del sistema los administra.
+- **Pantalla (`/punto`)**: tablet/monitor autorizado con un enlace de un solo uso (token; solo se guarda su huella; generar otro deja sin servicio al anterior). Pide el QR vigente al servidor y lo muestra en pantalla completa; no recibe el secreto del punto, solo el código de ese momento. Pantalla encendida con *Wake Lock* cuando el navegador lo permite; sin conexión oculta el QR vencido.
+- **QR**: `HMAC(secreto del punto, punto|ventana de 30 s)`; se acepta la ventana actual y la anterior (30–60 s de margen para escribir el PIN). La URL del QR es `/marcar?p=<punto>&k=<código>`: abre en el celular con la cámara normal, sin escáner dentro de la app.
+- **Marcar** (`POST /marca/marcar`, celular + PIN + QR + ubicación): la hora la pone el servidor en hora de Costa Rica. QR inválido o vencido → se rechaza (hay que escanear otra vez). Ubicación fuera de zona / imprecisa (>150 m) / sin permiso → **se guarda igual y queda «por revisar»**. Tabla `planilla_marcas_app` con todo lo ocurrido (instante, coordenadas, precisión, distancia, motivo, si entró al día).
+- **Mezcla con la asistencia**: `AsistenciaService.sumarMarcaDelCelular` suma la hora a `DiaAsistencia.marcas` (origen `app`; un día `manual` sigue siendo manual) y reclasifica con las reglas de siempre. La importación del reloj **une** las marcas del reloj con las del celular de ese día (`unirMarcas`).
+- Pantalla «Marcas del celular» (planilla.ver) con filtro «solo por revisar».
+
+**Pendiente (siguientes pasos)**
+- **Personal de tienda**: el punto «solo ubicación» ya existe, pero sus marcas no se suman al día (siguen en «Horas de tienda») hasta decidir cómo convivir con ese flujo.
+- **Vendedores de ruta** (entrada/salida con QR en la empresa; visitas con llegada) y app nativa (etapa 3).
+- Marca sin conexión, alertas (viaje imposible, mismo celular en dos empleados, fuera de zona repetido), selfie de evidencia.
+- Un botón del supervisor para «confirmar» o corregir una marca por revisar (hoy solo se ve; se corrige con «Marcas a mano»).
+- Consentimiento escrito del uso de la ubicación (Ley 8968) y política de qué pasa sin celular/datos: definirlo con el abogado laboral antes de exigir esta marca.
