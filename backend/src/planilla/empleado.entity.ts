@@ -131,10 +131,10 @@ export class Empleado {
   @Column({ type: 'varchar', length: 34, nullable: true })
   iban: string | null;
 
-  // Cómo se le paga: por la planilla web del Banco Popular (archivo TXT) o
-  // en efectivo / por otro medio (no entra al archivo del banco).
+  // Cómo se le paga: por la planilla web del Banco Popular (archivo TXT), en efectivo / por otro medio (no entra al archivo del banco) o
+  // «sin_deposito» (los socios): se calcula todo y se pagan las cargas, pero no se le deposita ni entra al pago de la planilla.
   @Column({ type: 'varchar', length: 20, name: 'forma_pago', default: 'banco_popular' })
-  formaPago: 'banco_popular' | 'efectivo';
+  formaPago: 'banco_popular' | 'efectivo' | 'sin_deposito';
 
   // "Identificador único de cliente" que el Banco Popular le asignó al
   // empleado — lo pide el archivo de la planilla web.

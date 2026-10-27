@@ -101,6 +101,8 @@ export class InformesService {
 
   private async libro(desde: string, hasta: string): Promise<Informe> {
     const lineas = await this.lineas(desde, hasta);
+    // Los socios salen en el libro (para calcular lo de la CCSS), pero no se les deposita.
+    const sinDeposito = new Set((await this.dataSource.getRepository(Empleado).find({ where: { formaPago: 'sin_deposito' }, select: { id: true } })).map((e) => e.id));
     const filas = lineas.map((l) => ({
       periodo: `${l.planilla.fechaDesde} al ${l.planilla.fechaHasta}`,
       empleado: l.empleadoNombre,
@@ -119,8 +121,9 @@ export class InformesService {
       deudas: Number(l.deudasDescontadas),
       prestamosBanco: Number(l.deduccionesExternas),
       neto: Number(l.neto),
+      aDepositar: sinDeposito.has(l.empleadoId) ? 0 : Number(l.neto),
     }));
-    const claves = ['base', 'descAusencias', 'descHoras', 'montoExtra', 'montoEspeciales', 'bruto', 'sem', 'ivm', 'bancoPopular', 'renta', 'deudas', 'prestamosBanco', 'neto'];
+    const claves = ['base', 'descAusencias', 'descHoras', 'montoExtra', 'montoEspeciales', 'bruto', 'sem', 'ivm', 'bancoPopular', 'renta', 'deudas', 'prestamosBanco', 'neto', 'aDepositar'];
     return {
       tipo: 'libro',
       titulo: 'Libro de salarios',
@@ -143,6 +146,7 @@ export class InformesService {
         { clave: 'deudas', etiqueta: 'Deudas', tipo: 'moneda' },
         { clave: 'prestamosBanco', etiqueta: 'Préstamos y embargos', tipo: 'moneda' },
         { clave: 'neto', etiqueta: 'Neto', tipo: 'moneda' },
+        { clave: 'aDepositar', etiqueta: 'Neto a depositar (sin socios)', tipo: 'moneda' },
       ],
       filas,
       totales: Object.fromEntries(claves.map((c) => [c, sumar(filas, c)])),

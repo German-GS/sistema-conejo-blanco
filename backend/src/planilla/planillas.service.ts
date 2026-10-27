@@ -5,7 +5,7 @@ import { AsientoContable } from '../contabilidad/asiento-contable.entity.js';
 import type { PagarPlanillaDto } from './dto/otros.dto.js';
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, EntityManager, Repository } from 'typeorm';
+import { DataSource, EntityManager, In, Repository } from 'typeorm';
 import ExcelJS from 'exceljs';
 import { Planilla } from './planilla.entity.js';
 import { PlanillaLinea } from './planilla-linea.entity.js';
@@ -73,6 +73,14 @@ export class PlanillasService {
   }
 
   // Lo que la pantalla necesita para decidir si se puede aprobar.
+  // El neto de quienes no se depositan (los socios): se calcula y se pagan sus cargas, pero no van al archivo del banco ni al pago.
+  private async netoSinDeposito(planilla: Planilla): Promise<{ total: number; personas: Array<{ nombre: string; neto: number }> }> {
+    const sin = await this.empleadoRepo.find({ where: { id: In(planilla.lineas.map((l) => l.empleadoId)), formaPago: 'sin_deposito' }, select: { id: true } });
+    const ids = new Set(sin.map((e) => e.id));
+    const personas = planilla.lineas.filter((l) => ids.has(l.empleadoId)).map((l) => ({ nombre: l.empleadoNombre, neto: Number(l.neto) }));
+    return { total: redondear(personas.reduce((a, p) => a + p.neto, 0)), personas };
+  }
+
   async detalle(id: string) {
     const planilla = await this.buscarOFallar(id);
     const ids = planilla.lineas.map((l) => l.empleadoId);
@@ -86,7 +94,8 @@ export class PlanillasService {
         dias: (l.detalle as { diasSinDatos: number }).diasSinDatos,
         fechas: (l.detalle as { fechasSinDatos?: string[] }).fechasSinDatos ?? [],
       }));
-    return { planilla, pendientes, conDiasSinDatos };
+    const sinDeposito = await this.netoSinDeposito(planilla);
+    return { planilla, pendientes, conDiasSinDatos, netoSinDeposito: sinDeposito.total, sinDeposito: sinDeposito.personas };
   }
 
   async crear(dto: CrearPlanillaDto, usuarioId: string): Promise<Planilla> {
@@ -467,12 +476,14 @@ export class PlanillasService {
     // sin elegir, de la caja general.
     const cuenta = dto.cuentaBancariaId ? await this.cuentasBancarias.buscarActivaOFallar(dto.cuentaBancariaId) : null;
     const codigoCuenta = cuenta?.cuentaContable.codigo ?? CUENTA.CAJA;
-    const neto = redondear(planilla.lineas.reduce((a, l) => a + Number(l.neto), 0));
+    // Solo se paga lo que se deposita o se entrega: el neto de los socios («no se le deposita») sigue como salario por pagar.
+    const { total: netoSocios } = await this.netoSinDeposito(planilla);
+    const neto = redondear(planilla.lineas.reduce((a, l) => a + Number(l.neto), 0) - netoSocios);
     await this.dataSource.transaction(async (manager) => {
       await manager.update(Planilla, id, { estado: EstadoPlanilla.PAGADA, pagadaEn: new Date() });
       await this.contabilidad.registrarAsientoEnTransaccion(manager, {
         fecha,
-        descripcion: `Pago de planilla ${planilla.frecuencia} del ${planilla.fechaDesde} al ${planilla.fechaHasta}${cuenta ? ` — ${cuenta.nombre}` : ''}`,
+        descripcion: `Pago de planilla ${planilla.frecuencia} del ${planilla.fechaDesde} al ${planilla.fechaHasta}${cuenta ? ` — ${cuenta.nombre}` : ''}${netoSocios > 0 ? ' (sin los socios, que no se depositan)' : ''}`,
         origenTipo: REFERENCIA_PLANILLA_PAGO,
         origenId: id,
         lineas: [
@@ -586,11 +597,21 @@ export class PlanillasService {
         Number(l.renta), Number(l.deudasDescontadas), Number(l.neto), Number(l.cargasPatronales), Number(l.provisiones), Number(l.viaticos), (l.detalle as { viaticosJustificante?: string }).viaticosJustificante ?? '', Number(l.deduccionesExternas),
       ]);
     }
+    // Total de cada columna (como la planilla manual): lo devengado, cada deducción, los préstamos y embargos, el neto.
+    const sumaDe = (campo: (l: PlanillaLinea) => string): number => redondear(planilla.lineas.reduce((acum, l) => acum + Number(campo(l)), 0));
     const totales = hoja.addRow([
-      'TOTAL', '', '', '', '', '', '', '',
-      Number(planilla.totalBruto), '', '', '', '', '', Number(planilla.totalNeto), Number(planilla.totalCargasPatronales), Number(planilla.totalProvisiones), planilla.lineas.reduce((a, l) => a + Number(l.viaticos), 0),
+      'TOTAL', '', sumaDe((l) => l.salarioBase), sumaDe((l) => l.descuentoAusencias), sumaDe((l) => l.descuentoHoras), sumaDe((l) => l.horasExtra),
+      sumaDe((l) => l.montoExtra), sumaDe((l) => l.montoEspeciales), sumaDe((l) => l.bruto), sumaDe((l) => l.sem), sumaDe((l) => l.ivm), sumaDe((l) => l.bancoPopular),
+      sumaDe((l) => l.renta), sumaDe((l) => l.deudasDescontadas), sumaDe((l) => l.neto), sumaDe((l) => l.cargasPatronales), sumaDe((l) => l.provisiones), sumaDe((l) => l.viaticos),
+      '', sumaDe((l) => l.deduccionesExternas),
     ]);
     totales.font = { bold: true };
+    // Como la planilla manual: al neto se le quita lo de los socios (se calculan y pagan sus cargas, pero no se les deposita).
+    const socios = await this.netoSinDeposito(planilla);
+    hoja.addRow([]);
+    for (const s of socios.personas) hoja.addRow([`MENOS: SALARIO: ${s.nombre}`, '', '', '', '', '', '', '', '', '', '', '', '', '', s.neto]);
+    const aDepositar = hoja.addRow(['NETO A DEPOSITAR', '', '', '', '', '', '', '', '', '', '', '', '', '', redondear(sumaDe((l) => l.neto) - socios.total)]);
+    aDepositar.font = { bold: true };
     for (let c = 3; c <= 20; c++) if (c !== 6 && c !== 19) hoja.getColumn(c).numFmt = '#,##0.00';
     return Buffer.from(await libro.xlsx.writeBuffer());
   }

@@ -620,6 +620,7 @@ const etiqueta = (lista, v) => lista.find((x) => x.valor === v)?.etiqueta ?? v;
           <select v-model="form.formaPago" class="input">
             <option value="banco_popular">Transferencia — planilla web del Banco Popular</option>
             <option value="efectivo">Efectivo u otro medio (no va en el archivo del banco)</option>
+            <option value="sin_deposito">No se le deposita (socio): se calcula y se pagan las cargas, pero no se paga</option>
           </select>
         </div>
         <template v-if="form.formaPago === 'banco_popular'">

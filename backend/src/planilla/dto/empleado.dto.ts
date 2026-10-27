@@ -95,8 +95,8 @@ export class CrearEmpleadoDto {
   iban?: string;
 
   @IsOptional()
-  @IsIn(['banco_popular', 'efectivo'])
-  formaPago?: 'banco_popular' | 'efectivo';
+  @IsIn(['banco_popular', 'efectivo', 'sin_deposito'])
+  formaPago?: 'banco_popular' | 'efectivo' | 'sin_deposito';
 
   // Horas ordinarias por semana (vacío = las del sistema). Permitido 30–72.
   @IsOptional()
@@ -230,8 +230,8 @@ export class ActualizarEmpleadoDto {
   iban?: string;
 
   @IsOptional()
-  @IsIn(['banco_popular', 'efectivo'])
-  formaPago?: 'banco_popular' | 'efectivo';
+  @IsIn(['banco_popular', 'efectivo', 'sin_deposito'])
+  formaPago?: 'banco_popular' | 'efectivo' | 'sin_deposito';
 
   // Horas ordinarias por semana (vacío = las del sistema). Permitido 30–72.
   @IsOptional()

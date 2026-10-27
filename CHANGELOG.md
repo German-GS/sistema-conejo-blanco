@@ -7,6 +7,18 @@ Versionado `MAYOR.MENOR.PARCHE`:
 
 La versión se cambia en `app/package.json` y `backend/package.json` (el pie de página y el panel del sistema la leen solos).
 
+## 1.24.0 — 28 oct 2026 — Socios: se calculan y se pagan las cargas, pero no se les deposita
+- **Nueva forma de pago «No se le deposita (socio)»** en la ficha del empleado (junto a «Transferencia» y «Efectivo»). Para los socios: la planilla los **calcula igual** (salario, CCSS, cargas patronales y provisiones) y **salen en el libro de salarios** para el cálculo de la Caja, pero **no van en el TXT del banco**, ni se listan como efectivo, ni se les paga.
+- **Archivo del banco:** los socios quedan fuera del TXT y la pantalla del banco los lista aparte («No se depositan: …») con su monto.
+- **Pago de la planilla:** al marcar la planilla como pagada, el asiento sale de caja o banco **solo por lo que se deposita** (neto sin los socios); el neto de los socios sigue como «Salarios por pagar». La descripción del asiento lo dice. Pagar un neto que no se deposita hacía que la caja o el banco bajaran por plata que nunca salió.
+- **Libro de salarios (Excel de la planilla):** debajo del TOTAL salen las líneas «MENOS: SALARIO: …» de cada socio y **«NETO A DEPOSITAR»**, igual que la planilla manual. En el informe «Libro de salarios» hay una columna nueva «Neto a depositar (sin socios)».
+- En la pantalla de la planilla se ve «Neto a depositar» y de quiénes es el resto.
+- Para usarlo: en la ficha de cada socio, «Forma de pago» → «No se le deposita (socio)». Si algún socio no tiene cédula registrada, hay que ponérsela: el reporte de la CCSS la pide.
+
+## 1.23.3 — 28 oct 2026 — Totales del libro y aviso de horas dudosas en «Marcas a mano»
+- **Aviso de horas que parecen un error de digitación** en «Marcas a mano»: si una entrada es antes de las 5:00 (ej. 01:00 en vez de 08:00), una salida después de las 22:00 o una jornada de más de 12 horas, la fila muestra «⚠ Entrada a las 01:00: ¿es correcta?» y al guardar pide confirmar los días dudosos («Revisar» o «Sí, guardar así»). Caso real: una entrada de sábado digitada como 01:00 daba 11 horas en vez de 5 y salían 6 horas extra de más.
+- **Totales:** en el Excel «Libro de salarios» de la planilla, la fila TOTAL solo sumaba el bruto, el neto, las cargas, las provisiones y los viáticos. Ahora suma **cada columna**: salario base, descuentos por ausencias y por horas faltantes, horas y monto de extras, feriado/domingo, SEM, IVM, Banco Popular, renta, deudas, **préstamos y embargos** y neto, como la planilla manual.
+
 ## 1.23.2 — 28 oct 2026 — Los préstamos y embargos no se descontaban en la planilla de la semana pasada
 - **Corrección:** el formulario de «Préstamos y embargos» ponía por defecto «se descuenta desde» el **día en que se anotaba**, y una planilla de una semana anterior (que es lo normal: se arma después) veía el descuento como «todavía no empieza» y no lo aplicaba. Resultado: el libro de salarios salía con 0 en «Préstamos y embargos». Ahora **«desde» es opcional y vacío = aplica a cualquier planilla que se arme** (también a la semana pasada); solo se pone una fecha si el descuento empieza después. Los préstamos que ya se anotaron con el «desde» automático se corrigen solos al arrancar el servidor (una sola vez; no toca fechas puestas a propósito). Después hay que usar **Recalcular** en la planilla en borrador.
 

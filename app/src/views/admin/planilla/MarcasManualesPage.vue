@@ -4,6 +4,7 @@ import { PencilLine, Save } from '@lucide/vue';
 import Cargando from '../../../components/Cargando.vue';
 import { api, ApiError } from '../../../lib/api.js';
 import { exito, fallo } from '../../../lib/avisos.js';
+import { confirmar } from '../../../lib/confirmar.js';
 import { formatearFecha } from '../../../lib/format.js';
 
 // Marcas anotadas a mano mientras el reloj de huella no funciona. Solo administrador del sistema y gerencia general.
@@ -148,9 +149,28 @@ const porGuardar = computed(() => {
   return cambios().length;
 });
 
+// Horas que probablemente son un error de digitación (una entrada a la 1 de la madrugada en vez de las 8): se avisa antes de guardar.
+const aMin = (h) => Number(h.slice(0, 2)) * 60 + Number(h.slice(3, 5));
+function avisoDe(marcas) {
+  const m = marcas.filter(Boolean).sort();
+  if (!m.length) return '';
+  const primera = aMin(m[0]);
+  const ultima = aMin(m[m.length - 1]);
+  if (primera < 5 * 60) return `Entrada a las ${m[0]}: ¿es correcta?`;
+  if (ultima > 22 * 60) return `Salida a las ${m[m.length - 1]}: ¿es correcta?`;
+  if (m.length > 1 && ultima - primera > 12 * 60) return 'Jornada de más de 12 horas: ¿es correcta?';
+  return '';
+}
+
 async function guardar() {
   const dias = cambios();
   if (dias.length === 0) return;
+  const dudosos = dias.map((d) => ({ d, aviso: avisoDe(d.marcas) })).filter((x) => x.aviso);
+  if (dudosos.length > 0) {
+    const nombre = (id) => empleados.value.find((e) => e.id === id)?.nombre ?? '';
+    const lineas = dudosos.map((x) => `${nombre(x.d.empleadoId)}, ${formatearFecha(x.d.fecha)}: ${x.d.marcas.join(' · ')} — ${x.aviso}`);
+    if (!(await confirmar('¿Guardar estas horas aunque parecen un error?', { detalle: lineas, aceptar: 'Sí, guardar así', cancelar: 'Revisar' }))) return;
+  }
   guardando.value = true;
   error.value = '';
   try {
@@ -248,6 +268,7 @@ async function guardar() {
                   <span v-if="diaGuardado(e.id, fechas[i]).origen === 'manual'" class="ml-1 rounded-full bg-blue-50 px-1.5 py-0.5 text-blue-700">a mano</span>
                   <span v-if="diaGuardado(e.id, fechas[i]).resolucionTipo" class="ml-1 text-slate-500">({{ diaGuardado(e.id, fechas[i]).resolucionMotivo === MOTIVO_DIA_LIBRE ? 'libre pagado' : 'decidido' }})</span>
                 </template>
+                <span v-if="avisoDe(celdaDe(e.id, fechas[i]).m)" class="ml-1 rounded-full bg-red-50 px-2 py-0.5 font-semibold text-red-700">⚠ {{ avisoDe(celdaDe(e.id, fechas[i]).m) }}</span>
               </td>
             </tr>
           </tbody>

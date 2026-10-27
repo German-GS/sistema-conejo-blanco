@@ -20,7 +20,7 @@ export interface FilaEmpleado {
   esConfianza: boolean | null;
   marcaReloj: boolean | null;
   cotizaIvm: boolean | null;
-  formaPago: 'banco_popular' | 'efectivo' | null;
+  formaPago: 'banco_popular' | 'efectivo' | 'sin_deposito' | null;
   iban: string | null;
   identificadorBp: string | null;
   errores: string[];
@@ -122,7 +122,7 @@ export async function leerEmpleadosExcel(buffer: Buffer): Promise<FilaEmpleado[]
     const sectorTxt = sinAcentos(String(crudo.sector ?? ''));
     const sector = sectorTxt === 'comercio' ? 'comercio' : sectorTxt === 'industria' ? 'industria' : null;
     const formaTxt = sinAcentos(String(crudo.formaPago ?? ''));
-    const formaPago = formaTxt.startsWith('efec') ? 'efectivo' : formaTxt.startsWith('banco') ? 'banco_popular' : null;
+    const formaPago = formaTxt.startsWith('efec') ? 'efectivo' : formaTxt.startsWith('banco') ? 'banco_popular' : formaTxt.startsWith('sin dep') || formaTxt.startsWith('no se dep') || formaTxt.startsWith('socio') ? 'sin_deposito' : null;
     const iban = String(crudo.iban ?? '').replace(/\s+/g, '').toUpperCase() || null;
     if (iban && !/^CR\d{20}$/.test(iban)) errores.push('El IBAN debe ser CR más 20 dígitos.');
     const ingreso = fechaISO(crudo.fechaIngreso);

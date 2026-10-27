@@ -286,6 +286,10 @@ const fechaCorta = (f) => formatearFecha(f).slice(0, 5);
           <div><p class="text-slate-500">Cargas patronales</p><p class="font-semibold">{{ m(detalle.planilla.totalCargasPatronales) }}</p></div>
           <div><p class="text-slate-500">Provisiones</p><p class="font-semibold">{{ m(detalle.planilla.totalProvisiones) }}</p></div>
         </div>
+        <p v-if="detalle.netoSinDeposito > 0" class="rounded-lg bg-slate-100 p-2 text-sm text-slate-700">
+          <strong>Neto a depositar: {{ m(Number(detalle.planilla.totalNeto) - detalle.netoSinDeposito) }}.</strong>
+          Del neto de arriba, {{ m(detalle.netoSinDeposito) }} es de {{ detalle.sinDeposito.map((s) => s.nombre).join(', ') }}: se calculan y se pagan sus cargas, pero <strong>no se les deposita</strong> (no van al archivo del banco ni al pago de la planilla).
+        </p>
 
         <div v-if="detalle.planilla.estado === 'borrador'" class="flex flex-col gap-2">
           <p v-if="detalle.pendientes" class="rounded-lg bg-amber-50 p-3 text-sm text-amber-800">
@@ -413,6 +417,7 @@ const fechaCorta = (f) => formatearFecha(f).slice(0, 5);
             <button type="button" class="btn-primary w-fit" :disabled="trabajando" @click="descargarBp">Descargar TXT para el banco</button>
           </template>
           <p v-if="bp.efectivo.length" class="text-xs text-slate-500">Se pagan en efectivo (no van en el archivo): {{ bp.efectivo.map((e) => e.nombre).join(', ') }}.</p>
+          <p v-if="bp.sinDeposito?.length" class="text-xs text-slate-500">No se depositan (socios; no van en el archivo): {{ bp.sinDeposito.map((e) => `${e.nombre} ${m(e.monto)}`).join(', ') }}.</p>
           <p v-if="bp.sinMonto.length" class="text-xs text-slate-500">Sin monto a pagar: {{ bp.sinMonto.join(', ') }}.</p>
         </template>
       </div>

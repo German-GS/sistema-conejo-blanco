@@ -80,12 +80,18 @@ export class BancoPopularService {
 
     const pagos: PagoBp[] = [];
     const efectivo: Array<{ nombre: string; monto: number }> = [];
+    // Los socios: se calculan y se pagan sus cargas, pero no se les deposita (no van en el archivo ni se pagan en efectivo).
+    const sinDeposito: Array<{ nombre: string; monto: number }> = [];
     const sinMonto: string[] = [];
     for (const linea of [...planilla.lineas].sort((a, b) => a.empleadoNombre.localeCompare(b.empleadoNombre))) {
       const monto = Number(linea.neto);
       const emp = porId.get(linea.empleadoId);
       if (monto <= 0) {
         sinMonto.push(linea.empleadoNombre);
+        continue;
+      }
+      if (emp?.formaPago === 'sin_deposito') {
+        sinDeposito.push({ nombre: linea.empleadoNombre, monto });
         continue;
       }
       if (!emp || emp.formaPago === 'efectivo') {
@@ -120,6 +126,7 @@ export class BancoPopularService {
       total: archivo?.total ?? 0,
       pagos: pagos.map((p) => ({ nombre: p.nombre, cuenta: cuentaDeIban(p.iban), monto: p.monto })),
       efectivo,
+      sinDeposito,
       sinMonto,
       contenido: archivo?.contenido ?? null,
     };
