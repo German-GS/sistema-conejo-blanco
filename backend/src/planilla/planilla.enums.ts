@@ -45,6 +45,8 @@ export enum TipoResolucionDia {
   ALMUERZO_MANUAL = 'almuerzo_manual',
   HORAS_JUSTIFICADAS = 'horas_justificadas',
   HORAS_INJUSTIFICADAS = 'horas_injustificadas',
+  // Incapacidad médica: la empresa paga solo una parte de esas horas (50 % por defecto, el resto lo cubre la CCSS o el INS).
+  INCAPACIDAD = 'incapacidad',
 }
 
 export enum EstadoPlanilla {

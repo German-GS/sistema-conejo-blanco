@@ -5,6 +5,13 @@
 
 // El domingo solo se llena en quien lo trabaja como un día normal de su semana (ej. comercio: 7 días, con un día libre pagado en
 // otro día). Sin domingo en el horario, el domingo es el descanso y trabajarlo se paga como día especial.
+// Cuántos días a la semana trabaja según un horario propio (null = no tiene horario propio).
+export function diasDeTrabajoPorSemana(h: Partial<Record<(typeof CLAVES_DIA)[number], unknown>> | null | undefined): number | null {
+  if (!h) return null;
+  const n = CLAVES_DIA.filter((c) => h[c]).length;
+  return n > 0 ? n : null;
+}
+
 export const CLAVES_DIA = ['lun', 'mar', 'mie', 'jue', 'vie', 'sab', 'dom'] as const;
 export type ClaveDia = (typeof CLAVES_DIA)[number];
 export interface TramoHorario {

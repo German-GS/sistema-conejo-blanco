@@ -277,8 +277,19 @@ export class EmpleadosService implements OnModuleInit {
     }
   }
 
+  // Una jornada ordinaria de más de 48 horas por semana es un acuerdo especial (sus horas extra se cuentan desde las suyas):
+  // solo el administrador del sistema o la gerencia general pueden pactarla, para que nadie pierda extras por accidente.
+  private validarJornadaEspecial(dto: { horasSemana?: number | null }, usuario: Pick<UsuarioAutenticado, 'rol'>, empleado?: Empleado) {
+    if (dto.horasSemana == null || dto.horasSemana <= 48) return;
+    if (empleado?.horasSemana != null && Number(empleado.horasSemana) === dto.horasSemana) return;
+    if (usuario.rol !== Rol.SISTEMA && usuario.rol !== Rol.GERENTE_GENERAL) {
+      throw new ForbiddenException('Una jornada ordinaria de más de 48 horas por semana solo la puede pactar el administrador del sistema o la gerencia general.');
+    }
+  }
+
   async crear(dto: CrearEmpleadoDto, usuario: Pick<UsuarioAutenticado, 'rol'>): Promise<Empleado> {
     await this.validarEsPrueba(dto, usuario);
+    this.validarJornadaEspecial(dto, usuario);
     this.validarSalario(dto.tipoSalario, dto.frecuenciaPago);
     const horarioSemanal = this.validarHorario(dto.horarioSemanal);
     const numeroReloj = normalizarNumeroReloj(dto.numeroReloj);
@@ -310,6 +321,7 @@ export class EmpleadosService implements OnModuleInit {
   async actualizar(id: string, dto: ActualizarEmpleadoDto, usuario: Pick<UsuarioAutenticado, 'rol'>): Promise<Empleado> {
     const empleado = await this.buscarOFallar(id);
     await this.validarEsPrueba(dto, usuario, empleado);
+    this.validarJornadaEspecial(dto, usuario, empleado);
     const tipo = dto.tipoSalario ?? empleado.tipoSalario;
     const frecuencia = dto.frecuenciaPago ?? empleado.frecuenciaPago;
     this.validarSalario(tipo, frecuencia);

@@ -277,7 +277,7 @@ export class InformesService {
       if (d.estado === EstadoDia.OK && d.minutosNetos > 0) sube('trabajados', 1);
       if (d.estado === EstadoDia.AUSENCIA) {
         if (d.descuenta) sube('ausInjustificadas', 1);
-        else if (d.resolucionTipo === TipoResolucionDia.AUSENCIA_JUSTIFICADA) sube('ausJustificadas', 1);
+        else if (d.resolucionTipo === TipoResolucionDia.AUSENCIA_JUSTIFICADA || d.resolucionTipo === TipoResolucionDia.INCAPACIDAD) sube('ausJustificadas', 1);
       }
       if (d.estado === EstadoDia.MARCA_FALTANTE || d.estado === EstadoDia.MARCAS_AMBIGUAS) sube('pendientes', 1);
       sube('horasExtra', d.minutosExtra / 60);
@@ -337,6 +337,9 @@ export class InformesService {
       } else if (d.estado === EstadoDia.AUSENCIA && tipo === TipoResolucionDia.AUSENCIA_JUSTIFICADA) {
         situacion = 'Ausencia justificada';
         descuento = 'No se descuenta';
+      } else if (tipo === TipoResolucionDia.INCAPACIDAD) {
+        situacion = 'Incapacidad (la empresa paga solo una parte)';
+        descuento = d.minutosDescontar > 0 ? hhmm(d.minutosDescontar) : 'No se descuenta';
       } else if (d.estado === EstadoDia.MARCA_FALTANTE || d.estado === EstadoDia.MARCAS_AMBIGUAS) {
         situacion = 'Marcas por resolver';
       } else if (d.minutosDescontar > 0) {

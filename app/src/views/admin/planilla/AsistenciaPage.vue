@@ -24,6 +24,7 @@ const RESOLUCIONES = {
   almuerzo_manual: 'El almuerzo fue de otra duración (ej. media hora)',
   horas_justificadas: 'Horas faltantes justificadas (no se descuentan)',
   horas_injustificadas: 'Horas faltantes injustificadas (se descuentan)',
+  incapacidad: 'Incapacidad (la empresa paga solo una parte)',
 };
 
 const error = ref('');
@@ -170,7 +171,7 @@ async function subirComprobante(archivo) {
 const elegirComprobante = (ev, destino) => (destino.archivo = ev.target.files?.[0] ?? null);
 const verComprobante = (nombre) =>
   abrirArchivoProtegido(`/planilla/asistencia/justificantes/${nombre}`).catch((err) => (error.value = err instanceof ApiError ? err.message : 'No se pudo abrir el comprobante.'));
-const esJustificacion = (tipo) => ['ausencia_justificada', 'horas_justificadas', 'almuerzo_manual'].includes(tipo);
+const esJustificacion = (tipo) => ['ausencia_justificada', 'horas_justificadas', 'almuerzo_manual', 'incapacidad'].includes(tipo);
 
 // Faltas chicas: no se pide justificar, solo si completó el día.
 const MINUTOS_PREGUNTA_RAPIDA = 25;
@@ -215,7 +216,7 @@ async function guardarRevision() {
 }
 
 const abierto = ref(null);
-const decision = reactive({ tipo: 'horario_estandar', justificarHoras: false, archivo: null, motivo: '', entrada: '', salida: '', almuerzoMinutos: 60, supervisor: '' });
+const decision = reactive({ tipo: 'horario_estandar', justificarHoras: false, archivo: null, motivo: '', entrada: '', salida: '', almuerzoMinutos: 60, supervisor: '', horasIncapacidad: '', porcentajePagoEmpresa: 50 });
 const historial = ref([]);
 
 async function abrir(d) {
@@ -233,6 +234,8 @@ async function abrir(d) {
     salida: est ? (est.faltante === 'salida' ? est.hora : (real[real.length - 1] ?? '')) : '',
     almuerzoMinutos: sePuedeAjustarAlmuerzo(d) ? 30 : 60,
     supervisor: '',
+    horasIncapacidad: '',
+    porcentajePagoEmpresa: 50,
   });
   historial.value = await api.get(`/planilla/asistencia/dias/${d.id}/resoluciones`);
 }
@@ -244,6 +247,10 @@ async function resolver(d) {
     if (decision.archivo) cuerpo.justificante = await subirComprobante(decision.archivo);
     if (decision.tipo === 'almuerzo_manual') {
       cuerpo.almuerzoMinutos = Number(decision.almuerzoMinutos);
+    }
+    if (decision.tipo === 'incapacidad') {
+      if (decision.horasIncapacidad !== '' && decision.horasIncapacidad !== null) cuerpo.horasIncapacidad = Number(decision.horasIncapacidad);
+      cuerpo.porcentajePagoEmpresa = Number(decision.porcentajePagoEmpresa);
     }
     if (decision.tipo === 'hora_manual' || decision.tipo === 'horario_estandar') {
       if (decision.supervisor.trim()) cuerpo.supervisor = decision.supervisor.trim();
@@ -268,10 +275,10 @@ const estadoVisual = (d) => (tieneFaltante(d) && d.minutosDescontar > 0 ? 'ok_fa
 const sePuedeAjustarAlmuerzo = (d) => d.estado === 'ok' && d.marcas.length === 2;
 const opciones = (d) => {
   const almuerzo = sePuedeAjustarAlmuerzo(d) ? ['almuerzo_manual'] : [];
-  if (tieneFaltante(d)) return [...almuerzo, 'horas_justificadas', 'horas_injustificadas', 'hora_manual'];
-  if (d.estado === 'ausencia') return ['ausencia_justificada', 'ausencia_injustificada', 'hora_manual', 'horario_estandar'];
-  if (d.estado === 'ok') return [...almuerzo, 'hora_manual', 'ausencia_injustificada', 'ausencia_justificada'];
-  return ['horario_estandar', 'hora_manual', 'ausencia_injustificada', 'ausencia_justificada'];
+  if (tieneFaltante(d)) return [...almuerzo, 'horas_justificadas', 'horas_injustificadas', 'incapacidad', 'hora_manual'];
+  if (d.estado === 'ausencia') return ['ausencia_justificada', 'ausencia_injustificada', 'incapacidad', 'hora_manual', 'horario_estandar'];
+  if (d.estado === 'ok') return [...almuerzo, 'hora_manual', 'ausencia_injustificada', 'ausencia_justificada', 'incapacidad'];
+  return ['horario_estandar', 'hora_manual', 'ausencia_injustificada', 'ausencia_justificada', 'incapacidad'];
 };
 // Los días por revisar se muestran agrupados por empleado.
 const PROBLEMAS = ['ausencia', 'marca_faltante', 'marcas_ambiguas'];
@@ -296,9 +303,9 @@ const grupos = computed(() => {
 });
 
 // Resolver de una vez todos los días pendientes de un empleado.
-const masivo = reactive({ abierto: null, tipo: 'ausencia_justificada', motivo: '', archivo: null, trabajando: false, supervisor: '' });
+const masivo = reactive({ abierto: null, tipo: 'ausencia_justificada', motivo: '', archivo: null, trabajando: false, supervisor: '', porcentajePagoEmpresa: 50 });
 function abrirMasivo(g) {
-  Object.assign(masivo, { abierto: g.id, tipo: g.pendientes.every((d) => d.estado === 'ausencia') ? 'ausencia_justificada' : 'horario_estandar', motivo: '', archivo: null, supervisor: '' });
+  Object.assign(masivo, { abierto: g.id, tipo: g.pendientes.every((d) => d.estado === 'ausencia') ? 'ausencia_justificada' : 'horario_estandar', motivo: '', archivo: null, supervisor: '', porcentajePagoEmpresa: 50 });
 }
 async function resolverMasivo(g) {
   error.value = '';
@@ -309,7 +316,7 @@ async function resolverMasivo(g) {
     // El mismo comprobante (ej. una incapacidad) sirve para todos los días.
     const justificante = masivo.archivo ? await subirComprobante(masivo.archivo) : undefined;
     for (const d of g.pendientes) {
-      await api.post(`/planilla/asistencia/dias/${d.id}/resolver`, { tipo: masivo.tipo, motivo: masivo.motivo.trim(), justificante, supervisor: masivo.tipo === 'horario_estandar' && masivo.supervisor.trim() ? masivo.supervisor.trim() : undefined });
+      await api.post(`/planilla/asistencia/dias/${d.id}/resolver`, { tipo: masivo.tipo, motivo: masivo.motivo.trim(), justificante, supervisor: masivo.tipo === 'horario_estandar' && masivo.supervisor.trim() ? masivo.supervisor.trim() : undefined, porcentajePagoEmpresa: masivo.tipo === 'incapacidad' ? Number(masivo.porcentajePagoEmpresa) : undefined });
       hechos++;
     }
     exito(`${g.nombre}: ${hechos} día(s) resueltos.`);
@@ -563,7 +570,7 @@ const hhmm = (min) => `${Math.floor(min / 60)}:${String(min % 60).padStart(2, '0
         <div v-if="masivo.abierto === g.id" class="flex flex-col gap-3 rounded-lg bg-slate-50 p-3">
           <p class="text-xs text-slate-600">La misma decisión se aplica a: {{ g.pendientes.map((d) => `${nombreDia(d.fecha)} ${formatearFecha(d.fecha).slice(0, 5)}`).join(', ') }}.</p>
           <div class="flex flex-col gap-1">
-            <label v-for="t in ['ausencia_justificada', 'ausencia_injustificada', 'horario_estandar']" :key="t" class="flex items-center gap-2 text-sm text-slate-700">
+            <label v-for="t in ['ausencia_justificada', 'ausencia_injustificada', 'incapacidad', 'horario_estandar']" :key="t" class="flex items-center gap-2 text-sm text-slate-700">
               <input v-model="masivo.tipo" type="radio" :value="t" class="size-4" /> {{ RESOLUCIONES[t] }}
             </label>
           </div>
@@ -573,7 +580,12 @@ const hhmm = (min) => `${Math.floor(min / 60)}:${String(min % 60).padStart(2, '0
             <input v-model="masivo.supervisor" class="input" placeholder="Nombre de quien confirma que cumplió el horario" />
             <p class="mt-1 text-xs text-slate-500">Se paga el horario completo en ambos casos. El supervisor solo deja constancia de que las horas son verificadas.</p>
           </div>
-          <div v-if="masivo.tipo === 'ausencia_justificada'">
+          <div v-if="masivo.tipo === 'incapacidad'">
+            <label class="label">% de cada día que paga la empresa</label>
+            <input v-model="masivo.porcentajePagoEmpresa" type="number" min="0" max="100" class="input w-28" />
+            <p class="mt-1 text-xs text-slate-500">Se aplica a cada día completo. Normalmente 50 % los primeros días; si la CCSS paga desde el cuarto día, use 0 en esos días (resuélvalos aparte).</p>
+          </div>
+          <div v-if="masivo.tipo === 'ausencia_justificada' || masivo.tipo === 'incapacidad'">
             <label class="label">Comprobante (opcional): foto o PDF, se adjunta a todos los días</label>
             <input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" class="text-sm" @change="elegirComprobante($event, masivo)" />
           </div>
@@ -637,6 +649,20 @@ const hhmm = (min) => `${Math.floor(min / 60)}:${String(min % 60).padStart(2, '0
               </div>
               <p class="max-w-md text-xs text-slate-500">Se descuenta ese almuerzo de las horas del día (el reloj solo marcó entrada y salida). 0 = no se descuenta almuerzo.</p>
             </div>
+            <div v-if="decision.tipo === 'incapacidad'" class="flex flex-wrap items-end gap-3">
+              <div>
+                <label class="label">Horas que cubre la incapacidad (opcional)</label>
+                <input v-model="decision.horasIncapacidad" type="number" min="0.25" max="24" step="0.25" class="input w-36" placeholder="todo el día" />
+              </div>
+              <div>
+                <label class="label">% que paga la empresa</label>
+                <input v-model="decision.porcentajePagoEmpresa" type="number" min="0" max="100" class="input w-28" />
+              </div>
+              <p class="max-w-md text-xs text-slate-500">
+                Vacío = el día completo (o lo que faltó trabajar si ese día hay marcas). La empresa paga ese porcentaje de esas horas (50 % por defecto) y el resto se descuenta;
+                lo demás lo cubre la CCSS o el INS. Si la CCSS paga desde el cuarto día, ahí normalmente la empresa paga 0 %: confírmelo con la contadora.
+              </p>
+            </div>
             <div v-if="decision.tipo === 'hora_manual'" class="grid grid-cols-3 gap-2">
               <div><label class="label">Entrada</label><input v-model="decision.entrada" type="time" class="input" /></div>
               <div><label class="label">Salida</label><input v-model="decision.salida" type="time" class="input" /></div>
@@ -653,8 +679,8 @@ const hhmm = (min) => `${Math.floor(min / 60)}:${String(min % 60).padStart(2, '0
               </p>
             </div>
             <div>
-              <label class="label">{{ decision.tipo === 'ausencia_justificada' ? 'Razón de la justificación *' : 'Motivo de la decisión *' }}</label>
-              <input v-model="decision.motivo" class="input" :placeholder="decision.tipo === 'ausencia_justificada' ? 'Ej. cita médica con comprobante' : 'Ej. el reloj no tomó la salida'" />
+              <label class="label">{{ decision.tipo === 'ausencia_justificada' ? 'Razón de la justificación *' : decision.tipo === 'incapacidad' ? 'Número de boleta y motivo *' : 'Motivo de la decisión *' }}</label>
+              <input v-model="decision.motivo" class="input" :placeholder="decision.tipo === 'ausencia_justificada' ? 'Ej. cita médica con comprobante' : decision.tipo === 'incapacidad' ? 'Ej. boleta CCSS N.º 123456, gripe' : 'Ej. el reloj no tomó la salida'" />
             </div>
             <div v-if="esJustificacion(decision.tipo)">
               <label class="label">Comprobante (opcional): foto o PDF</label>

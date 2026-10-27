@@ -61,6 +61,21 @@ export class ResolverDiaDto {
   @IsBoolean()
   justificarHoras?: boolean;
 
+  // Incapacidad: horas del día que cubre (vacío = el día completo o lo que faltó) y % que paga la empresa (vacío = el parámetro, 50).
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0.25)
+  @Max(24)
+  horasIncapacidad?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @Max(100)
+  porcentajePagoEmpresa?: number;
+
   // Supervisor que confirma las horas (hora manual u horario estándar). Sin
   // él las horas no cuentan como verificadas y no se rebaja nada por ellas.
   @IsOptional()

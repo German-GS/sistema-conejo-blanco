@@ -18,6 +18,7 @@ import { EstadoPlanilla, FrecuenciaPago } from './planilla.enums.js';
 import { ContabilidadService, CUENTA } from '../contabilidad/contabilidad.service.js';
 import { redondear } from '../common/utils/dinero.util.js';
 import { hoyISO, sumarDias } from '../common/utils/fecha.util.js';
+import { diasDeTrabajoPorSemana } from './horario.js';
 import type { AprobarPlanillaDto, CrearPlanillaDto } from './dto/otros.dto.js';
 
 const REFERENCIA_PLANILLA = 'planilla';
@@ -245,6 +246,7 @@ export class PlanillasService {
           tipoSalario: empleado.tipoSalario,
           montoSalario: Number(empleado.montoSalario),
           horasSemana: empleado.horasSemana != null ? Number(empleado.horasSemana) : null,
+          diasPorSemana: diasDeTrabajoPorSemana(empleado.horarioSemanal),
           sector: empleado.sector,
           frecuenciaPago: empleado.frecuenciaPago,
           tieneConyuge: empleado.tieneConyuge,

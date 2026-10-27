@@ -385,3 +385,88 @@ describe('horario por día de la semana', () => {
     expect(validarHorarioSemanal({ lun: { entrada: '08:00', salida: '17:00' }, mar: null }).mar).toBeNull();
   });
 });
+
+describe('jornada ordinaria pactada de 50 horas, de lunes a viernes', () => {
+  const emp50 = { tipoSalario: TipoSalario.SEMANAL, montoSalario: 120000, frecuenciaPago: FrecuenciaPago.SEMANAL, horasSemana: 50, diasPorSemana: 5, sector: 'industria' as const, tieneConyuge: false, cantidadHijos: 0 };
+  const semana = (netosPorDia: number[], extraPorDia: number[] = []) =>
+    netosPorDia.map((n, i) => ({
+      fecha: `2026-11-${String(9 + i).padStart(2, '0')}`, // lunes 9 a viernes 13
+      tipoDia: 'ordinario' as const,
+      estado: n > 0 ? EstadoDia.OK : EstadoDia.AUSENCIA,
+      descuenta: n === 0,
+      minutosNetos: n,
+      minutosExtra: extraPorDia[i] ?? 0,
+      minutosEspeciales: 0,
+      minutosDescontar: 0,
+      feriadoPagoObligatorio: true,
+    }));
+  const corrida = (empleado: Parameters<typeof calcularLinea>[0]['empleado'], dias: ReturnType<typeof semana>) => calcularLinea({ ...base, desde: '2026-11-09', hasta: '2026-11-15', empleado, dias });
+
+  it('5 días de 10 h (50 h) no generan extra: su salario cubre las 50 horas', () => {
+    const r = corrida(emp50, semana([600, 600, 600, 600, 600]));
+    expect(r.horasExtra).toBe(0);
+    expect(r.bruto).toBe(120000);
+  });
+
+  it('lo que pasa de las 50 horas sí es extra, a tiempo y medio sobre ₡120 000 ÷ 50', () => {
+    // un día de 11 h: 1 h extra del día; las ordinarias de la semana (4×10 + 10) siguen en 50
+    const r = corrida(emp50, semana([600, 600, 660, 600, 600], [0, 0, 60, 0, 0]));
+    expect(r.horasExtra).toBe(1);
+    expect(r.montoExtra).toBe(3600); // 1 h × 2 400 × 1,5
+  });
+
+  it('una ausencia descuenta 1/5 del salario (un día de 10 h), no 1/6', () => {
+    const r = corrida(emp50, semana([600, 600, 0, 600, 600]));
+    expect(r.descuentoAusencias).toBe(24000);
+    expect(r.bruto).toBe(96000);
+  });
+
+  it('sin acuerdo especial el tope sigue siendo 48: las mismas 50 horas dan 2 h extra', () => {
+    const normal = { ...emp50, horasSemana: null, diasPorSemana: null };
+    const r = corrida(normal, semana([600, 600, 600, 600, 600]));
+    expect(r.horasExtra).toBe(2);
+  });
+});
+
+describe('incapacidad: la empresa paga solo una parte de las horas', () => {
+  const emp = { horarioEntrada: '08:00', horarioSalida: '17:00', horarioSalidaSabado: '13:00', horarioSemanal: HORARIO_BASE_POR_DEFECTO };
+  const LUNES = '2026-10-05'; // 08:00–17:00: 8 h netas
+  const resolver = (datos: Parameters<typeof aplicarResolucion>[1]) => aplicarResolucion(TipoResolucionDia.INCAPACIDAD, datos, LUNES, 'ordinario', emp, p);
+
+  it('un día completo sin marcas: se descuenta la mitad del día (50 % por defecto)', () => {
+    const r = resolver({});
+    expect(r.estado).toBe(EstadoDia.AUSENCIA);
+    expect(r.descuenta).toBe(false); // no es una ausencia injustificada
+    expect(r.minutosDescontar).toBe(240); // 4 h de 8
+  });
+
+  it('el porcentaje se puede cambiar en la decisión (ej. del 4.º día la CCSS paga y la empresa 0 %)', () => {
+    expect(resolver({ porcentajePagoEmpresa: 0 }).minutosDescontar).toBe(480);
+    expect(resolver({ porcentajePagoEmpresa: 100 }).minutosDescontar).toBe(0);
+  });
+
+  it('solo unas horas: se descuenta la mitad de esas horas', () => {
+    expect(resolver({ horasIncapacidad: 3 }).minutosDescontar).toBe(90);
+  });
+
+  it('con marcas, cubre lo que faltó trabajar (se fue a las 12 con 4 h trabajadas)', () => {
+    const r = resolver({ marcas: ['08:00', '12:00'] });
+    expect(r.estado).toBe(EstadoDia.OK);
+    expect(r.minutosNetos).toBe(240);
+    expect(r.minutosFaltantes).toBe(240);
+    expect(r.minutosDescontar).toBe(120);
+  });
+
+  it('un día completo trabajado no tiene horas que cubrir: pide indicarlas', () => {
+    expect(() => resolver({ marcas: ['08:00', '17:00'] })).toThrow(/indique cuántas horas/);
+  });
+
+  it('en la planilla paga la mitad del día: ₡120 000 semanales con 5 días de 10 h y un día de incapacidad', () => {
+    const emp50 = { tipoSalario: TipoSalario.SEMANAL, montoSalario: 120000, frecuenciaPago: FrecuenciaPago.SEMANAL, horasSemana: 50, diasPorSemana: 5, sector: 'industria' as const, tieneConyuge: false, cantidadHijos: 0 };
+    const dia = (n: number, descontar = 0) => ({ tipoDia: 'ordinario' as const, estado: n > 0 ? EstadoDia.OK : EstadoDia.AUSENCIA, descuenta: false, minutosNetos: n, minutosExtra: 0, minutosEspeciales: 0, minutosDescontar: descontar, feriadoPagoObligatorio: true });
+    const dias = [9, 10, 11, 12, 13].map((d, i) => ({ fecha: `2026-11-${String(d).padStart(2, '0')}`, ...(i === 2 ? dia(0, 300) : dia(600)) }));
+    const r = calcularLinea({ ...base, desde: '2026-11-09', hasta: '2026-11-15', empleado: emp50, dias });
+    expect(r.horasAusentes).toBe(5);
+    expect(r.bruto).toBe(108000); // 120 000 − 5 h × 2 400: ese día se paga la mitad (₡12 000 de ₡24 000)
+  });
+});

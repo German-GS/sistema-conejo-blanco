@@ -387,6 +387,10 @@ export interface DatosResolucion {
   // Supervisor que confirmó las horas (única verificación aparte del reloj).
   // Sin él, una hora manual o el horario estándar no son tiempo verificado.
   supervisor?: string;
+  // Incapacidad: horas del día cubiertas (vacío = lo que le faltó trabajar, o todo el día si no hay marcas) y % que paga la empresa
+  // (vacío = el parámetro INCAPACIDAD_PAGO_EMPRESA_PORCENTAJE).
+  horasIncapacidad?: number;
+  porcentajePagoEmpresa?: number;
 }
 
 export interface HorarioEmpleado extends DatosJornadaEmpleado {
@@ -422,6 +426,21 @@ export function aplicarResolucion(
   }
   if (tipo === TipoResolucionDia.AUSENCIA_JUSTIFICADA) {
     return vacio(EstadoDia.AUSENCIA, [], null, false);
+  }
+  if (tipo === TipoResolucionDia.INCAPACIDAD) {
+    // Las horas de incapacidad se pagan solo en parte: lo que no paga la empresa se descuenta como horas no pagadas.
+    const marcas = datos.marcas ?? [];
+    const esperado = esperadoMinutos(fecha, horario, p);
+    // «decidido»: administración ya sabe por qué hay pocas horas (se fue enfermo), así que no se trata como marca faltante.
+    const r = marcas.length > 0 ? clasificarDia(marcas, tipoDia, p, undefined, esperado, { ...opcionesEmpleado(horario, p, fecha), verificado: true, decidido: true }) : vacio(EstadoDia.AUSENCIA, [], null, false);
+    if (marcas.length > 0 && r.estado !== EstadoDia.OK) throw new Error('Este día tiene marcas incompletas: primero resuélvalo con hora manual y luego anote la incapacidad.');
+    const minutos = datos.horasIncapacidad !== undefined ? Math.round(datos.horasIncapacidad * 60) : marcas.length > 0 ? r.minutosFaltantes : esperado;
+    if (minutos <= 0) throw new Error(marcas.length > 0 && datos.horasIncapacidad === undefined ? 'Este día no tiene horas faltantes: indique cuántas horas cubre la incapacidad.' : 'Ese día no tiene horario: indique cuántas horas cubre la incapacidad.');
+    const pago = datos.porcentajePagoEmpresa ?? p.INCAPACIDAD_PAGO_EMPRESA_PORCENTAJE ?? 50;
+    r.descuenta = false;
+    r.verificado = true;
+    r.minutosDescontar = Math.round(minutos * (1 - pago / 100));
+    return r;
   }
   if (tipo === TipoResolucionDia.HORARIO_ESTANDAR) {
     const tramo = horarioDelDia(horario, fecha);
@@ -489,8 +508,11 @@ export interface DiaParaPago {
 }
 
 export interface EmpleadoParaPago {
-  // Horas ordinarias por semana de este empleado (vacío = las del sistema).
+  // Horas ordinarias por semana de este empleado (vacío = las del sistema). Si pasa de 48 es un acuerdo especial: su salario cubre
+  // esas horas, así que la hora vale salario ÷ horasSemana y solo lo que pase de ahí en la semana es extra.
   horasSemana?: number | null;
+  // Días que trabaja por semana según su horario propio (vacío = 6, de lunes a sábado). Con 5 días, 50 horas son 10 por día.
+  diasPorSemana?: number | null;
   // Cómo se paga el día de descanso (domingo) a quien cobra por semana:
   //  - 'comercio': el descanso está incluido en el pago semanal (se paga aunque
   //    no se trabaje) y la hora vale el salario semanal ÷ 56 (7 días × 8 h);
@@ -576,7 +598,7 @@ function siguiente(fecha: string): string {
 export function calcularLinea(e: EntradaLinea): ResultadoLinea {
   const { empleado, dias, p } = e;
   const horasSemana = empleado.horasSemana && empleado.horasSemana > 0 ? empleado.horasSemana : p.HORAS_SEMANA_PAGADAS;
-  const horasDia = empleado.horasSemana && empleado.horasSemana > 0 ? empleado.horasSemana / 6 : p.HORAS_DIA_ORDINARIA;
+  const horasDia = empleado.horasSemana && empleado.horasSemana > 0 ? empleado.horasSemana / (empleado.diasPorSemana && empleado.diasPorSemana > 0 ? empleado.diasPorSemana : 6) : p.HORAS_DIA_ORDINARIA;
 
   // Quien cobra por quincena o por mes ya tiene el día de descanso (y los
   // feriados) dentro del salario — art. 152 del Código de Trabajo: si se
@@ -651,7 +673,9 @@ export function calcularLinea(e: EntradaLinea): ResultadoLinea {
     const lunes = lunesDeSemana(d.fecha);
     ordinariosPorSemana.set(lunes, (ordinariosPorSemana.get(lunes) ?? 0) + Math.max(0, d.minutosNetos - d.minutosExtra));
   }
-  const topeSemanaMin = (p.TOPE_ORDINARIAS_SEMANA_HORAS ?? 48) * 60;
+  // El tope es el de los parámetros (48), salvo para quien tiene pactada una jornada ordinaria mayor (ej. 50 horas): ahí es la suya.
+  const topeGeneral = p.TOPE_ORDINARIAS_SEMANA_HORAS ?? 48;
+  const topeSemanaMin = Math.max(topeGeneral, empleado.horasSemana ?? 0) * 60;
   for (const ordinarios of ordinariosPorSemana.values()) minutosExtra += Math.max(0, ordinarios - topeSemanaMin);
 
   const descuentoAusencias = redondear(diasAusencia * horasDia * tarifaHora);

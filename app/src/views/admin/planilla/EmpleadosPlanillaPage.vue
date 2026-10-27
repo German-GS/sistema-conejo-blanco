@@ -350,8 +350,10 @@ function alCambiarLugar() {
 const explicacionPago = computed(() => {
   const monto = Number(form.montoSalario) || 0;
   const horas = Number(form.horasSemana) || 0;
-  const horasDia = horas > 0 ? horas / 6 : 8;
-  const contrato = horas > 0 ? ` Tiene un contrato especial de ${horas} horas ordinarias por semana: hasta ${Math.floor(horasDia)}:${String(Math.round((horasDia % 1) * 60)).padStart(2, '0')} horas al día se pagan como ordinarias, no como extra.` : '';
+  // Días que trabaja por semana: los de su horario propio (ej. 5 de lunes a viernes) o, sin horario propio, de lunes a sábado.
+  const diasTrabajo = horarioDistinto.value ? Object.values(form.horarioSemanal ?? {}).filter(Boolean).length || 6 : 6;
+  const horasDia = horas > 0 ? horas / diasTrabajo : 8;
+  const contrato = horas > 0 ? ` Tiene pactada una jornada ordinaria de ${horas} horas por semana (${diasTrabajo} días de ${Math.floor(horasDia)}:${String(Math.round((horasDia % 1) * 60)).padStart(2, '0')} h): esas horas son ordinarias, no extra; solo lo que pase de ${horas} horas en la semana se paga como extra.` : '';
   const comercio = form.sector === 'comercio';
   let hora = 0;
   let texto = '';
@@ -664,8 +666,8 @@ const etiqueta = (lista, v) => lista.find((x) => x.valor === v)?.etiqueta ?? v;
           </div>
           <p class="mb-2 mt-1 text-xs text-slate-500">
             Parte del horario de la fábrica. Si esta persona tiene otro horario, cambie lo que haga falta en la tabla: queda
-            como horario propio. Si no se toca, sigue el de la fábrica y se actualiza cuando ese cambie. (Un contrato especial
-            de horas por semana, más abajo, manda sobre el horario.)
+            como horario propio. Si no se toca, sigue el de la fábrica y se actualiza cuando ese cambie. (Una jornada de más de
+            48 horas por semana pactada con la persona se anota más abajo, en «Jornada y almuerzo».)
           </p>
           <HorarioSemanalEditor v-model="form.horarioSemanal" :almuerzo-min="Number(form.almuerzoMinutos) || 60" />
         </div>
@@ -693,6 +695,16 @@ const etiqueta = (lista, v) => lista.find((x) => x.valor === v)?.etiqueta ?? v;
             Solo si este empleado es distinto al resto. Al guardar, sus marcas ya importadas que nadie ha resuelto a mano se
             vuelven a calcular con esta configuración.
           </p>
+          <div v-if="auth.esSistema || auth.esGerenteGeneral || Number(form.horasSemana) > 48" class="mt-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+            <label class="label" for="horas-semana">Jornada ordinaria pactada, en horas por semana (opcional)</label>
+            <input id="horas-semana" v-model="form.horasSemana" type="number" min="30" max="72" step="0.5" class="input w-32" placeholder="vacío" :disabled="!(auth.esSistema || auth.esGerenteGeneral)" />
+            <p class="mt-1 text-xs leading-relaxed">
+              <strong>Déjelo vacío para casi todos.</strong> Solo para un acuerdo especial: por ejemplo, quien trabaja 50 horas de lunes a viernes y su salario ya cubre las 50.
+              Con este dato <strong>esas horas no son extra</strong> (solo lo que pase de ahí en la semana), la hora vale el salario ÷ esas horas y las horas por día salen de los días de su horario.
+              Sin este dato, todo lo que pase de 48 horas por semana se paga como extra. Solo el administrador del sistema o la gerencia general lo pueden poner.
+            </p>
+            <p v-if="Number(form.horasSemana) > 0 && !horarioDistinto" class="mt-1 text-xs font-semibold text-red-700">Anote también su horario por día (arriba): sin él se asume que trabaja de lunes a sábado.</p>
+          </div>
           <label class="mt-3 flex items-start gap-2 text-sm text-slate-700">
             <input v-model="form.marcaReloj" type="checkbox" class="mt-0.5 size-4" :disabled="form.esConfianza" />
             <span>
@@ -769,6 +781,7 @@ const etiqueta = (lista, v) => lista.find((x) => x.valor === v)?.etiqueta ?? v;
               <span v-if="e.sector === 'comercio'" class="ml-2 rounded-full bg-orange-50 px-2 py-0.5 text-xs font-medium text-orange-700">Comercio</span>
               <span v-if="e.esDeTienda" class="ml-2 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">Tienda</span>
               <span v-if="e.cotizaIvm === false" class="ml-2 rounded-full bg-teal-50 px-2 py-0.5 text-xs font-medium text-teal-700" title="Pensionado que sigue trabajando: no cotiza IVM">Pensionado</span>
+              <span v-if="Number(e.horasSemana) > 48" class="ml-2 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800" :title="`Jornada ordinaria pactada de ${Number(e.horasSemana)} horas por semana: esas horas no son extra`">Jornada de {{ Number(e.horasSemana) }} h</span>
               <span v-if="e.esPrueba" class="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800" title="Solo para probar: no entra a planillas ni genera asistencia">De prueba</span>
               <span v-if="e.esConfianza" class="ml-2 rounded-full bg-violet-50 px-2 py-0.5 text-xs font-medium text-violet-700" title="Sin jornada fija: fuera del control del reloj, se le paga siempre la jornada completa">De confianza</span>
               <span v-if="e.activo && !e.marcaReloj && !e.esConfianza" class="ml-2 rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">No usa el reloj</span>

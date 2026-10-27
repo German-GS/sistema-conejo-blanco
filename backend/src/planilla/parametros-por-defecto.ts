@@ -51,6 +51,7 @@ export const PARAMETROS_POR_DEFECTO: Array<{ nombre: string; valor: number; desc
   { nombre: 'REBAJO_SOLO_VERIFICADO', valor: 1, descripcion: '1 = solo se rebajan horas faltantes si el tiempo está verificado (marcas reales o supervisor). 0 = también se rebaja lo digitado a mano sin confirmar.', tipo: T.JORNADA },
   { nombre: 'TOPE_ORDINARIAS_SEMANA_HORAS', valor: 48, descripcion: 'Horas ordinarias máximas por semana (lunes a domingo). Lo que pase de ahí en la semana se paga como hora extra, desde el primer minuto.', tipo: T.JORNADA },
   { nombre: 'ALMUERZO_ANOMALIA_CORTO_MINUTOS', valor: 30, descripcion: 'Un almuerzo marcado de menos de estos minutos se anota como anomalía del empleado (no cambia el pago: el almuerzo siempre se descuenta fijo).', tipo: T.JORNADA },
+  { nombre: 'INCAPACIDAD_PAGO_EMPRESA_PORCENTAJE', valor: 50, descripcion: 'En una incapacidad, % de las horas que paga la empresa (el resto lo cubre la CCSS o el INS). Se puede cambiar en cada decisión.', tipo: T.JORNADA },
   { nombre: 'FACTOR_EXTRA', valor: 1.5, descripcion: 'Multiplicador de la hora extra (tiempo y medio).', tipo: T.JORNADA },
   { nombre: 'FACTOR_FERIADO', valor: 2, descripcion: 'Multiplicador de la hora trabajada en feriado.', tipo: T.JORNADA },
   { nombre: 'FACTOR_DOMINGO', valor: 2, descripcion: 'Multiplicador de la hora trabajada en el día de descanso (domingo).', tipo: T.JORNADA },
