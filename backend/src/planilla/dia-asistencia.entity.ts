@@ -104,6 +104,16 @@ export class DiaAsistencia {
   @Column({ type: 'boolean', default: true })
   verificado: boolean;
 
+  // De dónde vienen las marcas: 'reloj' (archivo del reloj de huella) o 'manual' (las anotó una persona autorizada).
+  @Column({ type: 'varchar', length: 10, default: 'reloj' })
+  origen: 'reloj' | 'manual';
+
+  @Column({ type: 'uuid', name: 'registrado_por_id', nullable: true })
+  registradoPorId: string | null;
+
+  @Column({ type: 'timestamptz', name: 'registrado_en', nullable: true })
+  registradoEn: Date | null;
+
   // Marca que falta y la hora que el sistema propuso según el horario.
   @Column({ type: 'jsonb', nullable: true })
   estimacion: Estimacion | null;

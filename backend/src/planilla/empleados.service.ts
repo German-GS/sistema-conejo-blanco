@@ -200,6 +200,7 @@ export class EmpleadosService implements OnModuleInit {
           esDeTienda: f.esDeTienda ?? undefined,
           esConfianza: f.esConfianza ?? undefined,
           marcaReloj: f.marcaReloj ?? undefined,
+          cotizaIvm: f.cotizaIvm ?? undefined,
           formaPago: f.formaPago ?? undefined,
           iban: f.iban ?? undefined,
           identificadorBp: f.identificadorBp ?? undefined,

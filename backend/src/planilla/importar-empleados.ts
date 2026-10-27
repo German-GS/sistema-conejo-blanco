@@ -19,6 +19,7 @@ export interface FilaEmpleado {
   esDeTienda: boolean | null;
   esConfianza: boolean | null;
   marcaReloj: boolean | null;
+  cotizaIvm: boolean | null;
   formaPago: 'banco_popular' | 'efectivo' | null;
   iban: string | null;
   identificadorBp: string | null;
@@ -44,6 +45,7 @@ const ALIAS: Record<string, string> = {
   'es de tienda': 'esDeTienda', tienda: 'esDeTienda',
   'puesto de confianza': 'esConfianza', confianza: 'esConfianza',
   'marca en reloj': 'marcaReloj', 'marca reloj': 'marcaReloj',
+  'cotiza ivm': 'cotizaIvm', 'cotiza al ivm': 'cotizaIvm',
   'forma de pago': 'formaPago',
   iban: 'iban', cuenta: 'iban',
   'identificador banco popular': 'identificadorBp', 'identificador bp': 'identificadorBp', 'identificador unico cliente': 'identificadorBp',
@@ -141,6 +143,7 @@ export async function leerEmpleadosExcel(buffer: Buffer): Promise<FilaEmpleado[]
       esDeTienda: bool(crudo.esDeTienda),
       esConfianza: bool(crudo.esConfianza),
       marcaReloj: bool(crudo.marcaReloj),
+      cotizaIvm: bool(crudo.cotizaIvm),
       formaPago,
       iban,
       identificadorBp: soloDigitos(crudo.identificadorBp) || null,
@@ -170,6 +173,7 @@ export interface EmpleadoExistente {
   esDeTienda: boolean;
   esConfianza: boolean;
   marcaReloj: boolean;
+  cotizaIvm?: boolean;
   formaPago: string;
   iban: string | null;
   identificadorBp: string | null;
@@ -215,7 +219,7 @@ export function buscarExistente(f: FilaEmpleado, existentes: EmpleadoExistente[]
 const ETIQUETAS: Record<string, string> = {
   cedula: 'Cédula', numeroReloj: 'N.º de reloj', puesto: 'Puesto', departamento: 'Departamento', fechaIngreso: 'Fecha de ingreso', tipoSalario: 'Tipo de salario',
   monto: 'Monto', frecuenciaPago: 'Se paga', horasSemana: 'Horas por semana', sector: 'Sector', esDeTienda: 'De tienda',
-  esConfianza: 'Puesto de confianza', marcaReloj: 'Marca en reloj', formaPago: 'Forma de pago', iban: 'IBAN', identificadorBp: 'Identificador B. Popular',
+  esConfianza: 'Puesto de confianza', marcaReloj: 'Marca en reloj', cotizaIvm: 'Cotiza IVM', formaPago: 'Forma de pago', iban: 'IBAN', identificadorBp: 'Identificador B. Popular',
 };
 const sino = (b: boolean) => (b ? 'Sí' : 'No');
 
@@ -234,8 +238,9 @@ export function compararFila(f: FilaEmpleado, e: EmpleadoExistente): Cambio[] {
   poner('frecuenciaPago', e.frecuenciaPago, f.frecuenciaPago);
   if (f.horasSemana !== null && Number(e.horasSemana ?? 0) !== f.horasSemana) c.push({ campo: 'horasSemana', etiqueta: ETIQUETAS.horasSemana, antes: e.horasSemana ? String(Number(e.horasSemana)) : '—', despues: String(f.horasSemana) });
   poner('sector', e.sector, f.sector);
-  for (const k of ['esDeTienda', 'esConfianza', 'marcaReloj'] as const) {
-    if (f[k] !== null && f[k] !== e[k]) c.push({ campo: k, etiqueta: ETIQUETAS[k], antes: sino(e[k]), despues: sino(f[k] as boolean) });
+  for (const k of ['esDeTienda', 'esConfianza', 'marcaReloj', 'cotizaIvm'] as const) {
+    const actual = k === 'cotizaIvm' ? e.cotizaIvm !== false : e[k];
+    if (f[k] !== null && f[k] !== actual) c.push({ campo: k, etiqueta: ETIQUETAS[k], antes: sino(actual), despues: sino(f[k] as boolean) });
   }
   poner('formaPago', e.formaPago, f.formaPago);
   poner('iban', e.iban ?? '', f.iban);

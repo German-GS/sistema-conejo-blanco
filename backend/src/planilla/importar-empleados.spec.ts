@@ -42,7 +42,7 @@ describe('leerEmpleadosExcel', () => {
 describe('planificarImportacion', () => {
   const fila = (extra: Partial<FilaEmpleado> = {}): FilaEmpleado => ({
     fila: 2, nombre: 'Salas V. Mario', cedula: '111111111', numeroReloj: null, puesto: null, departamento: null, fechaIngreso: null, tipoSalario: 'por_hora', monto: 2300, frecuenciaPago: 'semanal',
-    horasSemana: null, sector: null, esDeTienda: null, esConfianza: null, marcaReloj: null, formaPago: null, iban: null, identificadorBp: null, errores: [], ...extra,
+    horasSemana: null, sector: null, esDeTienda: null, esConfianza: null, marcaReloj: null, cotizaIvm: null, formaPago: null, iban: null, identificadorBp: null, errores: [], ...extra,
   });
 
   it('reconoce al mismo empleado por cédula y dice qué cambia', () => {
@@ -92,7 +92,7 @@ describe('ausentesDelArchivo', () => {
   const base = (id: string, nombre: string, extra = {}) => ({ ...existente({ id, nombre, cedula: null }), activo: true, fechaCese: null, ...extra });
   const fila = (nombre: string): FilaEmpleado => ({
     fila: 2, nombre, cedula: null, numeroReloj: null, puesto: null, departamento: null, fechaIngreso: null, tipoSalario: 'por_hora', monto: 1, frecuenciaPago: 'semanal', horasSemana: null,
-    sector: null, esDeTienda: null, esConfianza: null, marcaReloj: null, formaPago: null, iban: null, identificadorBp: null, errores: [],
+    sector: null, esDeTienda: null, esConfianza: null, marcaReloj: null, cotizaIvm: null, formaPago: null, iban: null, identificadorBp: null, errores: [],
   });
 
   it('lista solo a los activos que el archivo no reconoció, y no a los ya cesados', () => {

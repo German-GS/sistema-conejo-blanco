@@ -22,7 +22,7 @@ export class Planilla {
 
   // Viáticos anotados a mano por empleado (empleadoId → monto). Viven aquí para que sobrevivan a cada recálculo de las líneas.
   @Column({ type: 'jsonb', default: () => "'{}'" })
-  viaticos: Record<string, number>;
+  viaticos: Record<string, number | { monto: number; justificante: string }>;
 
   @Column({ type: 'decimal', precision: 14, scale: 2, name: 'total_bruto', default: 0 })
   totalBruto: string;

@@ -25,6 +25,8 @@ import { PlanillaController } from './planilla.controller.js';
 import { ColillaService } from './colilla.service.js';
 import { InformesService } from './informes.service.js';
 import { InformesController } from './informes.controller.js';
+import { AnomaliaEmpleado } from './anomalia-empleado.entity.js';
+import { AnomaliasService } from './anomalias.service.js';
 
 @Module({
   imports: [
@@ -44,9 +46,10 @@ import { InformesController } from './informes.controller.js';
       ConfiguracionBancoPopular,
       PuestoPlanilla,
       HorarioBase,
+      AnomaliaEmpleado,
     ]),
   ],
-  providers: [ParametrosService, EmpleadosService, AsistenciaService, PlanillasService, InformesService, BancoPopularService, PuestosService, ColillaService],
+  providers: [ParametrosService, EmpleadosService, AsistenciaService, PlanillasService, InformesService, BancoPopularService, PuestosService, ColillaService, AnomaliasService],
   controllers: [PlanillaController, InformesController],
 })
 export class PlanillaModule {}

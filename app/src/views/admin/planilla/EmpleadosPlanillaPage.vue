@@ -7,10 +7,23 @@ import { exito, fallo } from '../../../lib/avisos.js';
 import { useAuthStore } from '../../../stores/auth.js';
 import { FileSpreadsheet, Search, Upload, X } from '@lucide/vue';
 import CesePanel from '../../../components/CesePanel.vue';
+import AnomaliasPanel from '../../../components/AnomaliasPanel.vue';
 import HorarioSemanalEditor from '../../../components/HorarioSemanalEditor.vue';
 import { formatearColones, formatearFecha, fechaHoyISO } from '../../../lib/format.js';
 
 const auth = useAuthStore();
+
+// Anomalías pendientes por empleado (aviso en la lista) y el panel abierto.
+const anomaliasPendientes = ref({});
+const anomaliasDe = ref(null);
+async function cargarAnomaliasPendientes() {
+  try {
+    anomaliasPendientes.value = await api.get('/planilla/anomalias/pendientes-por-empleado');
+  } catch {
+    anomaliasPendientes.value = {};
+  }
+}
+onMounted(cargarAnomaliasPendientes);
 
 // Solo el administrador del sistema: borra al empleado con todo su historial (datos de prueba).
 async function eliminarEmpleado(e) {
@@ -144,6 +157,7 @@ function formVacio() {
     puestoId: '',
     departamento: '',
     esConfianza: false,
+    cotizaIvm: true,
     horarioSemanal: horarioBaseCopia(),
     sector: 'industria',
     fechaIngreso: fechaHoyISO(),
@@ -244,6 +258,7 @@ function editar(e) {
     departamento: e.departamento ?? '',
     puestoId: e.puestoId ?? '',
     esConfianza: e.esConfianza === true,
+    cotizaIvm: e.cotizaIvm !== false,
     horarioSemanal: e.horarioSemanal ? { lun: null, mar: null, mie: null, jue: null, vie: null, sab: null, ...e.horarioSemanal } : horarioBaseCopia(),
     sector: e.sector ?? 'industria',
     iban: e.iban ?? '',
@@ -272,6 +287,7 @@ async function guardar() {
       ...(form.puestoId ? { puestoId: form.puestoId } : { puesto: form.puesto.trim() || undefined }),
       departamento: form.departamento.trim(),
       esConfianza: form.esConfianza,
+      cotizaIvm: form.cotizaIvm,
       sector: form.sector,
       // null = sigue el horario de la fábrica (si no se tocó la tabla)
       horarioSemanal: form.esConfianza || !horarioDistinto.value ? null : form.horarioSemanal,
@@ -571,6 +587,13 @@ const etiqueta = (lista, v) => lista.find((x) => x.valor === v)?.etiqueta ?? v;
             Asistencia ni como «sin marcas», no se les piden marcas y se les paga siempre la jornada completa.
           </span>
         </label>
+        <label class="flex items-start gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700 sm:col-span-2">
+          <input v-model="form.cotizaIvm" type="checkbox" class="mt-0.5 size-4" />
+          <span>
+            <strong>Cotiza al IVM (pensión).</strong> Desmárquelo solo si es <strong>pensionado y sigue trabajando</strong>: entonces la planilla
+            le rebaja SEM y Banco Popular (6,5 %) pero no IVM. Confirme su caso con la contadora.
+          </span>
+        </label>
         <div>
           <label class="label">Fecha de ingreso</label>
           <input v-model="form.fechaIngreso" type="date" class="input" />
@@ -734,6 +757,7 @@ const etiqueta = (lista, v) => lista.find((x) => x.valor === v)?.etiqueta ?? v;
               <span v-else-if="!e.activo" class="ml-2 rounded-full bg-slate-200 px-2 py-0.5 text-xs font-semibold text-slate-600">Inactivo</span>
               <span v-if="e.sector === 'comercio'" class="ml-2 rounded-full bg-orange-50 px-2 py-0.5 text-xs font-medium text-orange-700">Comercio</span>
               <span v-if="e.esDeTienda" class="ml-2 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">Tienda</span>
+              <span v-if="e.cotizaIvm === false" class="ml-2 rounded-full bg-teal-50 px-2 py-0.5 text-xs font-medium text-teal-700" title="Pensionado que sigue trabajando: no cotiza IVM">Pensionado</span>
               <span v-if="e.esConfianza" class="ml-2 rounded-full bg-violet-50 px-2 py-0.5 text-xs font-medium text-violet-700" title="Sin jornada fija: fuera del control del reloj, se le paga siempre la jornada completa">De confianza</span>
               <span v-if="e.activo && !e.marcaReloj && !e.esConfianza" class="ml-2 rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">No usa el reloj</span>
             </p>
@@ -744,6 +768,9 @@ const etiqueta = (lista, v) => lista.find((x) => x.valor === v)?.etiqueta ?? v;
           </div>
           <div class="flex gap-3 text-sm font-semibold text-blue-700">
             <button type="button" class="underline" @click="abrirDeudas(e)">Deudas</button>
+            <button type="button" class="underline" @click="anomaliasDe = anomaliasDe === e.id ? null : e.id">
+              Anomalías<span v-if="anomaliasPendientes[e.id]" class="ml-1 rounded-full bg-amber-100 px-1.5 py-0.5 text-xs text-amber-800">{{ anomaliasPendientes[e.id] }}</span>
+            </button>
             <button v-if="auth.esSistema" type="button" class="text-red-700 underline" @click="eliminarEmpleado(e)">Eliminar</button>
             <button type="button" class="underline" @click="editar(e)">Editar</button>
             <button v-if="e.activo && !e.fechaCese" type="button" class="text-red-700 underline" @click="ceseDe = { id: e.id, nombre: e.nombre, modo: 'cesar' }">Dar de baja</button>
@@ -765,6 +792,7 @@ const etiqueta = (lista, v) => lista.find((x) => x.valor === v)?.etiqueta ?? v;
           @cancelar="ceseDe = null; cargar()"
         />
 
+        <AnomaliasPanel v-if="anomaliasDe === e.id" :empleado="e" @cambio="cargarAnomaliasPendientes" @cerrar="anomaliasDe = null" />
         <div v-if="deudasDe?.id === e.id" class="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
           <p class="mb-2 text-sm font-semibold text-slate-800">Deudas de {{ e.nombre }} con la empresa</p>
           <ul v-if="deudas.length" class="mb-3 flex flex-col gap-2 text-sm">

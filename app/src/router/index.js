@@ -25,6 +25,7 @@ const AccesosPage = () => import('../views/admin/AccesosPage.vue');
 const PedidosPage = () => import('../views/admin/PedidosPage.vue');
 const ConfiguracionPage = () => import('../views/admin/ConfiguracionPage.vue');
 const FacturasPage = () => import('../views/admin/FacturasPage.vue');
+const MarcasManualesPage = () => import('../views/admin/planilla/MarcasManualesPage.vue');
 const FacturacionElectronicaPage = () => import('../views/admin/FacturacionElectronicaPage.vue');
 const FacturaNuevaPage = () => import('../views/admin/FacturaNuevaPage.vue');
 const FacturaDetallePage = () => import('../views/admin/FacturaDetallePage.vue');
@@ -136,6 +137,7 @@ const routes = [
       // ConfiguracionController).
       // Planilla: salarios, exclusivo de Administración (gerente).
       { path: 'planilla/empleados', name: 'planilla-empleados', component: EmpleadosPlanillaPage, meta: { permiso: 'planilla.ver' } },
+      { path: 'planilla/marcas-manuales', name: 'planilla-marcas-manuales', component: MarcasManualesPage, meta: { permiso: 'planilla.ver', soloMarcas: true } },
       { path: 'planilla/asistencia', name: 'planilla-asistencia', component: AsistenciaPage, meta: { permiso: 'planilla.ver' } },
       { path: 'planilla/planillas', name: 'planilla-planillas', component: PlanillasPage, meta: { permiso: 'planilla.ver' } },
       { path: 'planilla/informes', name: 'planilla-informes', component: InformesPlanillaPage, meta: { permiso: 'planilla.ver' } },
@@ -193,6 +195,9 @@ router.beforeEach((to) => {
   }
   const modulo = /^planilla-/.test(String(to.name)) ? 'planilla' : /^contabilidad-/.test(String(to.name)) ? 'contabilidad' : /^admin-(facturas|factura-|notas-credito)/.test(String(to.name)) ? 'facturacion' : /^admin-pago/.test(String(to.name)) ? 'pagos' : to.name === 'admin-bodega' ? 'inventario' : to.name === 'pos' || to.name === 'admin-tienda' ? 'pos' : null;
   if (modulo && !auth.moduloActivo(modulo)) {
+    return { name: 'admin-home' };
+  }
+  if (to.meta.soloMarcas && !auth.puedeAnotarMarcas) {
     return { name: 'admin-home' };
   }
   if (to.meta.soloSistema && !auth.esSistema) {

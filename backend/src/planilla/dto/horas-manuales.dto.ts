@@ -35,3 +35,29 @@ export class RegistrarHorasManualesDto {
   @Type(() => DiaManualDto)
   dias: DiaManualDto[];
 }
+
+export class DiaMarcasManualesDto {
+  @IsUUID() empleadoId: string;
+
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'La fecha debe ser YYYY-MM-DD.' })
+  fecha: string;
+
+  // Las horas anotadas (de 0 a 6), tal cual las marcó la persona; el sistema las ordena y las lee como las del reloj.
+  @IsArray()
+  @ArrayMaxSize(6)
+  @Matches(HORA, { each: true, message: 'Cada hora debe ser HH:mm.' })
+  marcas: string[];
+
+  // Sin ninguna marca: true = no vino (queda como ausencia por resolver); false/vacío = no se anotó nada ese día.
+  @IsOptional() ausente?: boolean;
+}
+
+// Marcas anotadas a mano mientras el reloj de huella no funciona. Solo administrador del sistema y gerente general.
+export class RegistrarMarcasManualesDto {
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(400)
+  @ValidateNested({ each: true })
+  @Type(() => DiaMarcasManualesDto)
+  dias: DiaMarcasManualesDto[];
+}

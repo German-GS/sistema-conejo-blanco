@@ -1,4 +1,4 @@
-import { Home, ClipboardList, Users, Package, Warehouse, UserCog, Settings, Receipt, Undo2, HandCoins, BookOpen, NotebookText, Wallet, Fingerprint, SlidersHorizontal, BadgeDollarSign, FileBarChart, ShieldCheck, BookMarked, Lock, Landmark, Server, ChartColumnBig, Store, ScanBarcode, FileSpreadsheet, Palette, FileCheck2 } from '@lucide/vue';
+import { Home, ClipboardList, Users, Package, Warehouse, UserCog, Settings, Receipt, Undo2, HandCoins, BookOpen, NotebookText, Wallet, Fingerprint, SlidersHorizontal, BadgeDollarSign, FileBarChart, ShieldCheck, BookMarked, Lock, Landmark, Server, ChartColumnBig, Store, ScanBarcode, FileSpreadsheet, Palette, FileCheck2, PencilLine } from '@lucide/vue';
 
 // Secciones del panel de administración, en un solo lugar: las usan el menú lateral, la búsqueda rápida (Ctrl/Cmd+K) y las migas de pan.
 // permiso/soloSistema/puedePOS es lo mismo que exige la ruta (ver router/index.js), así el menú y el bloqueo real nunca se desalinean.
@@ -55,6 +55,7 @@ export const NAV = [
     items: [
       { to: { name: 'planilla-empleados' }, etiqueta: 'Empleados', icono: Wallet, palabras: 'planilla personal salario cedula', permiso: 'planilla.ver', modulo: 'planilla' },
       { to: { name: 'planilla-asistencia' }, etiqueta: 'Asistencia', icono: Fingerprint, palabras: 'reloj huella marcas horas planilla importar', permiso: 'planilla.ver', modulo: 'planilla' },
+      { to: { name: 'planilla-marcas-manuales' }, etiqueta: 'Marcas a mano', icono: PencilLine, palabras: 'marcas manuales reloj dañado horas entrada salida almuerzo asistencia', permiso: 'planilla.ver', modulo: 'planilla', soloMarcas: true },
       { to: { name: 'planilla-planillas' }, etiqueta: 'Planillas', icono: BadgeDollarSign, palabras: 'pagar nomina semana quincena aprobar colillas', permiso: 'planilla.ver', modulo: 'planilla' },
       { to: { name: 'planilla-informes' }, etiqueta: 'Informes de planilla', icono: FileSpreadsheet, palabras: 'reportes planilla ccss ins', permiso: 'planilla.ver', modulo: 'planilla' },
       { to: { name: 'planilla-parametros' }, etiqueta: 'Parámetros de planilla', icono: SlidersHorizontal, palabras: 'ley ccss renta tasas planilla', permiso: 'planilla.ver', modulo: 'planilla' },
@@ -71,6 +72,7 @@ export const NAV = [
 export function puedeVer(item, auth) {
   if (item.modulo && !auth.moduloActivo(item.modulo)) return false;
   if (item.soloSistema) return auth.esSistema;
+  if (item.soloMarcas) return auth.puedeAnotarMarcas;
   if (item.puedePOS) return auth.puedeUsarPOS;
   if (item.permiso) return auth.tienePermiso(item.permiso);
   return true;

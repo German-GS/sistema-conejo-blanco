@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsBoolean, IsEnum, IsInt, IsNumber, IsOptional, IsString, IsUUID, Matches, Max, MaxLength, Min, MinLength } from 'class-validator';
+import { IsBoolean, IsEnum, IsIn, IsInt, IsNumber, IsOptional, IsString, IsUUID, Matches, Max, MaxLength, Min, MinLength } from 'class-validator';
 import { FrecuenciaPago, TipoResolucionDia } from '../planilla.enums.js';
 
 const HORA = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -116,4 +116,43 @@ export class ViaticosDto {
   @Min(0)
   @Max(100000000)
   monto: number;
+
+  // Para qué fue el viático y qué comprobante tiene; obligatorio cuando el monto es mayor que 0.
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  justificante?: string;
+}
+
+export class CrearAnomaliaDto {
+  @IsUUID()
+  empleadoId: string;
+
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'La fecha debe ser YYYY-MM-DD.' })
+  fecha: string;
+
+  @IsIn(['almuerzo_corto', 'almuerzo_largo', 'tardanza', 'salida_temprana', 'ausencia', 'otro'])
+  tipo: 'almuerzo_corto' | 'almuerzo_largo' | 'tardanza' | 'salida_temprana' | 'ausencia' | 'otro';
+
+  @IsString()
+  @MinLength(3, { message: 'Describa lo ocurrido.' })
+  @MaxLength(500)
+  detalle: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(1440)
+  minutos?: number;
+}
+
+export class CambiarEstadoAnomaliaDto {
+  @IsIn(['pendiente', 'carta_emitida', 'descartada'])
+  estado: 'pendiente' | 'carta_emitida' | 'descartada';
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  nota?: string;
 }

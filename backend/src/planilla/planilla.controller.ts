@@ -33,6 +33,7 @@ import { Rol } from '../common/enums/rol.enum.js';
 import { Permiso } from '../common/enums/permiso.enum.js';
 import { PermisosMetodoGuard } from '../auth/guards/permisos-metodo.guard.js';
 import { PermisosPorMetodo } from '../auth/decorators/permisos-metodo.decorator.js';
+import { AnomaliasService } from './anomalias.service.js';
 import { ColillaService } from './colilla.service.js';
 import { ParametrosService } from './parametros.service.js';
 import { EmpleadosService } from './empleados.service.js';
@@ -43,9 +44,9 @@ import { BancoPopularService } from './banco-popular.service.js';
 import { PuestosService } from './puestos.service.js';
 import { ActualizarBancoPopularDto } from './dto/banco-popular.dto.js';
 import { GuardarPuestoDto } from './dto/puesto.dto.js';
-import { RegistrarHorasManualesDto } from './dto/horas-manuales.dto.js';
+import { RegistrarHorasManualesDto, RegistrarMarcasManualesDto } from './dto/horas-manuales.dto.js';
 import { CrearEmpleadoDto, ActualizarEmpleadoDto, CesarEmpleadoDto, CrearDeudaDto } from './dto/empleado.dto.js';
-import { ViaticosDto, ActualizarParametroDto, CrearFeriadoDto, ResolverDiaDto, CrearPlanillaDto, AprobarPlanillaDto, PagarPlanillaDto, MotivoPlanillaDto } from './dto/otros.dto.js';
+import { CambiarEstadoAnomaliaDto, CrearAnomaliaDto, ViaticosDto, ActualizarParametroDto, CrearFeriadoDto, ResolverDiaDto, CrearPlanillaDto, AprobarPlanillaDto, PagarPlanillaDto, MotivoPlanillaDto } from './dto/otros.dto.js';
 import type { Mapeo } from './lector-excel.js';
 import { TipoParametroPlanilla, type EstadoDia } from './planilla.enums.js';
 
@@ -82,6 +83,7 @@ export class PlanillaController {
     private readonly bancoPopular: BancoPopularService,
     private readonly puestos: PuestosService,
     private readonly colillas: ColillaService,
+    private readonly anomalias: AnomaliasService,
   ) {}
 
   // ---- Parámetros y feriados ----
@@ -268,6 +270,12 @@ export class PlanillaController {
   }
 
   // Horas de tienda: se meten a mano por día (no marcan en el reloj de la fábrica).
+  // Marcas anotadas a mano mientras el reloj no funciona. Solo administrador del sistema y gerente general (se revisa en el servicio).
+  @Post('asistencia/marcas-manuales')
+  registrarMarcasManuales(@Body() dto: RegistrarMarcasManualesDto, @CurrentUser() usuario: UsuarioAutenticado) {
+    return this.asistencia.registrarMarcasManuales(dto, usuario);
+  }
+
   @Post('asistencia/horas-manuales')
   registrarHorasManuales(@Body() dto: RegistrarHorasManualesDto, @CurrentUser() usuario: UsuarioAutenticado) {
     return this.asistencia.registrarHorasManuales(dto, usuario.id);
@@ -370,7 +378,7 @@ export class PlanillaController {
   // Viáticos de un empleado en una planilla en borrador (0 = quitarlos). Van fuera de los cálculos de planilla.
   @Patch('planillas/:id/viaticos')
   fijarViaticos(@Param('id', ParseUUIDPipe) id: string, @Body() dto: ViaticosDto) {
-    return this.planillas.fijarViaticos(id, dto.empleadoId, dto.monto);
+    return this.planillas.fijarViaticos(id, dto.empleadoId, dto.monto, dto.justificante);
   }
 
   @Post('planillas/:id/recalcular')
@@ -432,6 +440,44 @@ export class PlanillaController {
       'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       'Content-Disposition': `attachment; filename="libro-salarios-${id.slice(0, 8)}.xlsx"`,
     });
+    return new StreamableFile(buffer);
+  }
+
+  // ---- Anomalías de los empleados (almuerzos fuera de lo normal, tardanzas…) y carta de amonestación ----
+  @Get('anomalias')
+  listarAnomalias(@Query('empleadoId') empleadoId?: string, @Query('estado') estado?: string) {
+    const estados = ['pendiente', 'carta_emitida', 'descartada'];
+    if (empleadoId && !/^[0-9a-f-]{36}$/i.test(empleadoId)) throw new BadRequestException('El empleado no es válido.');
+    if (estado && !estados.includes(estado)) throw new BadRequestException('El estado no es válido.');
+    return this.anomalias.listar({ empleadoId: empleadoId || undefined, estado: (estado as 'pendiente') || undefined });
+  }
+
+  @Get('anomalias/pendientes-por-empleado')
+  anomaliasPendientes() {
+    return this.anomalias.pendientesPorEmpleado();
+  }
+
+  @Post('anomalias')
+  crearAnomalia(@Body() dto: CrearAnomaliaDto, @CurrentUser() usuario: UsuarioAutenticado) {
+    return this.anomalias.crear(dto, usuario.id);
+  }
+
+  @Patch('anomalias/:id')
+  cambiarEstadoAnomalia(@Param('id', ParseUUIDPipe) id: string, @Body() dto: CambiarEstadoAnomaliaDto, @CurrentUser() usuario: UsuarioAutenticado) {
+    return this.anomalias.cambiarEstado(id, dto.estado, dto.nota, usuario.id);
+  }
+
+  // Borrador de carta de amonestación (PDF) con las anomalías elegidas (ids separados por coma); las marca como «carta emitida».
+  @Get('anomalias/carta/:empleadoId')
+  async cartaAmonestacion(
+    @Param('empleadoId', ParseUUIDPipe) empleadoId: string,
+    @Query('ids') ids = '',
+    @CurrentUser() usuario: UsuarioAutenticado,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const lista = ids.split(',').filter((x) => /^[0-9a-f-]{36}$/i.test(x));
+    const { nombre, buffer } = await this.anomalias.generarCarta(empleadoId, lista, true, usuario.id);
+    res.set({ 'Content-Type': 'application/pdf', 'Content-Disposition': `attachment; filename="${nombre}"` });
     return new StreamableFile(buffer);
   }
 

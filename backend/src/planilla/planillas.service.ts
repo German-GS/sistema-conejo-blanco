@@ -120,12 +120,15 @@ export class PlanillasService {
 
   // Anota (o quita, con 0) los viáticos de un empleado en una planilla en borrador y recalcula. Quedan guardados en la
   // planilla, así que un recálculo posterior no los pierde.
-  async fijarViaticos(id: string, empleadoId: string, monto: number): Promise<Planilla> {
+  async fijarViaticos(id: string, empleadoId: string, monto: number, justificante = ''): Promise<Planilla> {
     const planilla = await this.buscarOFallar(id);
     if (planilla.estado !== EstadoPlanilla.BORRADOR) throw new BadRequestException('Los viáticos solo se anotan en una planilla en borrador.');
     if (!planilla.lineas.some((l) => l.empleadoId === empleadoId)) throw new BadRequestException('Ese empleado no está en esta planilla.');
     const actuales = { ...(planilla.viaticos ?? {}) };
-    if (monto > 0) actuales[empleadoId] = redondear(monto);
+    const texto = justificante.trim();
+    // Todo viático lleva su justificante: sin él no se sabe si es reembolso de un gasto real o parte del salario.
+    if (monto > 0 && texto.length < 3) throw new BadRequestException('Anote el justificante del viático (para qué fue y qué comprobante tiene).');
+    if (monto > 0) actuales[empleadoId] = { monto: redondear(monto), justificante: texto.slice(0, 255) };
     else delete actuales[empleadoId];
     await this.planillaRepo.update(id, { viaticos: actuales });
     planilla.viaticos = actuales;
@@ -245,6 +248,7 @@ export class PlanillasService {
           frecuenciaPago: empleado.frecuenciaPago,
           tieneConyuge: empleado.tieneConyuge,
           cantidadHijos: empleado.cantidadHijos,
+          cotizaIvm: empleado.cotizaIvm,
         },
         dias: diasPago,
         desde: planilla.fechaDesde,
@@ -261,7 +265,9 @@ export class PlanillasService {
       });
 
       // Viáticos anotados a mano: fuera de todo cálculo de planilla, solo se suman a lo que se le paga.
-      const viaticos = redondear(Math.max(0, Number(planilla.viaticos?.[empleado.id] ?? 0)));
+      const viaticoAnotado = planilla.viaticos?.[empleado.id];
+      const viaticos = redondear(Math.max(0, typeof viaticoAnotado === 'object' ? Number(viaticoAnotado.monto) : Number(viaticoAnotado ?? 0)));
+      const justificanteViaticos = typeof viaticoAnotado === 'object' ? viaticoAnotado.justificante : '';
       lineas.push(
         this.lineaRepo.create({
           planillaId: planilla.id,
@@ -292,6 +298,7 @@ export class PlanillasService {
           provisiones: r.provisiones.toFixed(2),
           desgloseProvisiones: r.desgloseProvisiones,
           detalle: {
+            viaticosJustificante: justificanteViaticos,
             diasSinDatos,
             fechasSinDatos,
             deTienda: empleado.esDeTienda,
@@ -520,14 +527,14 @@ export class PlanillasService {
     ];
     const encabezado = hoja.addRow([
       'Empleado', 'Cédula', 'Salario base', 'Desc. ausencias', 'Desc. horas faltantes', 'Hrs extra', 'Monto extra', 'Feriado/domingo',
-      'Bruto', 'SEM', 'IVM', 'Banco Popular', 'Renta', 'Deudas', 'Neto', 'Cargas patronales', 'Provisiones', 'Viáticos (incluidos en el neto)',
+      'Bruto', 'SEM', 'IVM', 'Banco Popular', 'Renta', 'Deudas', 'Neto', 'Cargas patronales', 'Provisiones', 'Viáticos (incluidos en el neto)', 'Justificante de viáticos',
     ]);
     encabezado.font = { bold: true };
     for (const l of planilla.lineas) {
       hoja.addRow([
         l.empleadoNombre, l.empleadoCedula ?? '', Number(l.salarioBase), Number(l.descuentoAusencias), Number(l.descuentoHoras), Number(l.horasExtra),
         Number(l.montoExtra), Number(l.montoEspeciales), Number(l.bruto), Number(l.sem), Number(l.ivm), Number(l.bancoPopular),
-        Number(l.renta), Number(l.deudasDescontadas), Number(l.neto), Number(l.cargasPatronales), Number(l.provisiones), Number(l.viaticos),
+        Number(l.renta), Number(l.deudasDescontadas), Number(l.neto), Number(l.cargasPatronales), Number(l.provisiones), Number(l.viaticos), (l.detalle as { viaticosJustificante?: string }).viaticosJustificante ?? '',
       ]);
     }
     const totales = hoja.addRow([

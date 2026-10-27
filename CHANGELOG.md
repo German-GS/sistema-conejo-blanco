@@ -7,6 +7,13 @@ Versionado `MAYOR.MENOR.PARCHE`:
 
 La versión se cambia en `app/package.json` y `backend/package.json` (el pie de página y el panel del sistema la leen solos).
 
+## 1.18.0 — 27 oct 2026 — Marcas a mano, justificante de viáticos, pensionado y anomalías del empleado
+- **Marcas a mano (reloj dañado):** nueva pantalla Planilla → «Marcas a mano», solo para el administrador del sistema y la gerencia general. Cuadrícula por semana, colaborador y día con entrada, salida a almuerzo, regreso y salida (se escribe 8:00 o 1305); casilla «No vino». Pasan por las mismas reglas del reloj (tolerancia, almuerzo fijo, marcas que faltan) y se ve el resultado de cada día al guardar. Cada día queda marcado «Anotada a mano» con quién y cuándo lo anotó, y en la bitácora. No se tocan días de planillas aprobadas ni días ya decididos; un archivo del reloj que se importe después no pisa lo anotado a mano.
+- **Viáticos con justificante:** al anotar un viático en la planilla hay una caja de texto obligatoria para el justificante (para qué fue y qué comprobante tiene). Queda en la línea, en el detalle y en el Excel del libro de salarios.
+- **Pensionado que sigue trabajando:** en la ficha del empleado, casilla «Cotiza al IVM». Desmarcada, la planilla le rebaja solo SEM y Banco Popular (6,5 %) y la renta se calcula sin esa deducción de IVM. Aparece una insignia «Pensionado».
+- **Anomalías del empleado:** el almuerzo de un día con las 4 marcas que dura menos de 30 minutos o más de la hora más la tolerancia (10 min) **ya no cambia el pago** (siempre se descuenta la hora fija); se anota solo como anomalía del empleado. También se pueden anotar a mano (tardanza, salida temprana, ausencia, otro). Cada anomalía se puede descartar (con motivo) o incluir en una **carta de amonestación**: un borrador en PDF con los hechos, líneas de firma y de «se negó a firmar», que debe revisar el asesor legal antes de entregarse. Quedan como «carta emitida». Las pendientes salen en «Para hacer hoy» y con un número en el botón «Anomalías» de cada empleado.
+- Parámetro nuevo: `ALMUERZO_ANOMALIA_CORTO_MINUTOS` (30).
+
 ## 1.17.3 — 26 oct 2026 — El almuerzo depende del largo de la jornada, no del día
 - Un **sábado completo** (ej. 9 a 6) ya descuenta el almuerzo como cualquier otro día: antes el editor del horario sumaba una hora de más (57 h en lugar de 56 con siete días de 9 a 6) y el cálculo de lo esperado quedaba una hora alto, lo que habría descontado de más. El sábado corto (8 a 1) sigue sin almuerzo. Se aplica a todos los días: el almuerzo se resta cuando la jornada del día pasa de 6 horas.
 - Igual en «Horas de tienda» al proponer los valores de cada día.

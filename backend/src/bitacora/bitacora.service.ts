@@ -29,7 +29,8 @@ export type AccionBitacora =
   | 'asiento_eliminado'
   | 'inventario_tienda_aumentado'
   | 'empleado_eliminado'
-  | 'empleados_importados';
+  | 'empleados_importados'
+  | 'marcas_manuales';
 
 export interface EntradaBitacora {
   accion: AccionBitacora;

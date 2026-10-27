@@ -99,6 +99,10 @@ export class Empleado {
   @Column({ type: 'boolean', name: 'es_de_tienda', default: false })
   esDeTienda: boolean;
 
+  // false = pensionado que sigue trabajando: no cotiza IVM (la planilla le cobra solo SEM y Banco Popular).
+  @Column({ type: 'boolean', name: 'cotiza_ivm', default: true })
+  cotizaIvm: boolean;
+
   @Column({ type: 'boolean', name: 'marca_reloj', default: true })
   marcaReloj: boolean;
 

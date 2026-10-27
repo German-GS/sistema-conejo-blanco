@@ -38,6 +38,8 @@ export const useAuthStore = defineStore('auth', {
     // El administrador del sistema también pasa todo lo de administración.
     esAdministracion: (state) => ['administracion', 'gerente_general', 'sistema'].includes(state.usuario?.rol),
     esGerenteGeneral: (state) => state.usuario?.rol === 'gerente_general',
+    // Quien puede anotar marcas a mano mientras el reloj no funciona: administrador del sistema y gerencia general.
+    puedeAnotarMarcas: (state) => ['sistema', 'gerente_general'].includes(state.usuario?.rol),
     // Parámetros de ley: los modifican el gerente general y el administrador del sistema.
     puedeEditarLey: (state) => ['gerente_general', 'sistema'].includes(state.usuario?.rol),
     esSistema: (state) => state.usuario?.rol === 'sistema',

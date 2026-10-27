@@ -84,6 +84,7 @@ import { HorarioBase } from './planilla/horario-base.entity.js';
 import { PuestoPlanilla } from './planilla/puesto.entity.js';
 import { ConfiguracionBancoPopular } from './planilla/configuracion-banco-popular.entity.js';
 import { PlanillaLinea } from './planilla/planilla-linea.entity.js';
+import { AnomaliaEmpleado } from './planilla/anomalia-empleado.entity.js';
 
 @Module({
   imports: [
@@ -148,6 +149,7 @@ import { PlanillaLinea } from './planilla/planilla-linea.entity.js';
           DeudaEmpleado,
           Planilla,
           PlanillaLinea,
+          AnomaliaEmpleado,
           ConfiguracionBancoPopular,
           PuestoPlanilla,
           HorarioBase,

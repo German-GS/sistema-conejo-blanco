@@ -1,6 +1,7 @@
 import { exentoDeReloj } from './exento-reloj.js';
 import { ESTADOS_VIGENTES } from './planilla.enums.js';
-import { BadRequestException, Injectable, Logger, NotFoundException, type OnModuleInit } from '@nestjs/common';
+import { BitacoraService } from '../bitacora/bitacora.service.js';
+import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException, type OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { existsSync } from 'node:fs';
 import type { HorarioSemanal } from './horario.js';
@@ -9,6 +10,7 @@ import { Between, DataSource, In, Repository } from 'typeorm';
 import { DiaAsistencia } from './dia-asistencia.entity.js';
 import { ImportacionMarcas } from './importacion-marcas.entity.js';
 import { ResolucionDia } from './resolucion-dia.entity.js';
+import { AnomaliasService } from './anomalias.service.js';
 import { Empleado } from './empleado.entity.js';
 import { PlanillaLinea } from './planilla-linea.entity.js';
 import { ParametrosService } from './parametros.service.js';
@@ -20,6 +22,7 @@ import { EstadoDia, EstadoPlanilla, TipoResolucionDia } from './planilla.enums.j
 import { sumarDias } from '../common/utils/fecha.util.js';
 import type { Feriado } from './feriado.entity.js';
 import type { ResolverDiaDto } from './dto/otros.dto.js';
+import type { RegistrarMarcasManualesDto } from './dto/horas-manuales.dto.js';
 import type { RegistrarHorasManualesDto } from './dto/horas-manuales.dto.js';
 
 export interface FiltrosDias {
@@ -94,6 +97,8 @@ export class AsistenciaService implements OnModuleInit {
     private readonly lineaRepo: Repository<PlanillaLinea>,
     private readonly parametros: ParametrosService,
     private readonly dataSource: DataSource,
+    private readonly anomalias: AnomaliasService,
+    private readonly bitacoraGeneral: BitacoraService,
   ) {}
 
   // Quita acentos y pasa a mayúsculas para comparar nombres.
@@ -286,7 +291,8 @@ export class AsistenciaService implements OnModuleInit {
 
           const existente = await manager.findOneBy(DiaAsistencia, { empleadoId: empleado.id, fecha });
           // Lo que administración ya decidió no se pisa al volver a importar.
-          if (existente?.resolucionTipo) {
+          // Tampoco las marcas anotadas a mano (el archivo del reloj podría venir vacío si el aparato falló).
+          if (existente?.resolucionTipo || existente?.origen === 'manual') {
             contadores.yaResueltos++;
             continue;
           }
@@ -294,6 +300,8 @@ export class AsistenciaService implements OnModuleInit {
           const dia = existente ?? manager.create(DiaAsistencia, { empleadoId: empleado.id, fecha });
           Object.assign(dia, aCampos(r, tipoDia), { marcas: r.marcas, importacionId: importacion.id });
           await manager.save(DiaAsistencia, dia);
+          // Un almuerzo fuera de lo normal no cambia el pago: queda anotado como anomalía del empleado.
+          await this.anomalias.sincronizarAlmuerzo(empleado, fecha, r.estado === EstadoDia.OK ? r.marcas : [], p, manager);
 
           contadores.dias++;
           if (r.estado === EstadoDia.OK) contadores.correctos++;
@@ -450,6 +458,64 @@ export class AsistenciaService implements OnModuleInit {
     });
   }
 
+  // Marcas anotadas a mano mientras el reloj de huella no funciona. Pasan por las mismas reglas que las del reloj (tolerancia,
+  // almuerzo fijo, marcas estimadas, anomalías de almuerzo). Quedan con su origen y quién las anotó. No pisa días ya decididos ni de
+  // planillas aprobadas; devuelve qué pasó con cada día.
+  async registrarMarcasManuales(dto: RegistrarMarcasManualesDto, usuario: { id: string; email?: string; rol?: string }) {
+    if (usuario.rol !== 'sistema' && usuario.rol !== 'gerente_general') {
+      throw new ForbiddenException('Solo el administrador del sistema y la gerencia general pueden anotar marcas a mano.');
+    }
+    const p = await this.parametros.mapa();
+    const feriados = await this.parametros.mapaFeriados();
+    const base = await this.parametros.horarioBase();
+    const empleados = new Map((await this.empleadoRepo.find({ where: { id: In([...new Set(dto.dias.map((d) => d.empleadoId))]) } })).map((e) => [e.id, e]));
+    const resultados: Array<{ empleadoId: string; nombre: string; fecha: string; resultado: 'guardado' | 'omitido'; motivo?: string; estado?: EstadoDia; minutosNetos?: number; minutosFaltantes?: number }> = [];
+
+    for (const d of dto.dias) {
+      const empleado = empleados.get(d.empleadoId);
+      if (!empleado) throw new BadRequestException('Un empleado de la lista no existe.');
+      const nombre = empleado.nombre;
+      const omitir = (motivo: string) => resultados.push({ empleadoId: empleado.id, nombre, fecha: d.fecha, resultado: 'omitido', motivo });
+      if (Number.isNaN(Date.parse(d.fecha))) throw new BadRequestException(`La fecha ${d.fecha} no es válida.`);
+      if (exentoDeReloj(empleado) || empleado.esDeTienda) {
+        omitir('No usa el reloj (personal de tienda o puesto de confianza).');
+        continue;
+      }
+      if (d.marcas.length === 0 && !d.ausente) continue; // nada anotado ese día
+      if (await this.diaEnPlanillaCerrada(empleado.id, d.fecha)) {
+        omitir('Ya está en una planilla aprobada.');
+        continue;
+      }
+      const existente = await this.diaRepo.findOneBy({ empleadoId: empleado.id, fecha: d.fecha });
+      if (existente?.resolucionTipo) {
+        omitir('Ya tiene una decisión de administración.');
+        continue;
+      }
+      const emp = conHorario(empleado, base);
+      const tipoDia = tipoDeDia(d.fecha, feriados, emp.horarioSemanal);
+      const marcas = d.ausente ? [] : d.marcas;
+      const r = clasificarDia(marcas, tipoDia, p, undefined, esperadoMinutos(d.fecha, emp, p), opcionesEmpleado(emp, p, d.fecha));
+      const dia = existente ?? this.diaRepo.create({ empleadoId: empleado.id, fecha: d.fecha });
+      Object.assign(dia, aCampos(r, tipoDia), { marcas: r.marcas, importacionId: null, origen: 'manual', registradoPorId: usuario.id, registradoEn: new Date() });
+      await this.diaRepo.save(dia);
+      await this.anomalias.sincronizarAlmuerzo(empleado, d.fecha, r.estado === EstadoDia.OK ? r.marcas : [], p);
+      resultados.push({ empleadoId: empleado.id, nombre, fecha: d.fecha, resultado: 'guardado', estado: r.estado, minutosNetos: r.minutosNetos, minutosFaltantes: r.minutosFaltantes });
+    }
+
+    const guardados = resultados.filter((x) => x.resultado === 'guardado').length;
+    if (guardados > 0) {
+      const fechas = resultados.filter((x) => x.resultado === 'guardado').map((x) => x.fecha).sort();
+      await this.bitacoraGeneral.registrar({
+        accion: 'marcas_manuales',
+        usuarioId: usuario.id,
+        usuarioEmail: usuario.email,
+        objetivo: 'asistencia',
+        detalle: `${guardados} día(s) anotados a mano, del ${fechas[0]} al ${fechas[fechas.length - 1]}.`,
+      });
+    }
+    return { guardados, omitidos: resultados.length - guardados, resultados };
+  }
+
   async resolver(diaId: string, dto: ResolverDiaDto, usuarioId: string): Promise<DiaAsistencia> {
     const dia = await this.diaRepo.findOne({ where: { id: diaId }, relations: { empleado: true } });
     if (!dia) throw new NotFoundException('El día no existe.');
@@ -591,6 +657,7 @@ export class AsistenciaService implements OnModuleInit {
       if (cerradas.some((c) => dia.fecha >= String(c.desde).slice(0, 10) && dia.fecha <= String(c.hasta).slice(0, 10))) continue;
       const tipoDia = tipoDeDia(dia.fecha, feriados, emp.horarioSemanal);
       const r = clasificarDia(dia.marcas, tipoDia, p, undefined, esperadoMinutos(dia.fecha, emp, p), opcionesEmpleado(emp, p, dia.fecha));
+      await this.anomalias.sincronizarAlmuerzo(empleado, dia.fecha, r.estado === EstadoDia.OK ? r.marcas : [], p);
       const nuevo = aCampos(r, tipoDia);
       const igual = (Object.keys(nuevo) as Array<keyof typeof nuevo>).every(
         (k) => JSON.stringify(dia[k as keyof DiaAsistencia] ?? null) === JSON.stringify(nuevo[k] ?? null),

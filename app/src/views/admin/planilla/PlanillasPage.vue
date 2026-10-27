@@ -76,15 +76,25 @@ async function abrir(id) {
   detalle.value = await api.get(`/planilla/planillas/${id}`);
 }
 // Viáticos de un empleado en este borrador: fuera de los cálculos de planilla (sin CCSS ni renta), solo se suman al neto.
+// Cada viático lleva su justificante (para qué fue y qué comprobante tiene): sin él no se sabe si es reembolso o salario.
 const viaticosEdicion = reactive({});
+const justificanteEdicion = reactive({});
 const viaticosDe = (l) => (viaticosEdicion[l.id] ?? (Number(l.viaticos) > 0 ? String(Number(l.viaticos)) : ''));
+const justificanteDe = (l) => justificanteEdicion[l.id] ?? l.detalle?.viaticosJustificante ?? '';
 const guardarViaticos = (l) =>
   ejecutar(async () => {
-    const texto = String(viaticosEdicion[l.id] ?? '').replace(/[^\d.]/g, '');
+    const texto = String(viaticosDe(l)).replace(/[^\d.]/g, '');
     const monto = texto === '' ? 0 : Number(texto);
-    if (monto === Number(l.viaticos)) return;
-    detalle.value = await api.patch(`/planilla/planillas/${detalle.value.planilla.id}/viaticos`, { empleadoId: l.empleadoId, monto }).then(() => api.get(`/planilla/planillas/${detalle.value.planilla.id}`));
+    const justificante = justificanteDe(l).trim();
+    if (monto === Number(l.viaticos) && justificante === (l.detalle?.viaticosJustificante ?? '')) return;
+    if (monto > 0 && justificante.length < 3) {
+      error.value = `Anote el justificante de los viáticos de ${l.empleadoNombre} (para qué fue y qué comprobante tiene).`;
+      return;
+    }
+    await api.patch(`/planilla/planillas/${detalle.value.planilla.id}/viaticos`, { empleadoId: l.empleadoId, monto, justificante });
+    detalle.value = await api.get(`/planilla/planillas/${detalle.value.planilla.id}`);
     delete viaticosEdicion[l.id];
+    delete justificanteEdicion[l.id];
   }, 'No se pudieron guardar los viáticos.');
 const recalcular = () =>
   ejecutar(async () => {
@@ -427,9 +437,20 @@ const fechaCorta = (f) => formatearFecha(f).slice(0, 5);
               @blur="guardarViaticos(l)"
               @keydown.enter.prevent="$event.target.blur()"
             />
-            <span class="text-xs text-slate-500">Se suman al neto; no llevan CCSS ni renta.</span>
+            <input
+              :value="justificanteDe(l)"
+              type="text"
+              maxlength="255"
+              placeholder="Justificante: para qué fue y qué comprobante tiene (obligatorio)"
+              class="input min-w-64 flex-1"
+              :disabled="trabajando"
+              @input="justificanteEdicion[l.id] = $event.target.value"
+              @blur="guardarViaticos(l)"
+              @keydown.enter.prevent="$event.target.blur()"
+            />
+            <span class="basis-full text-xs text-slate-500">Se suman al neto; no llevan CCSS ni renta. Solo es válido como viático si reembolsa un gasto real y está documentado.</span>
           </div>
-          <p v-else-if="Number(l.viaticos) > 0" class="mt-2 text-sm text-slate-700">Viáticos incluidos en el neto: <strong>{{ m(l.viaticos) }}</strong></p>
+          <p v-else-if="Number(l.viaticos) > 0" class="mt-2 text-sm text-slate-700">Viáticos incluidos en el neto: <strong>{{ m(l.viaticos) }}</strong><span v-if="l.detalle?.viaticosJustificante"> — {{ l.detalle.viaticosJustificante }}</span></p>
           <div class="mt-2 flex flex-wrap gap-2">
             <button type="button" class="text-sm font-semibold text-blue-700 underline" :disabled="trabajando" @click="colilla(l)">Colilla PDF</button>
             <button type="button" class="text-sm font-semibold text-green-700 underline" :disabled="trabajando" @click="compartirColilla(l)">Compartir (WhatsApp)</button>

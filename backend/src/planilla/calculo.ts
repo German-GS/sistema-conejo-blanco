@@ -502,6 +502,8 @@ export interface EmpleadoParaPago {
   frecuenciaPago: FrecuenciaPago;
   tieneConyuge: boolean;
   cantidadHijos: number;
+  // false = pensionado que sigue trabajando: no cotiza IVM (solo SEM y Banco Popular).
+  cotizaIvm?: boolean;
 }
 
 export interface DeudaParaPago {
@@ -660,14 +662,15 @@ export function calcularLinea(e: EntradaLinea): ResultadoLinea {
   const bruto = redondear(salarioBase - descuentoAusencias - descuentoHoras + montoExtra + redondear(montoEspeciales));
 
   const sem = redondear((bruto * p.DEDUCCION_OBRERO_SEM) / 100);
-  const ivm = redondear((bruto * p.DEDUCCION_OBRERO_IVM) / 100);
+  const cotizaIvm = empleado.cotizaIvm !== false;
+  const ivm = cotizaIvm ? redondear((bruto * p.DEDUCCION_OBRERO_IVM) / 100) : 0;
   const bancoPopular = redondear((bruto * p.DEDUCCION_BANCO_POPULAR) / 100);
 
   // Renta: sobre lo acumulado del mes (bruto menos SEM e IVM), menos los
   // créditos familiares, y se retiene solo lo que falta respecto de lo ya
   // retenido en planillas anteriores del mismo mes.
   const brutoMes = e.brutoPrevioMes + bruto;
-  const baseMes = brutoMes * (1 - (p.DEDUCCION_OBRERO_SEM + p.DEDUCCION_OBRERO_IVM) / 100);
+  const baseMes = brutoMes * (1 - (p.DEDUCCION_OBRERO_SEM + (cotizaIvm ? p.DEDUCCION_OBRERO_IVM : 0)) / 100);
   const creditos =
     (empleado.tieneConyuge ? p.RENTA_CREDITO_CONYUGE : 0) + empleado.cantidadHijos * p.RENTA_CREDITO_HIJO;
   const rentaAcumulada = Math.max(0, impuestoRenta(baseMes, p) - creditos);

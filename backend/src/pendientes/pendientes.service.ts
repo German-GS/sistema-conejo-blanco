@@ -83,6 +83,10 @@ export class PendientesService {
     }
 
     if (puede(Permiso.PLANILLA_VER)) {
+      intentar('anomalias', async () => {
+        const [r] = await this.dataSource.query(`SELECT COUNT(*)::int AS n FROM planilla_anomalias WHERE estado = 'pendiente'`);
+        return r.n > 0 ? { clave: 'anomalias-empleados', titulo: 'Anomalías de empleados por revisar', detalle: 'Almuerzos fuera de lo normal u otras anotaciones: decida si se emite carta de amonestación o se descartan.', cantidad: r.n, gravedad: 'info', ruta: 'planilla-empleados' } : null;
+      });
       intentar('planilla', async () => {
         const [r] = await this.dataSource.query(
           `SELECT COUNT(*) FILTER (WHERE estado::text = 'borrador')::int AS borrador,

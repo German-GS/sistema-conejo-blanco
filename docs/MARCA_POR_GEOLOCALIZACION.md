@@ -105,3 +105,6 @@ Tres grupos, cuatro marcas con tipo explícito cada día: **entrada · salida a 
 - Aplica igual a las marcas del reloj actual, no depende de la app.
 - **Almuerzo de más de 1 hora:** con una tolerancia de 10 minutos después de la hora, se considera **llegada tarde del almuerzo** (igual que una entrada tarde): 70 min o menos = sin consecuencia; más de eso, el exceso cuenta como tiempo no trabajado y se rebaja (ej. 90 min → 30 de más). Pendiente: la empresa lo está consultando (reglamento / abogado laboral); **no implementar hasta confirmar**.
 - Hoy (1.14.0) con 4 marcas el sistema descuenta siempre la hora fija sin mirar cuánto duró el almuerzo marcado: un almuerzo de 10 minutos pasa sin que nadie lo revise.
+
+## Decisión final sobre el almuerzo (26-oct-2026)
+La empresa decidió **no rebajar** nada por un almuerzo corto o largo: el almuerzo siempre se descuenta como la hora fija. Los casos fuera de lo normal (menos de 30 min, o más de la hora + 10 min) se **anotan como anomalías del empleado** para decidir si se hace una carta de amonestación. Reemplaza lo escrito antes sobre «Resolver» y «tardanza del almuerzo».
