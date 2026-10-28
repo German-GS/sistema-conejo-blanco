@@ -54,13 +54,21 @@ export function etiquetaDelAparato() {
   return `${aparato} · ${navegador}`;
 }
 
-export async function llamar(ruta, cuerpo) {
+// Con `tiempoMs` la llamada se corta si el servidor no contesta a tiempo (status 0 y `tiempoAgotado`): sin eso un celular
+// con señal débil se quedaría «Marcando…» sin decir nada.
+export async function llamar(ruta, cuerpo, { tiempoMs = 0 } = {}) {
   // Sin la sesión del sistema: esta pantalla no usa cuentas, y un 401 por PIN malo no debe cerrar otra sesión.
   let res;
+  const control = tiempoMs ? new AbortController() : null;
+  const reloj = control ? setTimeout(() => control.abort(), tiempoMs) : null;
   try {
-    res = await fetch(`${API_URL}${ruta}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cuerpo) });
+    res = await fetch(`${API_URL}${ruta}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cuerpo), signal: control?.signal });
   } catch {
-    throw new ApiError('No se pudo conectar con el servidor. Revise su conexión e intente de nuevo.', 0);
+    const e = new ApiError(control?.signal.aborted ? 'El servidor tardó demasiado en responder.' : 'No se pudo conectar con el servidor. Revise su conexión e intente de nuevo.', 0);
+    e.tiempoAgotado = Boolean(control?.signal.aborted);
+    throw e;
+  } finally {
+    clearTimeout(reloj);
   }
   const data = await res.json().catch(() => null);
   if (!res.ok) throw new ApiError(Array.isArray(data?.message) ? data.message.join(', ') : (data?.message ?? `Error ${res.status}`), res.status);
@@ -77,11 +85,18 @@ export async function registrarCelular(codigo, pin) {
 }
 
 // Pide un reto, firma (reto|datos) con la llave del celular y lo manda con el PIN a la ruta indicada.
-export async function accionFirmada(ruta, datos, pin) {
+// Si falla por la red, el error dice si el envío final ya salió (`enviada`): en ese caso el servidor pudo haberlo guardado
+// aunque la respuesta no llegara, y no se puede afirmar que «no se registró».
+export async function accionFirmada(ruta, datos, pin, { tiempoMs = 20_000 } = {}) {
   const celular = await leerCelular();
   if (!celular) throw new ApiError('Este celular no está registrado.', 401);
-  const { reto } = await llamar('/marca/reto', { accesoId: celular.accesoId });
+  const { reto } = await llamar('/marca/reto', { accesoId: celular.accesoId }, { tiempoMs });
   const texto = JSON.stringify(datos);
   const firma = await crypto.subtle.sign({ name: 'ECDSA', hash: 'SHA-256' }, celular.llavePrivada, new TextEncoder().encode(`${reto}|${texto}`));
-  return llamar(ruta, { accesoId: celular.accesoId, reto, firma: aBase64Url(firma), pin, datos: texto });
+  try {
+    return await llamar(ruta, { accesoId: celular.accesoId, reto, firma: aBase64Url(firma), pin, datos: texto }, { tiempoMs });
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 0) err.enviada = true;
+    throw err;
+  }
 }

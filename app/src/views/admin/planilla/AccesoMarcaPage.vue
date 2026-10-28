@@ -1,7 +1,6 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue';
 import QRCode from 'qrcode';
-import { Smartphone } from '@lucide/vue';
 import Cargando from '../../../components/Cargando.vue';
 import { api, ApiError } from '../../../lib/api.js';
 import { confirmar } from '../../../lib/confirmar.js';
@@ -81,10 +80,6 @@ const copiar = async (texto) => {
 
 <template>
   <div class="flex flex-col gap-4">
-    <div class="flex items-center gap-2">
-      <Smartphone class="size-5 text-blue-600" />
-      <h1 class="text-xl font-bold text-slate-900">Celulares y PIN para marcar</h1>
-    </div>
     <p class="text-sm text-slate-600">
       Cada empleado marca con <strong>un solo celular</strong> y un <strong>PIN de 6 números que elige él mismo</strong> (usted nunca lo ve). Para activar o cambiar un celular se le da un
       <strong>código de un solo uso</strong> (vale 24 horas): lo escribe en su celular, o escanea el QR, y elige su PIN. Solo el administrador del sistema puede dar el código o liberar un celular;

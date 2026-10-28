@@ -3,6 +3,8 @@ import { PARAMETROS_POR_DEFECTO } from './parametros-por-defecto.js';
 import { detectarAnomaliasAlmuerzo, detectarAnomaliasDeDia, type DiaParaAnomalias } from './anomalias.js';
 
 const p = Object.fromEntries(PARAMETROS_POR_DEFECTO.map((x) => [x.nombre, x.valor]));
+// Sin hora fija de almuerzo (0) solo se mide cuánto duró; con ella (por defecto 12:00) se mide contra el reloj.
+const sinHoraFija = { ...p, ALMUERZO_HORA_INICIO: 0 };
 
 describe('detectarAnomaliasAlmuerzo', () => {
   it('un almuerzo normal (de 30 a 70 min) no es anomalía', () => {
@@ -16,8 +18,8 @@ describe('detectarAnomaliasAlmuerzo', () => {
   });
 
   it('más de la hora más la tolerancia (10 min) es almuerzo largo; justo en 70 no', () => {
-    expect(detectarAnomaliasAlmuerzo(['08:00', '12:00', '13:11', '17:00'], p, 60)[0]).toMatchObject({ tipo: 'almuerzo_largo', minutos: 71 });
-    expect(detectarAnomaliasAlmuerzo(['08:00', '12:00', '13:10', '17:00'], p, 60)).toEqual([]);
+    expect(detectarAnomaliasAlmuerzo(['08:00', '12:00', '13:11', '17:00'], sinHoraFija, 60)[0]).toMatchObject({ tipo: 'almuerzo_largo', minutos: 71 });
+    expect(detectarAnomaliasAlmuerzo(['08:00', '12:00', '13:10', '17:00'], sinHoraFija, 60)).toEqual([]);
   });
 
   it('solo se mide con las 4 marcas; sin ellas no se sabe cuánto duró', () => {
@@ -26,8 +28,28 @@ describe('detectarAnomaliasAlmuerzo', () => {
   });
 
   it('quien tiene un almuerzo propio (30 min) se mide contra el suyo', () => {
-    expect(detectarAnomaliasAlmuerzo(['08:00', '12:00', '12:41', '17:00'], p, 30)[0]?.tipo).toBe('almuerzo_largo');
-    expect(detectarAnomaliasAlmuerzo(['08:00', '12:00', '12:40', '17:00'], p, 30)).toEqual([]);
+    expect(detectarAnomaliasAlmuerzo(['08:00', '12:00', '12:41', '17:00'], sinHoraFija, 30)[0]?.tipo).toBe('almuerzo_largo');
+    expect(detectarAnomaliasAlmuerzo(['08:00', '12:00', '12:40', '17:00'], sinHoraFija, 30)).toEqual([]);
+  });
+
+  it('con hora fija (12:00) sale a almorzar antes de la hora: incidencia solo pasada la tolerancia', () => {
+    expect(detectarAnomaliasAlmuerzo(['08:00', '11:50', '12:50', '17:00'], p, 60)).toEqual([]);
+    const [a] = detectarAnomaliasAlmuerzo(['08:00', '11:30', '12:30', '17:00'], p, 60);
+    expect(a).toMatchObject({ tipo: 'almuerzo_salida_temprana', minutos: 30 });
+    expect(a.detalle).toContain('11:30');
+  });
+
+  it('con hora fija regresar después de las 13:00 más la tolerancia es regreso tarde, con los minutos y la duración', () => {
+    expect(detectarAnomaliasAlmuerzo(['08:00', '12:00', '13:10', '17:00'], p, 60)).toEqual([]);
+    const [a] = detectarAnomaliasAlmuerzo(['08:00', '12:00', '13:25', '17:00'], p, 60);
+    expect(a).toMatchObject({ tipo: 'almuerzo_regreso_tarde', minutos: 25 });
+    expect(a.detalle).toContain('13:25');
+    expect(a.detalle).toContain('85 min');
+  });
+
+  it('las tolerancias del almuerzo son configurables', () => {
+    expect(detectarAnomaliasAlmuerzo(['08:00', '12:00', '13:25', '17:00'], { ...p, TOLERANCIA_ALMUERZO_REGRESO_MINUTOS: 30 }, 60)).toEqual([]);
+    expect(detectarAnomaliasAlmuerzo(['08:00', '11:30', '12:30', '17:00'], { ...p, TOLERANCIA_ALMUERZO_SALIDA_MINUTOS: 45 }, 60)).toEqual([]);
   });
 
   it('sin almuerzo esperado (0) no hay nada que medir', () => {

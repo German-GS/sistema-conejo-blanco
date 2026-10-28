@@ -27,9 +27,7 @@ const ConfiguracionPage = () => import('../views/admin/ConfiguracionPage.vue');
 const FacturasPage = () => import('../views/admin/FacturasPage.vue');
 const MarcarPage = () => import('../views/MarcarPage.vue');
 const PantallaPuntoPage = () => import('../views/PantallaPuntoPage.vue');
-const PuntosMarcaPage = () => import('../views/admin/planilla/PuntosMarcaPage.vue');
-const MarcasCelularPage = () => import('../views/admin/planilla/MarcasCelularPage.vue');
-const AccesoMarcaPage = () => import('../views/admin/planilla/AccesoMarcaPage.vue');
+const SistemaMarcasPage = () => import('../views/admin/planilla/SistemaMarcasPage.vue');
 const MarcasManualesPage = () => import('../views/admin/planilla/MarcasManualesPage.vue');
 const FacturacionElectronicaPage = () => import('../views/admin/FacturacionElectronicaPage.vue');
 const FacturaNuevaPage = () => import('../views/admin/FacturaNuevaPage.vue');
@@ -147,9 +145,11 @@ const routes = [
       // Planilla: salarios, exclusivo de Administración (gerente).
       { path: 'planilla/empleados', name: 'planilla-empleados', component: EmpleadosPlanillaPage, meta: { permiso: 'planilla.ver' } },
       { path: 'planilla/marcas-manuales', name: 'planilla-marcas-manuales', component: MarcasManualesPage, meta: { permiso: 'planilla.ver', soloMarcas: true } },
-      { path: 'planilla/puntos-marca', name: 'planilla-puntos-marca', component: PuntosMarcaPage, meta: { permiso: 'planilla.ver', soloSistema: true } },
-      { path: 'planilla/marcas-celular', name: 'planilla-marcas-celular', component: MarcasCelularPage, meta: { permiso: 'planilla.ver' } },
-      { path: 'planilla/acceso-marca', name: 'planilla-acceso-marca', component: AccesoMarcaPage, meta: { permiso: 'planilla.ver', soloSistema: true } },
+      // Sistema de marcas: una sola entrada con pestañas (marcas, pantallas del QR, celulares y PIN). Las rutas viejas redirigen para no romper enlaces guardados.
+      { path: 'planilla/marcas', name: 'planilla-sistema-marcas', component: SistemaMarcasPage, meta: { permiso: 'planilla.ver' } },
+      { path: 'planilla/puntos-marca', redirect: { name: 'planilla-sistema-marcas', query: { pestana: 'pantallas' } } },
+      { path: 'planilla/marcas-celular', redirect: { name: 'planilla-sistema-marcas' } },
+      { path: 'planilla/acceso-marca', redirect: { name: 'planilla-sistema-marcas', query: { pestana: 'celulares' } } },
       { path: 'planilla/asistencia', name: 'planilla-asistencia', component: AsistenciaPage, meta: { permiso: 'planilla.ver' } },
       { path: 'planilla/planillas', name: 'planilla-planillas', component: PlanillasPage, meta: { permiso: 'planilla.ver' } },
       { path: 'planilla/informes', name: 'planilla-informes', component: InformesPlanillaPage, meta: { permiso: 'planilla.ver' } },

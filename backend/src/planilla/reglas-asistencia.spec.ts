@@ -41,7 +41,7 @@ describe('1. tolerancia neutral ±10 min en entrada y salida', () => {
   });
 
   it('la tolerancia es configurable', () => {
-    const r = dia(['08:15', '17:00'], LUNES, { ...p, TOLERANCIA_MARCA_MINUTOS: 15 });
+    const r = dia(['08:15', '17:00'], LUNES, { ...p, TOLERANCIA_ENTRADA_MINUTOS: 15 });
     expect(r.minutosFaltantes).toBe(0);
   });
 });

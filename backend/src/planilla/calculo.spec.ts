@@ -227,10 +227,13 @@ describe('jornada y almuerzo por empleado', () => {
     expect(r.minutosExtra).toBe(60);
   });
 
-  it('el almuerzo manual no aplica si el día ya trae marcas de almuerzo', () => {
-    expect(() =>
-      aplicarResolucion(TipoResolucionDia.ALMUERZO_MANUAL, { marcas: ['07:00', '12:00', '13:00', '17:00'], almuerzoMinutos: 30 }, '2026-10-06', 'ordinario', horario, p),
-    ).toThrow();
+  it('el almuerzo manual también aplica a un día con las 4 marcas (para descontar el exceso del almuerzo), pero no a uno con 3', () => {
+    // 12:00 a 13:25 = 85 min de almuerzo: se descuentan los 25 de más (el bloque fijo era 60)
+    const r = aplicarResolucion(TipoResolucionDia.ALMUERZO_MANUAL, { marcas: ['08:00', '12:00', '13:25', '17:00'], almuerzoMinutos: 85 }, '2026-10-06', 'ordinario', horario, p);
+    expect(r.minutosAlmuerzo).toBe(85);
+    expect(r.minutosFaltantes).toBe(25);
+    expect(r.minutosDescontar).toBe(25);
+    expect(() => aplicarResolucion(TipoResolucionDia.ALMUERZO_MANUAL, { marcas: ['08:00', '12:00', '17:00'], almuerzoMinutos: 30 }, '2026-10-06', 'ordinario', horario, p)).toThrow();
   });
 
   it('quien no marca almuerzo (anda en ruta): se descuenta el fijo, sin avisar de «estimado»', () => {

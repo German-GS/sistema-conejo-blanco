@@ -1,6 +1,6 @@
 <script setup>
 import { exito } from '../../../lib/avisos.js';
-import { onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref } from 'vue';
 import { api, ApiError } from '../../../lib/api.js';
 import { useAuthStore } from '../../../stores/auth.js';
 import { formatearFecha } from '../../../lib/format.js';
@@ -92,6 +92,55 @@ async function guardarBp() {
 }
 const nuevoFeriado = reactive({ fecha: '', nombre: '', pagoObligatorio: true });
 
+// ---- Tolerancias de marcas ----
+// Cuántos minutos se toleran en cada marca antes de tomarla como tarde. Las horas salen del horario de la fábrica (y la del almuerzo es fija para todos).
+const NOMBRES_TOLERANCIAS = ['TOLERANCIA_ENTRADA_MINUTOS', 'TOLERANCIA_SALIDA_MINUTOS', 'ALMUERZO_HORA_INICIO', 'TOLERANCIA_ALMUERZO_SALIDA_MINUTOS', 'TOLERANCIA_ALMUERZO_REGRESO_MINUTOS'];
+const parametro = (nombre) => parametros.value.find((x) => x.nombre === nombre);
+const valorDe = (nombre) => { const p = parametro(nombre); return p ? Number(valores[p.id]) : 0; };
+const DIAS = [['lun', 'lun'], ['mar', 'mar'], ['mie', 'mié'], ['jue', 'jue'], ['vie', 'vie'], ['sab', 'sáb'], ['dom', 'dom']];
+const aMin = (hhmm) => Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.slice(3, 5));
+const hora12 = (min) => {
+  const m = ((min % 1440) + 1440) % 1440;
+  const h = Math.floor(m / 60);
+  return `${h % 12 === 0 ? 12 : h % 12}:${String(m % 60).padStart(2, '0')} ${h < 12 ? 'a. m.' : 'p. m.'}`;
+};
+// Las horas distintas del horario de la fábrica (campo = entrada o salida) con los días a los que corresponde.
+const horasDelHorario = (campo) => {
+  const grupos = new Map();
+  for (const [clave, nombre] of DIAS) {
+    const t = horario.value?.[clave];
+    if (!t) continue;
+    grupos.set(t[campo], [...(grupos.get(t[campo]) ?? []), nombre]);
+  }
+  return [...grupos].map(([hora, dias]) => ({ min: aMin(hora), dias: dias.join(', ') }));
+};
+const entradas = computed(() => horasDelHorario('entrada'));
+const salidas = computed(() => horasDelHorario('salida'));
+const almuerzoFijo = computed(() => valorDe('ALMUERZO_HORA_INICIO') > 0);
+const duracionAlmuerzo = computed(() => valorDe('ALMUERZO_MINUTOS') || 60);
+const horaAlmuerzo = computed({
+  get: () => { const m = valorDe('ALMUERZO_HORA_INICIO'); return m > 0 ? `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}` : ''; },
+  set: (v) => { const p = parametro('ALMUERZO_HORA_INICIO'); if (p && /^\d{2}:\d{2}$/.test(v)) valores[p.id] = aMin(v); },
+});
+const cambioTolerancias = computed(() => NOMBRES_TOLERANCIAS.some((n) => { const p = parametro(n); return p && Number(valores[p.id]) !== Number(p.valor); }));
+async function guardarTolerancias() {
+  error.value = '';
+  try {
+    for (const n of NOMBRES_TOLERANCIAS) {
+      const p = parametro(n);
+      if (p && Number(valores[p.id]) !== Number(p.valor)) await api.patch(`/planilla/parametros/${p.id}`, { valor: Number(valores[p.id]) });
+    }
+    await cargar();
+    exito('Tolerancias guardadas.');
+  } catch (err) {
+    error.value = err instanceof ApiError ? err.message : 'No se pudieron guardar las tolerancias.';
+  }
+}
+function activarAlmuerzoFijo(activo) {
+  const p = parametro('ALMUERZO_HORA_INICIO');
+  if (p) valores[p.id] = activo ? 720 : 0;
+}
+
 async function cargar() {
   const [p, f] = await Promise.all([api.get('/planilla/parametros'), api.get('/planilla/feriados')]);
   parametros.value = p;
@@ -141,9 +190,59 @@ async function quitarFeriado(f) {
     <p v-if="error" class="text-sm font-medium text-red-600">{{ error }}</p>
     <p v-if="aviso" class="text-sm font-medium text-teal-700">{{ aviso }}</p>
 
+    <div v-if="parametro('TOLERANCIA_ENTRADA_MINUTOS')" class="card flex flex-col gap-3">
+      <div>
+        <p class="text-base font-semibold text-slate-900">Tolerancias de las marcas</p>
+        <p class="text-sm text-slate-500">
+          Cuántos minutos se toleran en cada marca antes de tomarla como tarde. La hora de entrada y de salida salen del horario de la fábrica (más abajo).
+          Lo que pase de la tolerancia queda como incidencia en las marcas del empleado; el pago cambia solo por lo que el sistema ya calcula, y en el almuerzo solo si administración decide descontar el exceso.
+        </p>
+      </div>
+
+      <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <div class="flex flex-col gap-1 rounded-xl border border-slate-200 p-3">
+          <p class="text-sm font-semibold text-slate-800">Entrada de la jornada</p>
+          <p v-for="e in entradas" :key="e.min" class="text-xs text-slate-600">Hora de entrada: <strong>{{ hora12(e.min) }}</strong> ({{ e.dias }}). Se marca tarde después de las <strong>{{ hora12(e.min + valorDe('TOLERANCIA_ENTRADA_MINUTOS')) }}</strong></p>
+          <label class="label mt-1">Minutos de tolerancia</label>
+          <input v-model="valores[parametro('TOLERANCIA_ENTRADA_MINUTOS').id]" type="number" min="0" max="120" class="input w-32" />
+        </div>
+
+        <div class="flex flex-col gap-1 rounded-xl border border-slate-200 p-3">
+          <p class="text-sm font-semibold text-slate-800">Salida de la jornada</p>
+          <p v-for="s in salidas" :key="s.min" class="text-xs text-slate-600">Hora de salida: <strong>{{ hora12(s.min) }}</strong> ({{ s.dias }}). Se marca salida antes de la hora si sale antes de las <strong>{{ hora12(s.min - valorDe('TOLERANCIA_SALIDA_MINUTOS')) }}</strong></p>
+          <label class="label mt-1">Minutos de tolerancia</label>
+          <input v-model="valores[parametro('TOLERANCIA_SALIDA_MINUTOS').id]" type="number" min="0" max="120" class="input w-32" />
+        </div>
+
+        <div class="flex flex-col gap-1 rounded-xl border border-slate-200 p-3">
+          <p class="text-sm font-semibold text-slate-800">Salida a almuerzo</p>
+          <label class="flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" class="size-4" :checked="almuerzoFijo" @change="activarAlmuerzoFijo($event.target.checked)" /> Todos almuerzan a una hora fija</label>
+          <template v-if="almuerzoFijo">
+            <label class="label mt-1">Hora de salida a almuerzo</label>
+            <input v-model="horaAlmuerzo" type="time" class="input w-40" />
+            <p class="text-xs text-slate-600">Se marca salida temprana si sale antes de las <strong>{{ hora12(valorDe('ALMUERZO_HORA_INICIO') - valorDe('TOLERANCIA_ALMUERZO_SALIDA_MINUTOS')) }}</strong></p>
+            <label class="label mt-1">Minutos de tolerancia</label>
+            <input v-model="valores[parametro('TOLERANCIA_ALMUERZO_SALIDA_MINUTOS').id]" type="number" min="0" max="120" class="input w-32" />
+          </template>
+          <p v-else class="text-xs text-slate-500">Sin hora fija solo se mide cuánto duró el almuerzo.</p>
+        </div>
+
+        <div class="flex flex-col gap-1 rounded-xl border border-slate-200 p-3">
+          <p class="text-sm font-semibold text-slate-800">Regreso del almuerzo</p>
+          <p v-if="almuerzoFijo" class="text-xs text-slate-600">Debe regresar a las <strong>{{ hora12(valorDe('ALMUERZO_HORA_INICIO') + duracionAlmuerzo) }}</strong> ({{ duracionAlmuerzo }} min de almuerzo). Se marca tarde después de las <strong>{{ hora12(valorDe('ALMUERZO_HORA_INICIO') + duracionAlmuerzo + valorDe('TOLERANCIA_ALMUERZO_REGRESO_MINUTOS')) }}</strong></p>
+          <p v-else class="text-xs text-slate-600">Se marca tarde si el almuerzo dura más de {{ duracionAlmuerzo + valorDe('TOLERANCIA_ALMUERZO_REGRESO_MINUTOS') }} min ({{ duracionAlmuerzo }} más la tolerancia).</p>
+          <label class="label mt-1">Minutos de tolerancia</label>
+          <input v-model="valores[parametro('TOLERANCIA_ALMUERZO_REGRESO_MINUTOS').id]" type="number" min="0" max="120" class="input w-32" />
+          <p class="text-xs text-slate-500">La duración del almuerzo ({{ duracionAlmuerzo }} min) se cambia más abajo, en «Jornada, almuerzo y horas extra».</p>
+        </div>
+      </div>
+
+      <button type="button" class="btn-primary w-fit" :disabled="!cambioTolerancias" @click="guardarTolerancias">Guardar tolerancias</button>
+    </div>
+
     <div v-for="g in GRUPOS" :key="g.tipo" class="card flex flex-col gap-2">
       <p class="text-base font-semibold text-slate-900">{{ g.titulo }}</p>
-      <div v-for="p in parametros.filter((x) => x.tipo === g.tipo)" :key="p.id" class="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-2">
+      <div v-for="p in parametros.filter((x) => x.tipo === g.tipo && !NOMBRES_TOLERANCIAS.includes(x.nombre))" :key="p.id" class="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-2">
         <div class="min-w-0 flex-1">
           <p class="text-sm font-medium text-slate-800">{{ p.nombre }}</p>
           <p class="text-xs text-slate-500">{{ p.descripcion }}</p>

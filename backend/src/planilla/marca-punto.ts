@@ -5,9 +5,6 @@ import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 // El QR de la pantalla cambia cada 30 s; se acepta el vigente y el anterior, así que desde que se escanea
 // hay entre 30 y 60 s para escribir el PIN y enviar. Una foto del QR no sirve pasado ese tiempo.
 export const QR_SEGUNDOS = 30;
-export const RADIO_METROS_POR_DEFECTO = 100;
-// Una lectura de ubicación peor que esto no prueba nada: la marca se guarda, pero queda «por revisar».
-export const PRECISION_MAXIMA_METROS = 150;
 // Dos marcas del mismo empleado con menos de esto de diferencia son el mismo toque (doble clic).
 export const MINUTOS_ENTRE_MARCAS = 2;
 
@@ -30,33 +27,6 @@ export function codigoQrValido(secreto: string, puntoId: string, codigo: string,
   });
 }
 
-// Distancia en metros entre dos coordenadas (fórmula de haversine).
-export function distanciaMetros(lat1: number, lon1: number, lat2: number, lon2: number): number {
-  const R = 6_371_000;
-  const rad = (g: number) => (g * Math.PI) / 180;
-  const a = Math.sin(rad(lat2 - lat1) / 2) ** 2 + Math.cos(rad(lat1)) * Math.cos(rad(lat2)) * Math.sin(rad(lon2 - lon1) / 2) ** 2;
-  return Math.round(2 * R * Math.asin(Math.sqrt(a)));
-}
-
-export interface EvaluacionUbicacion {
-  verificada: boolean;
-  distanciaM: number | null;
-  motivo: string | null;
-}
-
-// La ubicación no bloquea la marca (nadie pierde pago por un GPS flojo): solo decide si queda «verificada» o «por revisar».
-export function evaluarUbicacion(
-  punto: { latitud: number | null; longitud: number | null; radioMetros: number },
-  lectura: { latitud?: number | null; longitud?: number | null; precision?: number | null },
-): EvaluacionUbicacion {
-  if (lectura.latitud == null || lectura.longitud == null) return { verificada: false, distanciaM: null, motivo: 'Sin ubicación (el celular no dio permiso o no pudo leerla).' };
-  if (punto.latitud == null || punto.longitud == null) return { verificada: false, distanciaM: null, motivo: 'El punto de marca aún no tiene coordenadas.' };
-  const distanciaM = distanciaMetros(punto.latitud, punto.longitud, lectura.latitud, lectura.longitud);
-  if (lectura.precision != null && lectura.precision > PRECISION_MAXIMA_METROS) return { verificada: false, distanciaM, motivo: `Ubicación poco precisa (±${Math.round(lectura.precision)} m).` };
-  if (distanciaM > punto.radioMetros) return { verificada: false, distanciaM, motivo: `Fuera del punto de marca (${distanciaM} m; el radio es ${punto.radioMetros} m).` };
-  return { verificada: true, distanciaM, motivo: null };
-}
-
 const FORMATO = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Costa_Rica', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
 
 // Fecha y hora en Costa Rica (UTC−6, sin horario de verano) de un instante: el servidor corre en UTC.
@@ -77,4 +47,58 @@ export function unirMarcas(actuales: string[], nuevas: string[]): string[] {
     resultado.push(m);
   }
   return resultado;
+}
+
+export interface ResumenDiaMarcas {
+  entrada: string | null;
+  salida: string | null;
+  entradaEstado: 'a_tiempo' | 'tarde' | null;
+  entradaMinutos: number;
+  salidaEstado: 'a_tiempo' | 'antes' | null;
+  salidaMinutos: number;
+  nota: string | null;
+}
+
+// Lo que el empleado ve de un día en su historial: la primera marca es la entrada y la última la salida (igual que en el cálculo
+// de asistencia) y, si se pide, si fueron a tiempo según la tolerancia. Solo se mira: no cambia nada del pago.
+export function resumenDeDia(
+  marcas: string[],
+  op: { tramo: { entrada: string; salida: string } | null; tipoDia: string; esHoy: boolean; toleranciaEntrada: number; toleranciaSalida: number; puntualidad: boolean; ahora?: string },
+): ResumenDiaMarcas {
+  const r: ResumenDiaMarcas = { entrada: null, salida: null, entradaEstado: null, entradaMinutos: 0, salidaEstado: null, salidaMinutos: 0, nota: null };
+  const m = [...marcas].sort();
+  if (m.length === 0) {
+    r.nota = op.tipoDia === 'feriado' ? 'Feriado' : op.tipoDia === 'domingo' || !op.tramo ? 'Día libre' : op.esHoy ? 'Todavía sin marcas' : 'Sin marcas';
+    return r;
+  }
+  if (m.length === 1) {
+    const esEntrada = op.tramo ? aMinutos(m[0]) < (aMinutos(op.tramo.entrada) + aMinutos(op.tramo.salida)) / 2 : true;
+    if (esEntrada) {
+      r.entrada = m[0];
+      r.nota = op.esHoy ? 'En el trabajo' : 'Falta la marca de salida';
+    } else {
+      r.salida = m[0];
+      r.nota = 'Falta la marca de entrada';
+    }
+  } else if (op.esHoy && op.tramo && op.ahora && aMinutos(op.ahora) < aMinutos(op.tramo.salida)) {
+    // Hoy y todavía dentro de su horario: las marcas de después de la entrada son del almuerzo, no la salida del día.
+    r.entrada = m[0];
+    r.nota = 'En el trabajo';
+  } else {
+    r.entrada = m[0];
+    r.salida = m[m.length - 1];
+  }
+  if (op.puntualidad && op.tramo && op.tipoDia === 'ordinario') {
+    if (r.entrada) {
+      const tarde = aMinutos(r.entrada) - aMinutos(op.tramo.entrada);
+      r.entradaEstado = tarde > op.toleranciaEntrada ? 'tarde' : 'a_tiempo';
+      r.entradaMinutos = Math.max(0, tarde);
+    }
+    if (r.salida) {
+      const antes = aMinutos(op.tramo.salida) - aMinutos(r.salida);
+      r.salidaEstado = antes > op.toleranciaSalida ? 'antes' : 'a_tiempo';
+      r.salidaMinutos = Math.max(0, antes);
+    }
+  }
+  return r;
 }

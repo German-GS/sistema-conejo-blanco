@@ -202,7 +202,8 @@ export function clasificarDia(
   }
 
   const tramo = tipoDia === 'ordinario' ? (op.tramo ?? null) : null;
-  const tolMarca = p.TOLERANCIA_MARCA_MINUTOS ?? 10;
+  const tolEntrada = p.TOLERANCIA_ENTRADA_MINUTOS ?? 10;
+  const tolSalida = p.TOLERANCIA_SALIDA_MINUTOS ?? 10;
   const fijo = (p.ALMUERZO_BLOQUE_FIJO ?? 1) === 1;
   const sospecha = p.MARCA_SOSPECHOSA_MINUTOS ?? 120;
 
@@ -274,8 +275,8 @@ export function clasificarDia(
     }
   }
 
-  const entrada = redondearMarca(m[0], tramo?.entrada, tolMarca);
-  const salida = redondearMarca(m[m.length - 1], tramo?.salida, tolMarca);
+  const entrada = redondearMarca(m[0], tramo?.entrada, tolEntrada);
+  const salida = redondearMarca(m[m.length - 1], tramo?.salida, tolSalida);
   const brutos = Math.max(0, salida - entrada);
   // Con bloque fijo el almuerzo siempre es el mismo; las marcas del medio no cuentan.
   if (fijo || m.length === 2) {
@@ -350,10 +351,9 @@ function estimarDia(
   tipoDia: TipoDia,
   almuerzoManual?: number,
 ): ResultadoDia {
-  const tol = p.TOLERANCIA_MARCA_MINUTOS ?? 10;
   const faltaEntrada = entradaReal === null;
-  const entrada = entradaReal === null ? aMinutos(tramo.entrada) : redondearMarca(entradaReal, tramo.entrada, tol);
-  const salida = salidaReal === null ? aMinutos(tramo.salida) : redondearMarca(salidaReal, tramo.salida, tol);
+  const entrada = entradaReal === null ? aMinutos(tramo.entrada) : redondearMarca(entradaReal, tramo.entrada, p.TOLERANCIA_ENTRADA_MINUTOS ?? 10);
+  const salida = salidaReal === null ? aMinutos(tramo.salida) : redondearMarca(salidaReal, tramo.salida, p.TOLERANCIA_SALIDA_MINUTOS ?? 10);
   const brutos = Math.max(0, salida - entrada);
   let almuerzo = 0;
   if (almuerzoManual !== undefined) almuerzo = almuerzoManual;
@@ -452,8 +452,8 @@ export function aplicarResolucion(
     // El día trae entrada y salida: administración dice cuánto almorzó.
     if (datos.almuerzoMinutos === undefined) throw new Error('Indique cuántos minutos de almuerzo.');
     const r = clasificarDia(datos.marcas ?? [], tipoDia, p, datos.almuerzoMinutos, esperadoMinutos(fecha, horario, p), { ...opcionesEmpleado(horario, p, fecha), decidido: true });
-    if (r.estado !== EstadoDia.OK || r.marcas.length !== 2) {
-      throw new Error('El almuerzo solo se ajusta en días con entrada y salida (sin marcas de almuerzo).');
+    if (r.estado !== EstadoDia.OK || (r.marcas.length !== 2 && r.marcas.length !== 4)) {
+      throw new Error('El almuerzo solo se ajusta en días con marcas completas (entrada y salida, o las 4 marcas).');
     }
     if (datos.justificarHoras) r.minutosDescontar = 0;
     return r;

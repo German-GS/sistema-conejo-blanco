@@ -1,4 +1,4 @@
-import { IsBoolean, IsDefined, IsIn, IsInt, IsNotEmpty, IsNumber, IsObject, IsOptional, IsString, Max, MaxLength, Min, MinLength } from 'class-validator';
+import { IsBoolean, IsDefined, IsIn, IsNotEmpty, IsObject, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
 
 export class EnrolarDispositivoDto {
   @IsString()
@@ -64,26 +64,6 @@ export class GuardarPuntoMarcaDto {
 
   @IsIn(['empresa', 'tienda'])
   tipo: 'empresa' | 'tienda';
-
-  @IsOptional()
-  @IsNumber()
-  @Min(-90)
-  @Max(90)
-  latitud?: number | null;
-
-  @IsOptional()
-  @IsNumber()
-  @Min(-180)
-  @Max(180)
-  longitud?: number | null;
-
-  @IsInt()
-  @Min(20)
-  @Max(2000)
-  radioMetros: number;
-
-  @IsBoolean()
-  requiereQr: boolean;
 
   @IsOptional()
   @IsBoolean()

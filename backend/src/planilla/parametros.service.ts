@@ -25,10 +25,16 @@ export class ParametrosService implements OnModuleInit {
   // adelante se agrega uno nuevo al código, aparece solo sin pisar los
   // valores que administración ya haya editado.
   async onModuleInit() {
-    const existentes = new Set((await this.parametroRepo.find({ select: { nombre: true } })).map((p) => p.nombre));
+    const filas = await this.parametroRepo.find();
+    const existentes = new Set(filas.map((p) => p.nombre));
+    // La tolerancia de ± minutos era una sola; ahora hay una por cada marca. Los nuevos arrancan con el valor que ya tenía configurado.
+    const viejo = filas.find((p) => p.nombre === 'TOLERANCIA_MARCA_MINUTOS');
+    const heredan = ['TOLERANCIA_ENTRADA_MINUTOS', 'TOLERANCIA_SALIDA_MINUTOS', 'TOLERANCIA_ALMUERZO_SALIDA_MINUTOS', 'TOLERANCIA_ALMUERZO_REGRESO_MINUTOS'];
     const faltantes = PARAMETROS_POR_DEFECTO.filter((p) => !existentes.has(p.nombre));
-    if (faltantes.length === 0) return;
-    await this.parametroRepo.save(this.parametroRepo.create(faltantes.map((p) => ({ ...p, valor: String(p.valor) }))));
+    if (faltantes.length > 0) {
+      await this.parametroRepo.save(this.parametroRepo.create(faltantes.map((p) => ({ ...p, valor: String(viejo && heredan.includes(p.nombre) ? Number(viejo.valor) : p.valor) }))));
+    }
+    if (viejo) await this.parametroRepo.delete({ id: viejo.id });
   }
 
   // Horario de la fábrica por día; se crea con el horario por defecto la primera vez.

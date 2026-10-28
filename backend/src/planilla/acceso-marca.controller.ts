@@ -69,7 +69,7 @@ export class PuntosMarcaAdminController {
   }
 }
 
-// Las marcas hechas desde el celular, para que la gerencia y administración las revisen (con ubicación y distancia).
+// Las marcas hechas desde el celular, para que la gerencia y administración las revisen (con el aviso de las que no se sumaron al día).
 @Modulo('planilla')
 @Controller('planilla/marcas-app')
 @UseGuards(JwtAuthGuard, PermisosMetodoGuard)
@@ -105,12 +105,20 @@ export class MarcaPublicaController {
     return this.servicio.pedirReto();
   }
 
-  // Marcar: celular + PIN + QR de la pantalla + ubicación. La hora la pone el servidor.
+  // Marcar: celular + PIN + QR de la pantalla. La hora la pone el servidor.
   @Throttle({ default: { limit: 60, ttl: 60_000 } })
   @HttpCode(200)
   @Post('marcar')
   marcar(@Body() dto: IdentificarDto, @Req() req: Request) {
     return this.marcasApp.marcar(dto, req.ip);
+  }
+
+  // Historial de entradas y salidas del empleado (solo lectura): también responde «¿se registró mi marca?».
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
+  @HttpCode(200)
+  @Post('historico')
+  historico(@Body() dto: IdentificarDto, @Req() req: Request) {
+    return this.marcasApp.historico(dto, req.ip);
   }
 
   // La tablet de un punto pide el QR vigente con su token.

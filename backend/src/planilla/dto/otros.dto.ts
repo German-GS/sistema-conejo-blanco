@@ -146,8 +146,8 @@ export class CrearAnomaliaDto {
   @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'La fecha debe ser YYYY-MM-DD.' })
   fecha: string;
 
-  @IsIn(['almuerzo_corto', 'almuerzo_largo', 'tardanza', 'salida_temprana', 'ausencia', 'otro'])
-  tipo: 'almuerzo_corto' | 'almuerzo_largo' | 'tardanza' | 'salida_temprana' | 'ausencia' | 'otro';
+  @IsIn(['almuerzo_corto', 'almuerzo_largo', 'almuerzo_salida_temprana', 'almuerzo_regreso_tarde', 'tardanza', 'salida_temprana', 'ausencia', 'otro'])
+  tipo: 'almuerzo_corto' | 'almuerzo_largo' | 'almuerzo_salida_temprana' | 'almuerzo_regreso_tarde' | 'tardanza' | 'salida_temprana' | 'ausencia' | 'otro';
 
   @IsString()
   @MinLength(3, { message: 'Describa lo ocurrido.' })

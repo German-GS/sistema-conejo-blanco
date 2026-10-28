@@ -39,7 +39,7 @@ export class AnomaliasService {
     const repo = dentroDe ? dentroDe.getRepository(AnomaliaEmpleado) : this.repo;
     const esperado = empleado.almuerzoMarca === false ? 0 : (empleado.almuerzoMinutos ?? p.ALMUERZO_MINUTOS);
     const detectadas = detectarAnomaliasAlmuerzo(marcas, p, esperado);
-    const existentes = await repo.find({ where: { empleadoId: empleado.id, fecha, origen: 'automatica', tipo: In(['almuerzo_corto', 'almuerzo_largo'] as TipoAnomalia[]) } });
+    const existentes = await repo.find({ where: { empleadoId: empleado.id, fecha, origen: 'automatica', tipo: In(['almuerzo_corto', 'almuerzo_largo', 'almuerzo_salida_temprana', 'almuerzo_regreso_tarde'] as TipoAnomalia[]) } });
     for (const e of existentes) {
       const sigue = detectadas.find((d) => d.tipo === e.tipo);
       if (!sigue && e.estado === 'pendiente') await repo.delete({ id: e.id });
@@ -85,6 +85,10 @@ export class AnomaliasService {
     return this.repo.save(
       this.repo.create({ empleadoId: dto.empleadoId, fecha: dto.fecha, tipo: dto.tipo, detalle: dto.detalle.trim(), minutos: dto.minutos ?? null, origen: 'manual', estado: 'pendiente', usuarioId }),
     );
+  }
+
+  buscar(id: string): Promise<AnomaliaEmpleado | null> {
+    return this.repo.findOneBy({ id });
   }
 
   async cambiarEstado(id: string, estado: EstadoAnomalia, nota: string | undefined, usuarioId: string): Promise<AnomaliaEmpleado> {

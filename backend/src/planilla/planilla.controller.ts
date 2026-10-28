@@ -488,6 +488,12 @@ export class PlanillaController {
     return this.anomalias.crear(dto, usuario.id);
   }
 
+  // Administración decide descontar el exceso de un almuerzo que se pasó de la tolerancia.
+  @Post('anomalias/:id/descontar-almuerzo')
+  descontarAlmuerzo(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() usuario: UsuarioAutenticado) {
+    return this.asistencia.descontarExcesoDeAlmuerzo(id, usuario.id);
+  }
+
   @Patch('anomalias/:id')
   cambiarEstadoAnomalia(@Param('id', ParseUUIDPipe) id: string, @Body() dto: CambiarEstadoAnomaliaDto, @CurrentUser() usuario: UsuarioAutenticado) {
     return this.anomalias.cambiarEstado(id, dto.estado, dto.nota, usuario.id);

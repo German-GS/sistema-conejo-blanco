@@ -1,12 +1,14 @@
 import { Column, CreateDateColumn, Entity, Index, JoinColumn, ManyToOne, PrimaryGeneratedColumn, type Relation } from 'typeorm';
 import { Empleado } from './empleado.entity.js';
 
-export type TipoAnomalia = 'almuerzo_corto' | 'almuerzo_largo' | 'tardanza' | 'salida_temprana' | 'ausencia' | 'otro';
+export type TipoAnomalia = 'almuerzo_corto' | 'almuerzo_largo' | 'almuerzo_salida_temprana' | 'almuerzo_regreso_tarde' | 'tardanza' | 'salida_temprana' | 'ausencia' | 'otro';
 export type EstadoAnomalia = 'pendiente' | 'carta_emitida' | 'descartada';
 
 export const ETIQUETAS_ANOMALIA: Record<TipoAnomalia, string> = {
   almuerzo_corto: 'Almuerzo más corto de lo debido',
   almuerzo_largo: 'Almuerzo más largo de lo debido',
+  almuerzo_salida_temprana: 'Salió a almorzar antes de la hora',
+  almuerzo_regreso_tarde: 'Regresó tarde del almuerzo',
   tardanza: 'Llegada tarde',
   salida_temprana: 'Salida antes de la hora',
   ausencia: 'Ausencia',

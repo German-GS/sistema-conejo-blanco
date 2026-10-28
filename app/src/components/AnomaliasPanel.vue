@@ -2,10 +2,12 @@
 import { computed, onMounted, reactive, ref } from 'vue';
 import { api, ApiError, descargarArchivo } from '../lib/api.js';
 import { exito, fallo } from '../lib/avisos.js';
+import { confirmar } from '../lib/confirmar.js';
 import { formatearFecha } from '../lib/format.js';
 import Cargando from './Cargando.vue';
 
-// Anomalías de un empleado. No cambian el pago: dejan constancia para que gerencia decida si emite una carta de amonestación.
+// Anomalías de un empleado. No cambian el pago por sí solas: dejan constancia para que gerencia decida si emite una carta de amonestación y,
+// en los almuerzos que se pasaron de la tolerancia, si se descuenta el exceso.
 // Salen solas de la asistencia ya registrada cuando tuvo consecuencia: ausencias injustificadas, llegadas tarde o salidas antes de la hora con rebajo, y almuerzos fuera de lo normal.
 // Lo demás se anota a mano. Las que se justifican (o se corrigen la asistencia) desaparecen solas mientras estén pendientes.
 const props = defineProps({ empleado: { type: Object, required: true } });
@@ -14,6 +16,8 @@ const emit = defineEmits(['cambio', 'cerrar']);
 const TIPOS = [
   { valor: 'almuerzo_corto', etiqueta: 'Almuerzo más corto de lo debido' },
   { valor: 'almuerzo_largo', etiqueta: 'Almuerzo más largo de lo debido' },
+  { valor: 'almuerzo_salida_temprana', etiqueta: 'Salió a almorzar antes de la hora' },
+  { valor: 'almuerzo_regreso_tarde', etiqueta: 'Regresó tarde del almuerzo' },
   { valor: 'tardanza', etiqueta: 'Llegada tarde' },
   { valor: 'salida_temprana', etiqueta: 'Salida antes de la hora' },
   { valor: 'ausencia', etiqueta: 'Ausencia' },
@@ -98,6 +102,23 @@ async function cambiarEstado(a, estado) {
   }
 }
 
+// Los almuerzos que se pasaron de lo establecido: administración decide si se descuenta el exceso (el día queda con esa decisión).
+const PUEDE_DESCONTAR = ['almuerzo_regreso_tarde', 'almuerzo_largo'];
+async function descontarAlmuerzo(a) {
+  if (!(await confirmar(`¿Descontar el exceso del almuerzo del ${formatearFecha(a.fecha)}? Queda como decisión del día y se rebaja en la planilla (con la compensación de la semana).`, { aceptar: 'Sí, descontar' }))) return;
+  trabajando.value = true;
+  try {
+    await api.post(`/planilla/anomalias/${a.id}/descontar-almuerzo`, {});
+    exito('Exceso del almuerzo descontado: el día quedó con esa decisión.');
+    await cargar();
+    emit('cambio');
+  } catch (err) {
+    fallo(err instanceof ApiError ? err.message : 'No se pudo descontar.');
+  } finally {
+    trabajando.value = false;
+  }
+}
+
 async function carta() {
   trabajando.value = true;
   try {
@@ -120,7 +141,7 @@ async function carta() {
       <div>
         <p class="text-sm font-semibold text-slate-800">Anomalías de {{ empleado.nombre }}</p>
         <p class="text-xs text-slate-600">
-          Salen solas de la asistencia, pero solo lo que tuvo consecuencia: <strong>ausencias injustificadas</strong> y <strong>llegadas tarde o salidas antes de la hora con rebajo</strong> (si no hubo rebajo, o se compensó o se justificó, no se anota), más los almuerzos fuera de lo normal. Dejan constancia, no cambian el pago.
+          Salen solas de la asistencia, pero solo lo que tuvo consecuencia: <strong>ausencias injustificadas</strong> y <strong>llegadas tarde o salidas antes de la hora con rebajo</strong> (si no hubo rebajo, o se compensó o se justificó, no se anota), más los almuerzos fuera de la tolerancia (salir antes de la hora o regresar tarde). Dejan constancia: el pago solo cambia si usted decide descontar el exceso de un almuerzo.
           Marque las que lleve la <strong>carta de amonestación</strong> (es un borrador: revíselo con el asesor legal antes de entregarlo) o descarte las que no correspondan.
         </p>
       </div>
@@ -153,6 +174,7 @@ async function carta() {
           <p v-if="a.nota" class="text-xs text-slate-500">{{ a.nota }}</p>
         </div>
         <div class="flex gap-2 text-xs font-semibold">
+          <button v-if="a.estado === 'pendiente' && PUEDE_DESCONTAR.includes(a.tipo)" type="button" class="text-red-700 underline" :disabled="trabajando" @click="descontarAlmuerzo(a)">Descontar el exceso</button>
           <button v-if="a.estado === 'pendiente'" type="button" class="text-slate-600 underline" :disabled="trabajando" @click="cambiarEstado(a, 'descartada')">Descartar</button>
           <button v-else type="button" class="text-blue-700 underline" :disabled="trabajando" @click="cambiarEstado(a, 'pendiente')">Reabrir</button>
         </div>

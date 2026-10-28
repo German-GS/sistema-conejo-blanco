@@ -602,6 +602,37 @@ export class AsistenciaService implements OnModuleInit {
     return { sumada: true, marcas: r.marcas };
   }
 
+  // Lo que el empleado ve en el historial de su celular: por cada día de [desde, hasta], las marcas que tiene el día (reloj, celular o a mano)
+  // mezcladas con las que hizo desde el celular, y el horario de ese día.
+  async historialDeMarcas(empleado: Empleado, desde: string, hasta: string, marcasCelular: Map<string, string[]>) {
+    const dias = await this.diaRepo.find({ where: { empleadoId: empleado.id, fecha: Between(desde, hasta) } });
+    const porFecha = new Map(dias.map((d) => [d.fecha, d]));
+    const feriados = await this.parametros.mapaFeriados();
+    const emp = conHorario(empleado, await this.parametros.horarioBase());
+    const filas: Array<{ fecha: string; marcas: string[]; tipoDia: TipoDia; tramo: { entrada: string; salida: string } | null }> = [];
+    for (let f = hasta; f >= desde; f = sumarDias(f, -1)) {
+      if (empleado.fechaIngreso && f < empleado.fechaIngreso) break;
+      const tipoDia = tipoDeDia(f, feriados, emp.horarioSemanal);
+      filas.push({ fecha: f, marcas: unirMarcas(porFecha.get(f)?.marcas ?? [], marcasCelular.get(f) ?? []), tipoDia, tramo: horarioDelDia(emp, f) });
+    }
+    return filas;
+  }
+
+  // Administración decide descontar el exceso de un almuerzo que se pasó (anomalía de regreso tarde o almuerzo largo): el día queda con una decisión de
+  // «almuerzo de otra duración» igual a lo que realmente duró; el resto lo calcula el sistema (con la compensación de la semana de siempre).
+  async descontarExcesoDeAlmuerzo(anomaliaId: string, usuarioId: string): Promise<DiaAsistencia> {
+    const a = await this.anomalias.buscar(anomaliaId);
+    if (!a) throw new NotFoundException('La incidencia no existe.');
+    if (a.tipo !== 'almuerzo_regreso_tarde' && a.tipo !== 'almuerzo_largo') throw new BadRequestException('Solo se descuenta el exceso de una incidencia de almuerzo largo o de regreso tarde.');
+    const dia = await this.diaRepo.findOne({ where: { empleadoId: a.empleadoId, fecha: a.fecha }, relations: { empleado: true } });
+    if (!dia || dia.marcas.length !== 4) throw new BadRequestException('Ese día ya no tiene las 4 marcas: revíselo en Asistencia.');
+    const p = await this.parametros.mapa();
+    const esperado = dia.empleado.almuerzoMinutos ?? p.ALMUERZO_MINUTOS;
+    const duracion = (Number(dia.marcas[2].slice(0, 2)) * 60 + Number(dia.marcas[2].slice(3))) - (Number(dia.marcas[1].slice(0, 2)) * 60 + Number(dia.marcas[1].slice(3)));
+    if (duracion <= esperado) throw new BadRequestException(`El almuerzo duró ${duracion} min y lo establecido es ${esperado}: no hay exceso que descontar.`);
+    return this.resolver(dia.id, { tipo: TipoResolucionDia.ALMUERZO_MANUAL, motivo: `Almuerzo de ${duracion} min (lo establecido es ${esperado}): se descuenta el exceso.`, almuerzoMinutos: duracion } as ResolverDiaDto, usuarioId);
+  }
+
   async resolver(diaId: string, dto: ResolverDiaDto, usuarioId: string): Promise<DiaAsistencia> {
     const dia = await this.diaRepo.findOne({ where: { id: diaId }, relations: { empleado: true } });
     if (!dia) throw new NotFoundException('El día no existe.');
