@@ -141,10 +141,10 @@ const VERIFICACIONES: Verificacion[] = [
   },
   {
     codigo: 'planilla-lineas',
-    titulo: 'Planilla: deducciones = CCSS + Banco Popular + renta + deudas; neto = bruto − deducciones',
+    titulo: 'Planilla: deducciones = CCSS + Banco Popular + renta + deudas + préstamos y embargos; neto = bruto − deducciones + viáticos',
     sql: `select id, empleado_nombre, bruto, total_deducciones, neto from planilla_lineas
-          where total_deducciones::numeric <> sem::numeric + ivm::numeric + banco_popular::numeric + renta::numeric + deudas_descontadas::numeric
-             or neto::numeric <> bruto::numeric - total_deducciones::numeric`,
+          where total_deducciones::numeric <> sem::numeric + ivm::numeric + banco_popular::numeric + renta::numeric + deudas_descontadas::numeric + deducciones_externas::numeric
+             or neto::numeric <> bruto::numeric - total_deducciones::numeric + viaticos::numeric`,
   },
   {
     codigo: 'planilla-totales',

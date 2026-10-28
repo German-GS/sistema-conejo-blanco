@@ -7,6 +7,9 @@ Versionado `MAYOR.MENOR.PARCHE`:
 
 La versión se cambia en `app/package.json` y `backend/package.json` (el pie de página y el panel del sistema la leen solos).
 
+## 1.24.3 — 28 oct 2026 — La «Verificación de cálculos» ya conoce los préstamos y los viáticos
+- **Corrección:** en el panel del sistema, la regla «Planilla: deducciones = CCSS + Banco Popular + renta + deudas; neto = bruto − deducciones» marcaba 7 líneas como diferencias porque no conocía las columnas nuevas: los **préstamos y embargos** (1.22.0) y los **viáticos** (1.17.0, que se suman al neto). Los montos de las planillas estaban bien (revisados en la base de producción, solo lectura). La regla ahora es «deducciones = CCSS + Banco Popular + renta + deudas + préstamos y embargos; neto = bruto − deducciones + viáticos» y da 0 diferencias.
+
 ## 1.24.2 — 28 oct 2026 — TXT del banco sin símbolos y lista de anomalías visible
 - **TXT del banco: la descripción ya no se escribe a mano.** El banco rechaza el archivo si la descripción trae símbolos como «/» (por ejemplo una fecha escrita 19/10). Ahora la descripción sale sola del período («SEMANAL 19 AL 25 OCT»), tanto en el nombre del archivo como dentro de él, y solo puede tener letras, números y espacios. La «/» tampoco pasa en nombres u otros textos del archivo. Se quitó el campo de descripción; la pantalla muestra la que se usa.
 - **Solo se anota lo que tuvo consecuencia.** Una llegada tarde o una salida antes de la hora solo salen como anomalía si **de verdad se rebajaron horas** de ese día (ya con la compensación de la semana y sin las que se justificaron); si cuando se hizo la asistencia no hubo problema (dentro de la tolerancia, compensado con horas de más, justificado o sin rebajo por no estar verificado), no se anota. Las **ausencias injustificadas** siguen saliendo (día descontado o decidido como injustificado). Las que ya estaban pendientes y no cumplen esto desaparecen solas; lo descartado o con carta emitida se conserva.
