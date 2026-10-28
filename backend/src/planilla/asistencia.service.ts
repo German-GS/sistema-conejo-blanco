@@ -562,9 +562,17 @@ export class AsistenciaService implements OnModuleInit {
     const p = await this.parametros.mapa();
     const emp = conHorario(empleado, await this.parametros.horarioBase());
     const porFecha = new Map<string, AnomaliaDetectada[]>();
-    for (const dia of await this.diaRepo.find({ where: { empleadoId } })) {
+    const dias = await this.diaRepo.find({ where: { empleadoId } });
+    // El rebajo que cuenta es el que de verdad se descuenta: si lo que faltó un día se compensa con horas de más de la misma semana, no hubo rebajo.
+    const semanas = new Map(
+      compensacionSemanal(dias.map((d) => ({ fecha: d.fecha, tipoDia: d.tipoDia as 'ordinario', estado: d.estado, descuenta: d.descuenta, minutosExtra: d.minutosExtra, minutosDescontar: d.minutosDescontar, compensable: d.estado === EstadoDia.OK && d.minutosDescontar > 0 && !d.resolucionTipo }))).map((c) => [c.lunes, c]),
+    );
+    for (const dia of dias) {
+      const sem = semanas.get(lunesDeSemana(dia.fecha));
+      const compensadoTodo = !dia.resolucionTipo && !!sem && sem.faltantesMin > 0 && sem.compensadoMin >= sem.faltantesMin;
+      const rebajo = compensadoTodo ? 0 : dia.minutosDescontar;
       const tramo = dia.tipoDia === 'ordinario' ? horarioDelDia(emp, dia.fecha) : null;
-      porFecha.set(dia.fecha, detectarAnomaliasDeDia({ tipoDia: dia.tipoDia, estado: dia.estado, descuenta: dia.descuenta, marcas: dia.marcas, resolucionTipo: dia.resolucionTipo }, tramo, esperadoMinutos(dia.fecha, emp, p), p));
+      porFecha.set(dia.fecha, detectarAnomaliasDeDia({ tipoDia: dia.tipoDia, estado: dia.estado, descuenta: dia.descuenta, marcas: dia.marcas, resolucionTipo: dia.resolucionTipo, minutosDescontar: rebajo }, tramo, esperadoMinutos(dia.fecha, emp, p), p));
     }
     await this.anomalias.aplicarDetectadas(empleadoId, ['tardanza', 'salida_temprana', 'ausencia'], porFecha);
   }

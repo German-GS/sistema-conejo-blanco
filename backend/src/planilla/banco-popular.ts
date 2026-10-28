@@ -38,8 +38,22 @@ export function limpiarTexto(texto: string, max: number): string {
     .normalize('NFD')
     .replace(/Ñ/g, 'N')
     .replace(/[̀-ͯ]/g, '')
-    .replace(/[|\\°,]/g, '')
+    .replace(/[|\\°,/]/g, '')
     .replace(/[^\x20-\x7E]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, max);
+}
+
+// La descripción del archivo (narrativa y nombre): solo letras, números y espacios. El banco rechaza el archivo si trae «/» u otros símbolos
+// (por ejemplo una fecha escrita 19/10), así que no se deja nada más.
+export function limpiarDescripcion(texto: string, max: number): string {
+  return texto
+    .toUpperCase()
+    .normalize('NFD')
+    .replace(/Ñ/g, 'N')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[^A-Z0-9 ]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
     .slice(0, max);
@@ -90,7 +104,7 @@ export interface ArchivoBp {
 export function armarArchivoBp(empresa: EmpresaBp, pagos: PagoBp[], descripcion: string, fechaISO: string): ArchivoBp {
   if (pagos.length === 0) throw new Error('No hay pagos para el archivo.');
   const total = redondear(pagos.reduce((a, p) => a + p.monto, 0));
-  const narrativa = limpiarTexto(descripcion, MAX_NARRATIVA);
+  const narrativa = limpiarDescripcion(descripcion, MAX_NARRATIVA);
   const idEmpresa = `${empresa.numeroPatrono}.${empresa.convenio}.${empresa.identificadorCliente}`;
   const cuentaEmpresa = cuentaDeIban(empresa.cuentaPatrono);
 
@@ -131,7 +145,7 @@ export function armarArchivoBp(empresa: EmpresaBp, pagos: PagoBp[], descripcion:
 
   return {
     // Mismo nombre que arma la macro: PLANILLA <descripción> CREADA EL <aaaammdd>
-    nombreArchivo: `PLANILLA ${limpiarTexto(descripcion, 25)} CREADA EL ${fechaCompacta(fechaISO)}.txt`,
+    nombreArchivo: `PLANILLA ${limpiarDescripcion(descripcion, 25)} CREADA EL ${fechaCompacta(fechaISO)}.txt`,
     contenido: lineas.join('\r\n') + '\r\n',
     total,
     pagos: pagos.length,

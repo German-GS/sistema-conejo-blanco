@@ -72,7 +72,6 @@ const crear = () =>
 
 async function abrir(id) {
   bp.value = null;
-  bpDescripcion.value = '';
   aceptarSinDatos.value = false;
   lineaAbierta.value = null;
   detalle.value = await api.get(`/planilla/planillas/${id}`);
@@ -237,22 +236,17 @@ async function cerrarCese() {
 
 // ---- Archivo del Banco Popular ----
 const bp = ref(null);
-const bpDescripcion = ref('');
 async function revisarBp() {
   error.value = '';
   try {
-    const q = bpDescripcion.value.trim() ? `?descripcion=${encodeURIComponent(bpDescripcion.value.trim())}` : '';
-    bp.value = await api.get(`/planilla/planillas/${detalle.value.planilla.id}/banco-popular${q}`);
-    if (!bpDescripcion.value.trim()) bpDescripcion.value = bp.value.descripcion;
+    // La descripción sale sola del período (ej. «SEMANAL 19 AL 25 OCT»): el banco rechaza símbolos como «/».
+    bp.value = await api.get(`/planilla/planillas/${detalle.value.planilla.id}/banco-popular`);
   } catch (err) {
     error.value = err instanceof ApiError ? err.message : 'No se pudo preparar el archivo.';
   }
 }
 const descargarBp = () =>
-  ejecutar(() => {
-    const q = bpDescripcion.value.trim() ? `?descripcion=${encodeURIComponent(bpDescripcion.value.trim())}` : '';
-    return descargarArchivo(`/planilla/planillas/${detalle.value.planilla.id}/banco-popular/txt${q}`, 'planilla-banco-popular.txt');
-  }, 'No se pudo descargar el archivo.');
+  ejecutar(() => descargarArchivo(`/planilla/planillas/${detalle.value.planilla.id}/banco-popular/txt`, 'planilla-banco-popular.txt'), 'No se pudo descargar el archivo.');
 
 const m = (v) => formatearColones(v);
 const fechaCorta = (f) => formatearFecha(f).slice(0, 5);
@@ -422,10 +416,7 @@ const fechaCorta = (f) => formatearFecha(f).slice(0, 5);
           <p class="text-sm text-slate-500">Genera el TXT para subir a la planilla web del banco, sin pasar por el Excel.</p>
         </div>
         <div class="flex flex-wrap items-end gap-2">
-          <div class="min-w-64 flex-1">
-            <label class="label">Descripción corta (máx. 25 caracteres, va en el nombre del archivo)</label>
-            <input v-model="bpDescripcion" maxlength="25" class="input" placeholder="Ej. SEMANAL 28 SEP AL 3 OCT" />
-          </div>
+          <p class="min-w-64 flex-1 text-sm text-slate-600">La descripción del archivo se pone sola con el período (ej. «SEMANAL 19 AL 25 OCT»), sin símbolos que el banco rechace.</p>
           <button type="button" class="btn-secondary" @click="revisarBp">Revisar archivo</button>
         </div>
         <template v-if="bp">
@@ -440,7 +431,7 @@ const fechaCorta = (f) => formatearFecha(f).slice(0, 5);
             <ul class="grid grid-cols-1 gap-x-8 text-sm sm:grid-cols-2">
               <li v-for="p in bp.pagos" :key="p.cuenta" class="flex justify-between border-b border-slate-100 py-0.5"><span>{{ p.nombre }}</span><span class="tabular-nums">{{ m(p.monto) }}</span></li>
             </ul>
-            <p class="text-xs text-slate-500">Archivo: {{ bp.nombreArchivo }}</p>
+            <p class="text-xs text-slate-500">Archivo: {{ bp.nombreArchivo }} · Descripción: {{ bp.descripcion }}</p>
             <button type="button" class="btn-primary w-fit" :disabled="trabajando" @click="descargarBp">Descargar TXT para el banco</button>
           </template>
           <p v-if="bp.efectivo.length" class="text-xs text-slate-500">Se pagan en efectivo (no van en el archivo): {{ bp.efectivo.map((e) => e.nombre).join(', ') }}.</p>

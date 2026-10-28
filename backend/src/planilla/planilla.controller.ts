@@ -438,8 +438,8 @@ export class PlanillaController {
 
   // Revisión previa: qué se mandaría al banco y qué falta.
   @Get('planillas/:id/banco-popular')
-  prepararBancoPopular(@Param('id', ParseUUIDPipe) id: string, @Query('descripcion') descripcion?: string) {
-    return this.bancoPopular.preparar(id, descripcion);
+  prepararBancoPopular(@Param('id', ParseUUIDPipe) id: string) {
+    return this.bancoPopular.preparar(id);
   }
 
   // El TXT para subir a la planilla web del banco.
@@ -447,9 +447,8 @@ export class PlanillaController {
   async txtBancoPopular(
     @Param('id', ParseUUIDPipe) id: string,
     @Res({ passthrough: true }) res: Response,
-    @Query('descripcion') descripcion?: string,
   ) {
-    const { nombre, contenido } = await this.bancoPopular.generarTxt(id, descripcion);
+    const { nombre, contenido } = await this.bancoPopular.generarTxt(id);
     res.set({
       'Content-Type': 'text/plain; charset=us-ascii',
       'Content-Disposition': `attachment; filename="${nombre}"`,

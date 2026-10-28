@@ -6,7 +6,7 @@ import { formatearFecha } from '../lib/format.js';
 import Cargando from './Cargando.vue';
 
 // Anomalías de un empleado. No cambian el pago: dejan constancia para que gerencia decida si emite una carta de amonestación.
-// Salen solas de la asistencia ya registrada: llegadas tarde, salidas antes de la hora, ausencias injustificadas y almuerzos fuera de lo normal.
+// Salen solas de la asistencia ya registrada cuando tuvo consecuencia: ausencias injustificadas, llegadas tarde o salidas antes de la hora con rebajo, y almuerzos fuera de lo normal.
 // Lo demás se anota a mano. Las que se justifican (o se corrigen la asistencia) desaparecen solas mientras estén pendientes.
 const props = defineProps({ empleado: { type: Object, required: true } });
 const emit = defineEmits(['cambio', 'cerrar']);
@@ -27,13 +27,13 @@ const ESTADOS = {
 const etiqueta = (t) => TIPOS.find((x) => x.valor === t)?.etiqueta ?? t;
 // Las que normalmente justifican una carta de amonestación (el almuerzo solo deja constancia).
 const PUEDE_LLEVAR_CARTA = ['tardanza', 'salida_temprana', 'ausencia'];
-const pendientes = computed(() => lista.value.filter((a) => a.estado === 'pendiente'));
+const pendientes = computed(() => visibles.value.filter((a) => a.estado === 'pendiente'));
 const resumenPendientes = computed(() => {
   const c = {};
   for (const a of pendientes.value) c[a.tipo] = (c[a.tipo] ?? 0) + 1;
   return Object.entries(c).map(([t, n]) => `${n} ${etiqueta(t).toLowerCase()}`).join(' · ');
 });
-const elegirPendientes = () => { for (const a of lista.value) elegidas[a.id] = a.estado === 'pendiente'; };
+const elegirPendientes = () => { for (const a of lista.value) elegidas[a.id] = a.estado === 'pendiente' && visibles.value.includes(a); };
 
 const lista = ref([]);
 const cargando = ref(true);
@@ -41,7 +41,10 @@ const trabajando = ref(false);
 const elegidas = reactive({});
 const nueva = reactive({ abierta: false, fecha: '', tipo: 'tardanza', detalle: '', minutos: '' });
 
-const marcadas = computed(() => lista.value.filter((a) => elegidas[a.id]));
+// Se puede mirar solo un período (ej. la semana de la planilla): lo que no se ve tampoco entra a la carta.
+const filtro = reactive({ desde: '', hasta: '' });
+const visibles = computed(() => lista.value.filter((a) => (!filtro.desde || a.fecha >= filtro.desde) && (!filtro.hasta || a.fecha <= filtro.hasta)));
+const marcadas = computed(() => visibles.value.filter((a) => elegidas[a.id]));
 
 async function cargar() {
   cargando.value = true;
@@ -117,7 +120,7 @@ async function carta() {
       <div>
         <p class="text-sm font-semibold text-slate-800">Anomalías de {{ empleado.nombre }}</p>
         <p class="text-xs text-slate-600">
-          Salen solas de la asistencia: llegadas tarde, salidas antes de la hora, ausencias injustificadas y almuerzos fuera de lo normal. Dejan constancia, no cambian el pago.
+          Salen solas de la asistencia, pero solo lo que tuvo consecuencia: <strong>ausencias injustificadas</strong> y <strong>llegadas tarde o salidas antes de la hora con rebajo</strong> (si no hubo rebajo, o se compensó o se justificó, no se anota), más los almuerzos fuera de lo normal. Dejan constancia, no cambian el pago.
           Marque las que lleve la <strong>carta de amonestación</strong> (es un borrador: revíselo con el asesor legal antes de entregarlo) o descarte las que no correspondan.
         </p>
       </div>
@@ -125,13 +128,19 @@ async function carta() {
     </div>
 
     <Cargando v-if="cargando" texto="Cargando…" compacto />
-    <p v-else-if="lista.length === 0" class="text-sm text-slate-500">Sin anomalías: en la asistencia registrada no hay llegadas tarde, salidas antes de hora ni ausencias injustificadas.</p>
+    <p v-if="!cargando && lista.length === 0" class="text-sm text-slate-500">Sin anomalías: en la asistencia registrada no hay llegadas tarde, salidas antes de hora ni ausencias injustificadas.</p>
+    <div v-if="!cargando && lista.length" class="flex flex-wrap items-end gap-2 text-xs">
+      <div><label class="label">Ver desde</label><input v-model="filtro.desde" type="date" class="input" /></div>
+      <div><label class="label">Hasta</label><input v-model="filtro.hasta" type="date" class="input" /></div>
+      <button v-if="filtro.desde || filtro.hasta" type="button" class="pb-2 font-semibold text-blue-700 underline" @click="filtro.desde = filtro.hasta = ''">Ver todas</button>
+      <p class="pb-2 text-slate-500">{{ visibles.length }} de {{ lista.length }}</p>
+    </div>
     <p v-if="!cargando && pendientes.length" class="rounded-lg bg-amber-50 p-2 text-xs font-medium text-amber-900">
       {{ pendientes.length }} pendiente(s) por decidir: {{ resumenPendientes }}. Puede generar una carta de amonestación con las que marque.
       <button type="button" class="ml-1 font-semibold underline" @click="elegirPendientes">Marcar todas las pendientes</button>
     </p>
-    <ul v-else class="flex flex-col gap-1.5">
-      <li v-for="a in lista" :key="a.id" class="flex flex-wrap items-start gap-2 rounded-lg border border-slate-200 bg-white p-2 text-sm">
+    <ul v-if="!cargando && lista.length" class="flex flex-col gap-1.5">
+      <li v-for="a in visibles" :key="a.id" class="flex flex-wrap items-start gap-2 rounded-lg border border-slate-200 bg-white p-2 text-sm">
         <input v-model="elegidas[a.id]" type="checkbox" class="mt-1 size-4" :disabled="a.estado === 'descartada'" :aria-label="`Incluir en la carta: ${etiqueta(a.tipo)} ${a.fecha}`" />
         <div class="min-w-0 flex-1">
           <p class="font-semibold text-slate-900">

@@ -37,25 +37,25 @@ describe('detectarAnomaliasAlmuerzo', () => {
 
 describe('anomalías de un día frente al horario', () => {
   const tramo = { entrada: '08:00', salida: '17:00' };
-  const dia = (marcas: string[], extra: Partial<DiaParaAnomalias> = {}): DiaParaAnomalias => ({ tipoDia: 'ordinario', estado: 'ok', descuenta: false, marcas, resolucionTipo: null, ...extra });
+  const dia = (marcas: string[], extra: Partial<DiaParaAnomalias> = {}): DiaParaAnomalias => ({ tipoDia: 'ordinario', estado: 'ok', descuenta: false, marcas, resolucionTipo: null, minutosDescontar: 0, ...extra });
   const detectar = (d: DiaParaAnomalias) => detectarAnomaliasDeDia(d, tramo, 480, p);
 
   it('llegada tarde: pasada la tolerancia de 10 minutos', () => {
     expect(detectar(dia(['08:10', '12:00', '13:00', '17:00']))).toEqual([]);
-    const r = detectar(dia(['08:25', '12:00', '13:00', '17:00']));
+    const r = detectar(dia(['08:25', '12:00', '13:00', '17:00'], { minutosDescontar: 25 }));
     expect(r).toHaveLength(1);
     expect(r[0]).toMatchObject({ tipo: 'tardanza', minutos: 25 });
     expect(r[0].detalle).toContain('08:25');
   });
 
   it('salida antes de la hora (se fue a mediodía)', () => {
-    const r = detectar(dia(['08:00', '12:00']));
+    const r = detectar(dia(['08:00', '12:00'], { minutosDescontar: 240 }));
     expect(r).toHaveLength(1);
     expect(r[0]).toMatchObject({ tipo: 'salida_temprana', minutos: 300 });
   });
 
   it('llegó tarde y se fue antes: dos anomalías', () => {
-    expect(detectar(dia(['09:00', '16:00'])).map((x) => x.tipo)).toEqual(['tardanza', 'salida_temprana']);
+    expect(detectar(dia(['09:00', '16:00'], { minutosDescontar: 120 })).map((x) => x.tipo)).toEqual(['tardanza', 'salida_temprana']);
   });
 
   it('ausencia injustificada (sin marcas y sin decisión, o decidida como injustificada)', () => {
@@ -65,7 +65,7 @@ describe('anomalías de un día frente al horario', () => {
 
   it('entrar y salir más temprano cumpliendo todas las horas no es salir antes de la hora', () => {
     expect(detectar(dia(['07:00', '12:00', '13:00', '16:00']))).toEqual([]); // 9 h de 8 a 17: horario corrido una hora
-    expect(detectar(dia(['07:00', '12:00', '13:00', '15:30'])).map((x) => x.tipo)).toEqual(['salida_temprana']); // faltó tiempo de verdad
+    expect(detectar(dia(['07:00', '12:00', '13:00', '15:30'], { minutosDescontar: 30 })).map((x) => x.tipo)).toEqual(['salida_temprana']); // faltó tiempo de verdad
   });
 
   it('lo justificado no se amonesta: ausencia justificada, incapacidad, día libre', () => {
@@ -79,5 +79,23 @@ describe('anomalías de un día frente al horario', () => {
     expect(detectar(dia(['10:00', '12:00'], { tipoDia: 'feriado' }))).toEqual([]);
     expect(detectar(dia([], { estado: 'ausencia', descuenta: true, tipoDia: 'domingo' }))).toEqual([]);
     expect(detectarAnomaliasDeDia(dia(['10:00', '12:00']), null, 0, p)).toEqual([]);
+  });
+});
+
+describe('solo se anota lo que tuvo consecuencia (rebajo o ausencia injustificada)', () => {
+  const tramo = { entrada: '08:00', salida: '17:00' };
+  const dia = (marcas: string[], extra: Partial<DiaParaAnomalias> = {}): DiaParaAnomalias => ({ tipoDia: 'ordinario', estado: 'ok', descuenta: false, marcas, resolucionTipo: null, minutosDescontar: 0, ...extra });
+
+  it('una llegada tarde sin rebajo (compensada, justificada o dentro de lo permitido) no se anota', () => {
+    expect(detectarAnomaliasDeDia(dia(['08:25', '12:00', '13:00', '17:00']), tramo, 480, p)).toEqual([]);
+  });
+  it('la misma llegada tarde con rebajo sí se anota', () => {
+    expect(detectarAnomaliasDeDia(dia(['08:25', '12:00', '13:00', '17:00'], { minutosDescontar: 25 }), tramo, 480, p).map((x) => x.tipo)).toEqual(['tardanza']);
+  });
+  it('una salida antes de la hora sin rebajo no se anota', () => {
+    expect(detectarAnomaliasDeDia(dia(['08:00', '12:00']), tramo, 480, p)).toEqual([]);
+  });
+  it('la ausencia injustificada se anota aunque no tenga minutos de rebajo (se descuenta el día)', () => {
+    expect(detectarAnomaliasDeDia(dia([], { estado: 'ausencia', descuenta: true }), tramo, 480, p)).toHaveLength(1);
   });
 });

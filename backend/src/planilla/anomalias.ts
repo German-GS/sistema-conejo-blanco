@@ -24,14 +24,18 @@ export function detectarAnomaliasAlmuerzo(marcas: string[], p: Parametros, almue
   return [];
 }
 
-// Lo que se detecta de un día de asistencia frente al horario del empleado: llegada tarde, salida antes de la hora y ausencia injustificada.
-// Solo deja constancia (no cambia el pago). Los días con marcas por confirmar, feriados y domingos no cuentan.
+// Lo que se detecta de un día de asistencia frente al horario del empleado: llegada tarde, salida antes de la hora y ausencia injustificada,
+// pero SOLO cuando la asistencia ya tuvo consecuencia: una ausencia injustificada o un rebajo de horas. Solo deja constancia (no cambia el pago).
+// Los días con marcas por confirmar, feriados y domingos no cuentan.
 export interface DiaParaAnomalias {
   tipoDia: string;
   estado: string;
   descuenta: boolean;
   marcas: string[];
   resolucionTipo: string | null;
+  // Minutos que realmente se rebajan de ese día (ya con la compensación de la semana). Sin rebajo no hay anomalía: si cuando se hizo la
+  // asistencia no hubo problema (dentro de la tolerancia, compensado, justificado), no tiene sentido anotarlo.
+  minutosDescontar: number;
 }
 
 // Decisiones de administración que dan por buena la falta de ese día (no se amonesta lo justificado).
@@ -46,7 +50,7 @@ export function detectarAnomaliasDeDia(d: DiaParaAnomalias, tramo: { entrada: st
     if (!d.descuenta && d.resolucionTipo !== 'ausencia_injustificada') return [];
     return [{ tipo: 'ausencia', minutos: esperadoMin, detalle: `No se presentó a trabajar y no hay justificación (ausencia injustificada). Su horario era de ${tramo.entrada} a ${tramo.salida}.` }];
   }
-  if (d.estado !== 'ok' || d.marcas.length < 2) return [];
+  if (d.estado !== 'ok' || d.marcas.length < 2 || d.minutosDescontar <= 0) return [];
 
   const tol = p.TOLERANCIA_MARCA_MINUTOS ?? 10;
   const detectadas: AnomaliaDetectada[] = [];

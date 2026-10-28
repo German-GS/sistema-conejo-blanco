@@ -7,7 +7,7 @@ import { Empleado } from './empleado.entity.js';
 import { EstadoPlanilla } from './planilla.enums.js';
 import { ConfiguracionService } from '../configuracion/configuracion.service.js';
 import { hoyISO } from '../common/utils/fecha.util.js';
-import { armarArchivoBp, cuentaDeIban, ibanValido, limpiarTexto, type EmpresaBp, type PagoBp } from './banco-popular.js';
+import { armarArchivoBp, cuentaDeIban, ibanValido, limpiarDescripcion, type EmpresaBp, type PagoBp } from './banco-popular.js';
 import type { ActualizarBancoPopularDto } from './dto/banco-popular.dto.js';
 
 const CONFIG_ID = 'general';
@@ -57,7 +57,8 @@ export class BancoPopularService {
       : `${freq} ${d1} ${MESES[m1 - 1]} AL ${d2} ${MESES[m2 - 1]}`;
   }
 
-  async preparar(planillaId: string, descripcion?: string) {
+  // La descripción del archivo sale sola del período (ej. «SEMANAL 19 AL 25 OCT»): no se escribe a mano porque el banco rechaza símbolos como «/».
+  async preparar(planillaId: string) {
     const planilla = await this.planillaRepo.findOne({ where: { id: planillaId }, relations: { lineas: true } });
     if (!planilla) throw new NotFoundException('La planilla no existe.');
     const config = await this.obtenerConfig();
@@ -113,7 +114,7 @@ export class BancoPopularService {
       problemas.push('Ningún empleado de esta planilla se paga por el Banco Popular.');
     }
 
-    const desc = descripcion?.trim() || this.sugerirDescripcion(planilla);
+    const desc = this.sugerirDescripcion(planilla);
     const empresa: EmpresaBp = { ...config };
     let archivo: ReturnType<typeof armarArchivoBp> | null = null;
     if (problemas.length === 0) archivo = armarArchivoBp(empresa, pagos, desc, hoyISO());
@@ -121,7 +122,7 @@ export class BancoPopularService {
     return {
       listo: problemas.length === 0,
       problemas,
-      descripcion: limpiarTexto(desc, 25),
+      descripcion: limpiarDescripcion(desc, 25),
       nombreArchivo: archivo?.nombreArchivo ?? null,
       total: archivo?.total ?? 0,
       pagos: pagos.map((p) => ({ nombre: p.nombre, cuenta: cuentaDeIban(p.iban), monto: p.monto })),
@@ -132,8 +133,8 @@ export class BancoPopularService {
     };
   }
 
-  async generarTxt(planillaId: string, descripcion?: string): Promise<{ nombre: string; contenido: string }> {
-    const r = await this.preparar(planillaId, descripcion);
+  async generarTxt(planillaId: string): Promise<{ nombre: string; contenido: string }> {
+    const r = await this.preparar(planillaId);
     if (!r.listo || !r.contenido || !r.nombreArchivo) {
       throw new BadRequestException(`No se puede generar el archivo: ${r.problemas.join(' ')}`);
     }

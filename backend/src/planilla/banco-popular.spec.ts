@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { armarArchivoBp, cuentaDeIban, ibanValido, limpiarTexto, numeroTexto } from './banco-popular.js';
+import { armarArchivoBp, cuentaDeIban, ibanValido, limpiarDescripcion, limpiarTexto, numeroTexto } from './banco-popular.js';
 
 // Datos inventados (no son de nadie), con la misma forma que los del Excel.
 const empresa = {
@@ -60,5 +60,23 @@ describe('Banco Popular — archivo de planilla web', () => {
     expect(limpiarTexto('Ñandú, "Pérez" | Ü°\\', 35)).toBe('NANDU "PEREZ" U');
     expect(numeroTexto(215424)).toBe('215424');
     expect(numeroTexto(104596.4)).toBe('104596.4');
+  });
+});
+
+describe('descripción del archivo: sin símbolos que el banco rechaza', () => {
+  it('quita la diagonal de una fecha y cualquier símbolo', () => {
+    expect(limpiarDescripcion('Semanal 19/10/2026 - 25/10', 25)).toBe('SEMANAL 19 10 2026 25 10');
+    expect(limpiarDescripcion('PLANILLA #3 (OCT) "A"', 40)).toBe('PLANILLA 3 OCT A');
+  });
+  it('deja letras, números y espacios, sin acentos, y respeta el largo', () => {
+    expect(limpiarDescripcion('Semanal 19 al 25 oct — Ñandú', 25)).toBe('SEMANAL 19 AL 25 OCT NAND');
+  });
+  it('la diagonal tampoco pasa en nombres u otros textos', () => {
+    expect(limpiarTexto('Perez S/N', 35)).toBe('PEREZ SN');
+  });
+  it('el archivo generado usa la descripción limpia en el nombre y la narrativa', () => {
+    const a = armarArchivoBp(empresa, pagos, 'SEMANAL 19/10 AL 25/10', '2026-10-27');
+    expect(a.nombreArchivo).not.toContain('/');
+    expect(a.contenido).not.toContain('19/10');
   });
 });
