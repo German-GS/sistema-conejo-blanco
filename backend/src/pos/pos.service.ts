@@ -88,6 +88,8 @@ export class PosService {
     await this.exigirTiendaPropia(usuario, ubicacionId);
     const tienda = await this.tiendaOFallar(ubicacionId);
     const modoPrueba = (await this.obtenerConfig()).modoPrueba;
+    // Con el modo de prueba encendido la caja muestra solo la copia de prueba: si esta tienda aún no la tiene, se crea ahora.
+    if (modoPrueba) await this.espejo.asegurarDeTienda(ubicacionId, usuario.id);
     const [variantes, ultimo, , cfg, ultimaOrden, recientes] = await Promise.all([
       this.dataSource.query(
         `SELECT v.id AS "varianteId", p.codigo, p.nombre, v.color, v.precio_tienda::float8 AS precio, COALESCE(v.codigo_barras, ov.codigo_barras) AS "codigoBarras",

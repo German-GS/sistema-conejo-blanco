@@ -7,6 +7,9 @@ Versionado `MAYOR.MENOR.PARCHE`:
 
 La versión se cambia en `app/package.json` y `backend/package.json` (el pie de página y el panel del sistema la leen solos).
 
+## 1.30.1 — 20 nov 2026 — La copia de prueba se crea sola si falta
+- **Corrección:** con el modo de prueba encendido la caja muestra solo la copia de prueba del inventario; si la tienda aún no la tenía (por ejemplo, el modo ya estaba encendido antes de la 1.30.0), la caja quedaba sin productos y el inventario salía en cero. Ahora, con el modo encendido, la copia de la tienda se crea sola la primera vez que su caja pide el catálogo (aunque lo pidan varias cajas a la vez no se duplica). Los productos reales no se habían tocado.
+
 ## 1.30.0 — 20 nov 2026 — Modo de prueba con copia del inventario, dos copias con tarjeta, redondeo y nuevo formato del tiquete
 - **Modo de prueba con copia del inventario.** Al encender el modo de prueba se hace una copia de prueba del inventario real de cada tienda (mismos productos, precios, costos y existencias, con la etiqueta PRUEBA y el código de barras del original) para capacitar y explicar con datos reales. La caja muestra solo esa copia; sus ventas, pedidos y conteos no generan asientos ni tocan el inventario real. Al apagarlo, la copia y todo lo hecho con ella se borran. Hay un botón «Rehacer la copia de prueba con el inventario de hoy» (Tienda → Configuración) para rehacerla con el modo ya encendido. Los botones de la caja piden confirmación al encender y al apagar.
 - **Sugerencias de reposición:** los productos exclusivos de una tienda vuelven a aparecer en «Pedir mercadería» (la 1.29.0 los había quitado por error).
