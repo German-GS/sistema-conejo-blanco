@@ -107,10 +107,15 @@ Solo el **administrador del sistema** puede crear **productos de prueba** (casil
 - Llevan la etiqueta **PRUEBA** (en el catálogo, en la caja, en el tiquete «DE PRUEBA — NO VÁLIDO» y en los pedidos de tienda).
 - Se usan en **la caja de las tiendas y en sus pedidos de mercadería** (con sus traspasos). **No** se pueden usar en pedidos de vendedores ni en facturas, y los vendedores no los ven.
 - Una venta, pedido o traspaso es **todo de prueba o todo real**: no se pueden mezclar.
-- Aparecen en la caja solo mientras el **Modo de prueba** esté activo (Tienda → Configuración); la caja muestra un aviso grande mientras tanto. Se apaga al terminar la demostración.
+- Aparecen en la caja solo mientras el **Modo de prueba** esté activo (Tienda → Configuración, o el botón de la caja del administrador del sistema); la caja muestra un aviso grande y, mientras tanto, **solo muestra productos de prueba** (los reales se ocultan para que nadie venda por error). Se apaga al terminar la demostración.
 - Una venta o pedido que se hizo antes del modo de prueba se puede **convertir en prueba** (solo el administrador del sistema, desde el detalle en Tienda → Ventas o Pedidos de tiendas): se borran sus asientos y reversas y queda anotado en la bitácora (no se permite en meses cerrados).
 - El administrador del sistema cambia entre las pantallas Administración, Caja y Vendedor con el selector del encabezado.
 - Se **eliminan** (botón Eliminar en Inventario, solo el sistema) junto con todo lo hecho con ellos: ventas, pedidos, traspasos, existencias y movimientos.
+
+### Copia de prueba del inventario (capacitar con datos reales)
+
+Al **encender** el modo de prueba el sistema hace una **copia de prueba del inventario real de cada tienda**: un producto de prueba por cada producto con existencia en esa tienda (mismo nombre, precio, costo y existencia; código `P-<tienda>-<código>`, y el código de barras del original para que el lector funcione). Se puede vender, contar, recibir y pedir mercadería con ella sin tocar el inventario real ni la contabilidad. Al **apagarlo**, la copia y todo lo que se hizo con ella (ventas de práctica, pedidos, traspasos, existencias y movimientos) se **borran**; el inventario real queda exactamente como estaba. Si se enciende otra vez, la copia se rehace con lo que hay hoy. Los productos de prueba creados a mano no se tocan.
+
 
 ## Puesta en marcha de una tienda
 

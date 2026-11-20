@@ -401,4 +401,9 @@ export class ActualizarPosConfigDto {
   @IsOptional()
   @IsBoolean()
   modoPrueba?: boolean;
+
+  // Múltiplo de colones al que se redondea el total de cada tiquete.
+  @IsOptional()
+  @IsIn([1, 5, 10])
+  redondeoColones?: number;
 }

@@ -22,4 +22,8 @@ export class PosConfiguracion {
 
   @Column({ type: 'varchar', length: 300, name: 'pie_tiquete', default: '¡Gracias por su compra!' })
   pieTiquete: string;
+
+  // El total de cada tiquete se redondea a este múltiplo de colones (1, 5 o 10): los precios pueden traer céntimos y el efectivo no.
+  @Column({ type: 'int', name: 'redondeo_colones', default: 1 })
+  redondeoColones: number;
 }

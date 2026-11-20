@@ -48,6 +48,10 @@ export class VarianteProducto {
   @Column({ type: 'boolean', default: true })
   activo: boolean;
 
+  // Solo en la copia de prueba del inventario: la variante real de la que se copió.
+  @Column({ type: 'uuid', name: 'copia_de_id', nullable: true })
+  copiaDeId: string | null;
+
   @CreateDateColumn({ name: 'creado_en' })
   creadoEn: Date;
 }

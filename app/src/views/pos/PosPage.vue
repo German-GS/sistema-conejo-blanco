@@ -14,7 +14,7 @@ import { api, ApiError } from '../../lib/api.js';
 import { formatearColones, formatearFechaHora } from '../../lib/format.js';
 import {
   abrirCaja, alertasLocales, buscar, buscarExacto, cambiarTienda, esVendible, cerrarCaja, cobrar, descargarCatalogo, detenerPos, efectivoEsperado, elegirTienda,
-  guardarImprimirAuto, iniciarPos, minimoDe, ajustesPorEnviar, ajustesRechazados, desdeUltimoRespaldo, guardarConteo, respaldar, restaurar, reintentarAjustes, recepcionPendiente, recepcionesPorEnviar, recepcionesRechazadas, reintentarRecepciones, numeroTexto, pendientes, pos, rechazadas, reintentarRechazadas, resumenTurno, sincronizar, stockDe, sugerenciasPedido, ordenesPendientes,
+  guardarDosCopiasTarjeta, guardarImprimirAuto, redondearTotal, iniciarPos, minimoDe, ajustesPorEnviar, ajustesRechazados, desdeUltimoRespaldo, guardarConteo, respaldar, restaurar, reintentarAjustes, recepcionPendiente, recepcionesPorEnviar, recepcionesRechazadas, reintentarRecepciones, numeroTexto, pendientes, pos, rechazadas, reintentarRechazadas, resumenTurno, sincronizar, stockDe, sugerenciasPedido, ordenesPendientes,
 } from '../../lib/pos.js';
 import TiquetePos from './TiquetePos.vue';
 import PedidoReposicion from './PedidoReposicion.vue';
@@ -27,6 +27,11 @@ const ETIQUETA_ROL = { encargado_tienda: 'Encargado de tienda', administracion: 
 // Solo el administrador del sistema: enciende o apaga el modo de prueba sin salir de la caja y baja el catálogo de nuevo.
 const cambiandoPrueba = ref(false);
 async function alternarModoPrueba() {
+  const encender = !pos.catalogo?.modoPrueba;
+  const texto = encender
+    ? '¿Encender el modo de prueba? Se hace una copia del inventario de las tiendas y la caja muestra solo esa copia (nada de lo que se haga es real). Mientras esté encendido no se puede vender mercadería real.'
+    : '¿Apagar el modo de prueba? Se borra la copia del inventario y TODO lo que se hizo con ella (ventas de práctica, pedidos, existencias). Lo real no se toca.';
+  if (!(await confirmar(texto, { aceptar: encender ? 'Sí, encender' : 'Sí, apagar y borrar la copia', peligro: !encender }))) return;
   cambiandoPrueba.value = true;
   try {
     await api.patch('/pos/configuracion', { modoPrueba: !pos.catalogo?.modoPrueba });
@@ -207,7 +212,9 @@ const entrada = ref(null);
 const carrito = ref([]);
 // Se busca en todo lo que hay en la tienda; lo que no tiene precio de tienda se ve pero no se puede vender.
 const resultados = computed(() => [...buscar(texto.value, 24, true)].sort((a, b) => Number(esVendible(b)) - Number(esVendible(a))));
-const total = computed(() => Math.round(carrito.value.reduce((a, l) => a + l.precio * l.cantidad, 0) * 100) / 100);
+const subtotalCarrito = computed(() => Math.round(carrito.value.reduce((a, l) => a + l.precio * l.cantidad, 0) * 100) / 100);
+const total = computed(() => redondearTotal(subtotalCarrito.value));
+const redondeoCarrito = computed(() => Math.round((total.value - subtotalCarrito.value) * 100) / 100);
 const pares = computed(() => carrito.value.reduce((a, l) => a + l.cantidad, 0));
 const aviso = ref('');
 let avisoTimer = null;
@@ -362,9 +369,13 @@ function imprimirPrueba() {
 }
 const ultimaVenta = ref(null);
 const ventaImpresion = ref(null);
+const esReimpresion = ref(false);
+// Si la venta incluye tarjeta, el tiquete sale dos veces seguidas (cliente y voucher), salvo que se apague en el cobro.
+const dosCopias = computed(() => pos.dosCopiasTarjeta && Boolean(ventaImpresion.value?.pagos?.some((p) => p.medio === 'tarjeta')));
 async function imprimir(venta, copia = false) {
   if (copia) void registrarActividad('tiquete_reimpreso', `Reimprimió el tiquete ${numeroTexto(venta)} por ${formatearColones(venta.total)}`);
   ventaImpresion.value = venta;
+  esReimpresion.value = copia;
   await nextTick();
   document.body.classList.add('imprimiendo-tiquete');
   const limpiar = () => {
@@ -514,7 +525,7 @@ watch(
       <div v-if="pos.tienda" class="ml-2 flex flex-wrap items-center gap-2">
         <span class="flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-bold" :class="pos.caja ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'"><Wallet class="size-4" /> {{ pos.caja ? 'CAJA ABIERTA' : 'CAJA CERRADA' }}</span>
         <span class="flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-bold" :class="pos.enLinea ? 'bg-green-100 text-green-800' : 'bg-red-600 text-white'"><component :is="pos.enLinea ? Cloud : CloudOff" class="size-4" /> {{ pos.enLinea ? 'Con internet' : 'SIN INTERNET' }}</span>
-        <button v-if="auth.esSistema" type="button" class="flex items-center gap-1.5 rounded-full border-2 px-3 py-1 text-sm font-bold transition disabled:opacity-60" :class="pos.catalogo?.modoPrueba ? 'border-amber-500 bg-amber-500 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100'" :disabled="cambiandoPrueba || !pos.enLinea" title="Solo el administrador del sistema: muestra u oculta los productos de prueba" @click="alternarModoPrueba"><FlaskConical class="size-4" /> Modo de prueba: {{ pos.catalogo?.modoPrueba ? 'ENCENDIDO' : 'apagado' }}</button>
+        <button v-if="auth.esSistema" type="button" class="flex items-center gap-1.5 rounded-full border-2 px-3 py-1 text-sm font-bold transition disabled:opacity-60" :class="pos.catalogo?.modoPrueba ? 'border-amber-500 bg-amber-500 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100'" :disabled="cambiandoPrueba || !pos.enLinea" title="Solo el administrador del sistema: enciende o apaga el modo de prueba (copia del inventario para practicar)" @click="alternarModoPrueba"><FlaskConical class="size-4" /> Modo de prueba: {{ pos.catalogo?.modoPrueba ? 'ENCENDIDO' : 'apagado' }}</button>
       </div>
       <div class="ml-auto flex items-center gap-3">
         <CambiarVista />
@@ -541,7 +552,7 @@ watch(
       <button type="button" class="flex min-h-14 items-center justify-center gap-2 rounded-xl border-2 border-slate-300 bg-white px-3 text-base font-bold text-slate-800 transition hover:bg-slate-100" @click="panel = 'inventario'"><Boxes class="size-5" /> Inventario <span class="rounded-full bg-slate-200 px-2 text-sm text-slate-700">{{ enTienda.length }}</span></button>
     </nav>
 
-    <p v-if="pos.catalogo?.modoPrueba" class="flex items-center justify-center gap-2 bg-amber-500 px-4 py-2 text-center text-base font-extrabold text-white"><TriangleAlert class="size-5" /> MODO DE PRUEBA: los productos marcados PRUEBA son de demostración. No generan asientos ni cuentan en la caja. No los venda a clientes reales.</p>
+    <p v-if="pos.catalogo?.modoPrueba" class="flex items-center justify-center gap-2 bg-amber-500 px-4 py-2 text-center text-base font-extrabold text-white"><TriangleAlert class="size-5" /> MODO DE PRUEBA: esto es una copia del inventario para practicar. Nada de lo que haga aquí es real: no genera asientos ni toca el inventario. Al terminar se borra todo.</p>
     <p v-if="pos.error" class="bg-red-100 px-4 py-2 text-center text-base font-semibold text-red-800">{{ pos.error }}</p>
     <p v-if="pos.avisoSync" class="bg-amber-100 px-4 py-2 text-center text-base text-amber-900">{{ pos.avisoSync }}</p>
 
@@ -650,6 +661,7 @@ watch(
         </ul>
         <div class="border-t-2 border-slate-200 p-4">
           <p class="flex items-baseline justify-between"><span class="text-xl font-bold text-slate-600">TOTAL</span><span class="text-4xl font-extrabold text-slate-900">{{ formatearColones(total) }}</span></p>
+          <p v-if="redondeoCarrito !== 0" class="text-right text-sm font-medium text-slate-500">Incluye redondeo de {{ formatearColones(redondeoCarrito) }}</p>
           <button type="button" class="mt-3 w-full rounded-2xl py-5 text-2xl font-extrabold text-white shadow-sm transition disabled:cursor-not-allowed disabled:bg-slate-300" :class="pos.caja ? 'bg-green-600 hover:bg-green-700' : 'bg-blue-600 hover:bg-blue-700'" :disabled="!!pos.caja && !carrito.length" @click="abrirCobro">{{ !pos.caja ? 'ABRIR LA CAJA PRIMERO' : carrito.length ? `COBRAR ${formatearColones(total)}` : 'COBRAR' }}</button>
           <p class="mt-1 text-center text-xs text-slate-500">Atajos: F2 buscar · F12 cobrar</p>
         </div>
@@ -662,6 +674,7 @@ watch(
         <div class="min-h-0 flex-1 overflow-y-auto p-6 pb-3">
         <div class="flex items-start justify-between"><p class="text-xl font-bold text-slate-600">COBRAR</p><button type="button" class="rounded-lg p-1 hover:bg-slate-100" aria-label="Cerrar" @click="cobrando = false"><X class="size-6" /></button></div>
         <p class="text-6xl font-extrabold text-slate-900">{{ formatearColones(total) }}</p>
+        <p v-if="redondeoCarrito !== 0" class="text-base font-semibold text-slate-500">Incluye redondeo de {{ formatearColones(redondeoCarrito) }}</p>
         <div v-if="!dividido && pagos[0].medio === 'efectivo' && pagos[0].recibido !== '' && Number(pagos[0].recibido) >= Number(pagos[0].monto)" class="mt-2 flex items-center justify-between rounded-2xl bg-green-100 px-5 py-3">
           <p class="text-xl font-extrabold text-green-900">DÉ DE VUELTO</p>
           <p class="text-5xl font-extrabold text-green-700">{{ formatearColones(Number(pagos[0].recibido) - Number(pagos[0].monto)) }}</p>
@@ -707,6 +720,7 @@ watch(
         </template>
 
         <label class="mt-3 flex items-center gap-2 text-base"><input type="checkbox" class="size-5" :checked="pos.imprimirAuto" @change="guardarImprimirAuto($event.target.checked)" /> Imprimir el tiquete al cobrar</label>
+        <label class="mt-1 flex items-center gap-2 text-base"><input type="checkbox" class="size-5" :checked="pos.dosCopiasTarjeta" @change="guardarDosCopiasTarjeta($event.target.checked)" /> Con tarjeta, imprimir 2 copias (cliente y voucher)</label>
         </div>
         <div class="shrink-0 rounded-b-3xl border-t border-slate-200 bg-white px-6 pb-4 pt-3">
           <p v-if="errorCobro" class="mb-2 rounded-xl bg-red-100 px-4 py-3 text-lg font-bold text-red-700">{{ errorCobro }}</p>
@@ -861,7 +875,13 @@ watch(
 
     <!-- Tiquete para imprimir: vive fuera de la pantalla y solo se ve al imprimir -->
     <Teleport to="body">
-      <div id="ticket-print"><TiquetePos v-if="ventaImpresion" :venta="ventaImpresion" /></div>
+      <div id="ticket-print">
+        <template v-if="ventaImpresion">
+          <TiquetePos :venta="ventaImpresion" :reimpresion="esReimpresion" :etiqueta="dosCopias ? 'COPIA DEL CLIENTE' : ''" />
+          <div v-if="dosCopias" class="salto-tiquete"></div>
+          <TiquetePos v-if="dosCopias" :venta="ventaImpresion" :reimpresion="esReimpresion" etiqueta="COPIA DEL COMERCIO · adjuntar al voucher del datáfono" />
+        </template>
+      </div>
     </Teleport>
   </div>
 </template>

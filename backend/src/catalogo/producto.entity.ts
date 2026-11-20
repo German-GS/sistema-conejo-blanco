@@ -43,6 +43,10 @@ export class Producto {
   @Column({ type: 'uuid', name: 'ubicacion_exclusiva_id', nullable: true })
   ubicacionExclusivaId: string | null;
 
+  // Solo en la copia de prueba del inventario (modo de prueba): el producto real del que se copió. Se borra al apagar el modo de prueba.
+  @Column({ type: 'uuid', name: 'copia_de_id', nullable: true })
+  copiaDeId: string | null;
+
   @OneToMany(() => VarianteProducto, (variante) => variante.producto)
   variantes: Relation<VarianteProducto>[];
 

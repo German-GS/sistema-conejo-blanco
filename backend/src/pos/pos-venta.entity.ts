@@ -48,6 +48,10 @@ export class PosVenta {
   @Column({ type: 'decimal', precision: 12, scale: 2 })
   total: string;
 
+  // Lo que se sumó o restó para llegar a un total redondeado (total − (subtotal − descuento)).
+  @Column({ type: 'decimal', precision: 12, scale: 2, default: 0 })
+  redondeo: string;
+
   @Column({ type: 'varchar', length: 10, default: ESTADO_POS_VENTA.VIGENTE })
   estado: string;
 

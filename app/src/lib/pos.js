@@ -27,6 +27,7 @@ export const pos = reactive({
   ultimoSync: null,
   avisoSync: '',
   imprimirAuto: true,
+  dosCopiasTarjeta: true,
 });
 
 const DIAS_GUARDAR = 45; // lo ya enviado se conserva para poder sacar el informe de ventas sin internet
@@ -39,6 +40,13 @@ const sinTildes = (t) => String(t ?? '').normalize('NFD').replace(/[̀-ͯ]/g, ''
 export const pad6 = (n) => String(n).padStart(6, '0');
 export const numeroTexto = (venta) => `${venta.tiendaCodigo ?? pos.tienda?.codigo ?? 'T'}-${pad6(venta.numero)}`;
 const redondear = (v) => Math.round((Number(v) + Number.EPSILON) * 100) / 100;
+
+// El total del tiquete se redondea al múltiplo de colones que fija la configuración (1, 5 o 10; por defecto 1): los precios pueden traer
+// céntimos (ej. 833,33) y el efectivo no. Se usa lo que la terminal tiene guardado, así funciona sin internet.
+export const redondearTotal = (v) => {
+  const paso = Number(pos.catalogo?.redondeo) || 1;
+  return redondear(Math.round((Number(v) + Number.EPSILON) / paso) * paso);
+};
 
 // ---------------------------------------------------------------- Existencias y búsqueda
 
@@ -105,12 +113,13 @@ export const alertasLocales = computed(() =>
 // ---------------------------------------------------------------- Inicio
 
 async function cargarLocal() {
-  const [tienda, catalogo, stock, ultimo, imprimir, ventas, cajas, ordenes, recientes, ultimaOrden] = await Promise.all([
+  const [tienda, catalogo, stock, ultimo, imprimir, dosCopias, ventas, cajas, ordenes, recientes, ultimaOrden] = await Promise.all([
     dbGet('kv', 'tienda'),
     dbGet('kv', 'catalogo'),
     dbGet('kv', 'stockServidor'),
     dbGet('kv', 'ultimoNumero'),
     dbGet('kv', 'imprimirAuto'),
+    dbGet('kv', 'dosCopiasTarjeta'),
     dbAll('ventas'),
     dbAll('cajas'),
     dbAll('ordenes'),
@@ -122,6 +131,7 @@ async function cargarLocal() {
   pos.stockServidor = stock ?? {};
   pos.ultimoNumero = ultimo ?? 0;
   pos.imprimirAuto = imprimir ?? true;
+  pos.dosCopiasTarjeta = dosCopias ?? true;
   pos.ventas = ventas.sort((a, b) => a.numero - b.numero);
   pos.cajas = cajas;
   pos.ordenes = ordenes.sort((a, b) => a.numero - b.numero);
@@ -258,6 +268,12 @@ export async function guardarImprimirAuto(valor) {
   await dbPut('kv', valor, 'imprimirAuto');
 }
 
+// Con tarjeta se imprimen dos copias de una vez: una para el cliente y otra para adjuntar al voucher del datáfono.
+export async function guardarDosCopiasTarjeta(valor) {
+  pos.dosCopiasTarjeta = valor;
+  await dbPut('kv', valor, 'dosCopiasTarjeta');
+}
+
 // ---------------------------------------------------------------- Caja (turno)
 
 export async function abrirCaja(fondoInicial, cajero) {
@@ -308,7 +324,8 @@ export async function cobrar(carrito, pagos, cajero) {
   const esPrueba = carrito.every((l) => l.prueba);
   if (!esPrueba && carrito.some((l) => l.prueba)) throw new Error('No se pueden mezclar productos de prueba con productos reales en el mismo tiquete.');
   const lineas = carrito.map((l) => ({ varianteId: l.varianteId, codigo: l.codigo, nombre: l.nombre, color: l.color, cantidad: l.cantidad, precioUnitario: l.precio, descuento: 0, subtotal: redondear(l.precio * l.cantidad) }));
-  const total = redondear(lineas.reduce((a, l) => a + l.subtotal, 0));
+  const subtotal = redondear(lineas.reduce((a, l) => a + l.subtotal, 0));
+  const total = redondearTotal(subtotal);
   const pagado = redondear(pagos.reduce((a, p) => a + p.monto, 0));
   if (Math.abs(pagado - total) > 0.001) throw new Error('Los pagos no suman el total.');
   const numero = pos.ultimoNumero + 1;
@@ -325,6 +342,8 @@ export async function cobrar(carrito, pagos, cajero) {
     esPrueba,
     lineas,
     pagos: pagos.map((p) => ({ medio: p.medio, monto: redondear(p.monto), referencia: p.referencia?.trim() || undefined, recibido: p.medio === 'efectivo' && p.recibido !== undefined ? redondear(p.recibido) : undefined })),
+    subtotal,
+    redondeo: redondear(total - subtotal),
     total,
     enviada: false,
   };
@@ -345,10 +364,9 @@ export function sugeridaPara(stock, minimo) {
 }
 
 // Productos agotados o en su mínimo (existencia actual de la tienda, ya descontando lo vendido sin enviar).
-// Los exclusivos de la tienda no se piden a la bodega: no los lleva la fábrica.
 export const sugerenciasPedido = computed(() =>
   (pos.catalogo?.variantes ?? [])
-    .filter((v) => esVendible(v) && !v.exclusivo)
+    .filter(esVendible)
     .map((v) => {
       const stock = stockDe(v.varianteId);
       const minimo = minimoDe(v.varianteId);

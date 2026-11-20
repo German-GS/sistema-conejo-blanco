@@ -242,6 +242,11 @@ html.tema-oscuro ::placeholder {
   }
 }
 
+  /* Con tarjeta salen dos tiquetes seguidos: cada uno en su propia página para que la impresora de rollo los corte por separado. */
+  body.imprimiendo-tiquete .salto-tiquete {
+    break-after: page;
+    page-break-after: always;
+  }
 
 /* ==== Indicador de carga ==== */
 /* Anillo giratorio (se queda quieto si la persona pidió reducir el movimiento). */

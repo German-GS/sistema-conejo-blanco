@@ -124,6 +124,14 @@ export class PosController {
     return this.pos.actualizarConfiguracion(dto, usuario.rol === Rol.SISTEMA, usuario.id);
   }
 
+  // Con el modo de prueba ya encendido: borra la copia de prueba y la rehace con lo que hay hoy en el inventario real. Solo el administrador del sistema.
+  @Post('modo-prueba/copia')
+  @UseGuards(PermissionsGuard)
+  @RequirePermissions(Permiso.POS_GESTIONAR)
+  rehacerCopiaPrueba(@CurrentUser() usuario: UsuarioAutenticado) {
+    return this.pos.rehacerCopiaPrueba(usuario.rol === Rol.SISTEMA, usuario.id);
+  }
+
   // ---- Pedidos de reposición de las tiendas (llegan desde el POS)
 
   @Get('ordenes/resumen')

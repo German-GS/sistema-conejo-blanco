@@ -21,6 +21,7 @@ import { ConfiguracionService } from '../configuracion/configuracion.service.js'
 import { OrdenesTiendaService, type ResultadoOrdenSync } from './ordenes-tienda.service.js';
 import { AjustesTiendaService } from './ajustes-tienda.service.js';
 import { PerfilesTiendaService } from './perfiles-tienda.service.js';
+import { EspejoPruebaService } from './espejo-prueba.service.js';
 import { ActividadTiendaService } from '../actividad-tienda/actividad-tienda.service.js';
 import { redondear } from '../common/utils/dinero.util.js';
 import { hoyISO } from '../common/utils/fecha.util.js';
@@ -51,6 +52,7 @@ export class PosService {
     private readonly ordenes: OrdenesTiendaService,
     private readonly ajustes: AjustesTiendaService,
     private readonly perfiles: PerfilesTiendaService,
+    private readonly espejo: EspejoPruebaService,
     private readonly actividad: ActividadTiendaService,
     @InjectRepository(PosVenta) private readonly ventaRepo: Repository<PosVenta>,
     @InjectRepository(PosCaja) private readonly cajaRepo: Repository<PosCaja>,
@@ -88,13 +90,16 @@ export class PosService {
     const modoPrueba = (await this.obtenerConfig()).modoPrueba;
     const [variantes, ultimo, , cfg, ultimaOrden, recientes] = await Promise.all([
       this.dataSource.query(
-        `SELECT v.id AS "varianteId", p.codigo, p.nombre, v.color, v.precio_tienda::float8 AS precio, v.codigo_barras AS "codigoBarras",
+        `SELECT v.id AS "varianteId", p.codigo, p.nombre, v.color, v.precio_tienda::float8 AS precio, COALESCE(v.codigo_barras, ov.codigo_barras) AS "codigoBarras",
                 p.descripcion, (SELECT f.url FROM producto_fotos f WHERE f.producto_id = p.id ORDER BY f.creado_en LIMIT 1) AS foto,
                 p.es_prueba AS prueba, (p.ubicacion_exclusiva_id IS NOT NULL) AS exclusivo, COALESCE(s.cantidad, 0)::int AS stock, COALESCE(s.stock_minimo, 0)::int AS minimo,
                 COALESCE((SELECT SUM(sb.cantidad) FROM stock_ubicaciones sb JOIN ubicaciones ub ON ub.id = sb.ubicacion_id WHERE sb.variante_id = v.id AND ub.tipo = 'bodega_distribucion' AND ub.activa), 0)::int AS bodega
          FROM variantes_producto v JOIN productos p ON p.id = v.producto_id
+         LEFT JOIN variantes_producto ov ON ov.id = v.copia_de_id
          LEFT JOIN stock_ubicaciones s ON s.variante_id = v.id AND s.ubicacion_id = $1
-         WHERE v.activo AND p.activo AND (NOT p.es_prueba OR $2::boolean) AND (p.ubicacion_exclusiva_id IS NULL OR p.ubicacion_exclusiva_id = $1) ORDER BY p.codigo, v.color`,
+         WHERE v.activo AND p.activo AND (NOT p.es_prueba OR $2::boolean) AND (p.ubicacion_exclusiva_id IS NULL OR p.ubicacion_exclusiva_id = $1)
+           AND ($2::boolean = false OR p.es_prueba)
+         ORDER BY p.codigo, v.color`,
         [ubicacionId, modoPrueba],
       ),
       this.dataSource.query('SELECT COALESCE(MAX(numero), 0)::int AS n FROM pos_ventas WHERE ubicacion_id = $1', [ubicacionId]),
@@ -107,6 +112,7 @@ export class PosService {
       generadoEn: new Date().toISOString(),
       tienda: { id: tienda.id, nombre: tienda.nombre, codigo: tienda.codigo },
       modoPrueba,
+      redondeo: cfg.redondeoColones || 1,
       encabezado: await this.perfiles.encabezado(tienda.id, cfg.pieTiquete),
       ultimoNumero: ultimo[0].n,
       ultimoNumeroOrden: ultimaOrden[0].n,
@@ -263,9 +269,14 @@ export class PosService {
     });
     const subtotal = redondear(lineas.reduce((a, x) => a + x.bruto, 0));
     const descuento = redondear(lineas.reduce((a, x) => a + x.descuento, 0));
-    const total = redondear(subtotal - descuento);
+    const base = redondear(subtotal - descuento);
     const pagado = redondear(v.pagos.reduce((a, p) => a + p.monto, 0));
-    if (Math.abs(pagado - total) > 0.01) throw new BadRequestException(`Los pagos (${pagado}) no suman el total del tiquete (${total}).`);
+    // El total se redondea al múltiplo configurado. La terminal ya redondeó con el que tenía guardado (si se cambió hace poco puede diferir):
+    // se acepta lo pagado mientras esté dentro de lo que el redondeo permite, y ese es el total del tiquete.
+    const paso = cfg.redondeoColones || 1;
+    if (Math.abs(pagado - base) > paso / 2 + 0.011) throw new BadRequestException(`Los pagos (${pagado}) no suman el total del tiquete (${base}).`);
+    const total = pagado;
+    const redondeo = redondear(total - base);
 
     // Si el número ya lo usa otra venta (por ejemplo, se reinstaló la terminal), se le da el siguiente libre.
     let numero = v.numero;
@@ -289,6 +300,7 @@ export class PosService {
       subtotal: subtotal.toFixed(2),
       descuento: descuento.toFixed(2),
       total: total.toFixed(2),
+      redondeo: redondeo.toFixed(2),
       estado: ESTADO_POS_VENTA.VIGENTE,
       creadaSinConexion: Boolean(v.sinConexion),
       esPrueba,
@@ -473,6 +485,7 @@ export class PosService {
       prueba: venta.esPrueba,
       subtotal: venta.subtotal,
       descuento: venta.descuento,
+      redondeo: venta.redondeo,
       total: venta.total,
       sinConexion: venta.creadaSinConexion,
       lineas: venta.lineas.map((l) => ({ codigo: l.codigo, descripcion: l.descripcion, color: l.color, cantidad: l.cantidad, precioUnitario: l.precioUnitario, descuento: l.descuento, subtotal: l.subtotal })),
@@ -523,12 +536,22 @@ export class PosService {
     return { ...cfg, cuentasBancarias: cuentas };
   }
 
+  async rehacerCopiaPrueba(esSistema: boolean, usuarioId: string) {
+    if (!esSistema) throw new ForbiddenException('Solo el administrador del sistema maneja el modo de prueba.');
+    if (!(await this.obtenerConfig()).modoPrueba) throw new BadRequestException('Primero encienda el modo de prueba.');
+    const r = await this.espejo.regenerar(usuarioId);
+    await this.actividad.registrarPanel({ usuarioId, tipo: 'config_pos', detalle: `Configuración del POS: copia de prueba del inventario rehecha (${r.productos} productos, ${r.unidades} unidades)` });
+    return r;
+  }
+
   async actualizarConfiguracion(dto: ActualizarPosConfigDto, esSistema = false, usuarioId?: string) {
     const cfg = await this.obtenerConfig();
     for (const k of ['cuentaTarjetaId', 'cuentaSinpeId', 'cuentaTransferenciaId'] as const) {
       if (dto[k] !== undefined) cfg[k] = dto[k] || null;
     }
     if (dto.pieTiquete !== undefined) cfg.pieTiquete = dto.pieTiquete.trim();
+    const redondeoAntes = cfg.redondeoColones;
+    if (dto.redondeoColones !== undefined) cfg.redondeoColones = dto.redondeoColones;
     const antesPrueba = cfg.modoPrueba;
     if (dto.modoPrueba !== undefined) {
       if (!esSistema) throw new ForbiddenException('Solo el administrador del sistema activa el modo de prueba.');
@@ -539,8 +562,19 @@ export class PosService {
     for (const [k, etiqueta] of [['cuentaTarjetaId', 'cuenta de tarjeta'], ['cuentaSinpeId', 'cuenta de SINPE'], ['cuentaTransferenciaId', 'cuenta de transferencia'], ['pieTiquete', 'mensaje al pie']] as const) {
       if (antes && antes[k] !== cfg[k]) cambios.push(`${etiqueta}: ${antes[k] ?? 'Caja y Bancos'} → ${cfg[k] ?? 'Caja y Bancos'}`);
     }
+    if (redondeoAntes !== cfg.redondeoColones) cambios.push(`redondeo del total: ₡${redondeoAntes} → ₡${cfg.redondeoColones}`);
     if (antesPrueba !== cfg.modoPrueba) cambios.push(`modo de prueba: ${antesPrueba ? 'encendido' : 'apagado'} → ${cfg.modoPrueba ? 'encendido' : 'apagado'}`);
     await this.configRepo.save(cfg);
+    // Modo de prueba: al encenderlo se copia el inventario real de cada tienda como productos de prueba; al apagarlo la copia se borra con todo lo hecho con ella.
+    if (antesPrueba !== cfg.modoPrueba && usuarioId) {
+      if (cfg.modoPrueba) {
+        const r = await this.espejo.regenerar(usuarioId);
+        cambios.push(`copia de prueba del inventario creada (${r.productos} productos, ${r.unidades} unidades)`);
+      } else {
+        const n = await this.espejo.eliminar();
+        cambios.push(`copia de prueba del inventario eliminada (${n} productos) junto con lo hecho con ella`);
+      }
+    }
     if (cambios.length) await this.actividad.registrarPanel({ usuarioId, tipo: 'config_pos', detalle: `Configuración del POS: ${cambios.join('; ')}` });
     return this.configuracionActual();
   }
