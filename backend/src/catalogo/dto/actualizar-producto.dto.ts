@@ -1,16 +1,14 @@
 import { Transform } from 'class-transformer';
 import { IsBoolean, IsOptional, IsString, Matches, MaxLength, MinLength } from 'class-validator';
-import {
-  CODIGO_PRODUCTO_MENSAJE,
-  CODIGO_PRODUCTO_REGEX,
-  normalizarCodigoProducto,
-} from '../../common/utils/codigo-producto.util.js';
+import { normalizarCodigoProducto } from '../../common/utils/codigo-producto.util.js';
 
 export class ActualizarProductoDto {
   @IsOptional()
   @Transform(({ value }) => normalizarCodigoProducto(value))
   @IsString()
-  @Matches(CODIGO_PRODUCTO_REGEX, { message: CODIGO_PRODUCTO_MENSAJE })
+  @MinLength(1)
+  @MaxLength(30)
+  // El formato estándar (ej. «KW 223») se exige en el servicio: no aplica a los productos exclusivos de una tienda.
   codigo?: string;
 
   @IsOptional()

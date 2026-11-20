@@ -7,6 +7,13 @@ Versionado `MAYOR.MENOR.PARCHE`:
 
 La versión se cambia en `app/package.json` y `backend/package.json` (el pie de página y el panel del sistema la leen solos).
 
+## 1.29.0 — 20 nov 2026 — Productos exclusivos de una tienda y carga del inventario de la tienda principal
+- **Productos exclusivos de una tienda.** Un producto puede pertenecer a una sola tienda: se ve en la caja y en el panel de esa tienda (Inventario muestra la insignia «Solo en …»), pero **no aparece en los pedidos de vendedores, en las facturas ni en la caja de las demás tiendas**, y la caja no lo sugiere al pedir mercadería a la bodega (no lo lleva la fábrica). Al crear un producto en Inventario hay un selector «Exclusivo de una tienda (opcional)».
+- **Código libre para los exclusivos.** El formato estándar del catálogo («KW 223») no se exige a los productos exclusivos de una tienda: conservan el código que ya usaban (hasta 30 caracteres). Para el resto no cambia nada; la validación del formato se movió al servidor.
+- **Carga inicial del inventario de la tienda principal** (una sola vez, hecha con un script): 319 productos con su existencia y costo, código de barras igual al código del producto, y el movimiento «ingreso inicial» de cada uno. Los productos sin existencia o sin precio quedan creados y listos. La carga **no usa el flujo normal de traspasos**: registra un solo asiento de apertura (Debe 1305 Inventario de Tiendas / Haber 3300 Utilidades acumuladas) por el valor al costo de lo cargado, para que la contabilidad parta de lo que ya existía.
+- La tienda principal pasa a llamarse **Soxlandia Paso de la Vaca** (el código interno T01 y los números de tiquete no cambian) y se completan su razón social, cédula jurídica, teléfono y dirección para el tiquete.
+- Nota: las versiones 1.26.0 a 1.28.2 se publicaron sin entrada en este registro.
+
 ## 1.25.0 — 28 oct 2026 — Sistema de marcas unificado, sin geolocalización, con historial y tolerancias configurables
 - **Sin geolocalización.** El celular ya no pide ni envía la ubicación: el QR de la pantalla solo se ve en la empresa, así que escanearlo prueba que la persona está ahí. Se quitaron las coordenadas, el radio y la distancia de los puntos de marca y de las marcas (al arrancar, el sistema borra esas columnas de la base). Ya no existe el estado «Por revisar»: cada marca queda «Sumada al día» o «No se sumó» (día ya decidido o planilla aprobada).
 - **Un solo menú: «Sistema de marcas»** (en Planilla), con pestañas **Marcas del celular**, **Pantallas del QR** y **Celulares y PIN** (las dos últimas solo para el administrador del sistema). Los enlaces viejos redirigen a la pestaña que corresponde. «Asistencia» y «Marcas a mano» siguen aparte.

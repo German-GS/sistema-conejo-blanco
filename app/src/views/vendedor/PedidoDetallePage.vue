@@ -222,7 +222,7 @@ function alEscribirProductoEdicion() {
     errorEdicion.value = '';
     try {
       productosEncontradosEdicion.value = await api.get(
-        `/catalogo/productos?buscar=${encodeURIComponent(productoTextoEdicion.value.trim())}`,
+        `/catalogo/productos?paraVenta=1&buscar=${encodeURIComponent(productoTextoEdicion.value.trim())}`,
       );
     } catch (err) {
       errorEdicion.value = err instanceof ApiError ? err.message : 'No se pudo buscar el producto.';

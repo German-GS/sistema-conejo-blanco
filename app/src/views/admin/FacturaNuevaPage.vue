@@ -120,7 +120,7 @@ function buscarProducto() {
   }
   temporizadorProducto = setTimeout(async () => {
     try {
-      productos.value = await api.get(`/catalogo/productos?buscar=${encodeURIComponent(productoTexto.value.trim())}`);
+      productos.value = await api.get(`/catalogo/productos?paraVenta=1&buscar=${encodeURIComponent(productoTexto.value.trim())}`);
     } catch {
       productos.value = [];
     }

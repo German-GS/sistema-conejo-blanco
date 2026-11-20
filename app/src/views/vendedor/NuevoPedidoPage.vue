@@ -143,7 +143,7 @@ function alEscribirProducto() {
     buscandoProductos.value = true;
     error.value = '';
     try {
-      productosEncontrados.value = await api.get(`/catalogo/productos?buscar=${encodeURIComponent(productoTexto.value.trim())}`);
+      productosEncontrados.value = await api.get(`/catalogo/productos?paraVenta=1&buscar=${encodeURIComponent(productoTexto.value.trim())}`);
     } catch (err) {
       error.value = err instanceof ApiError ? err.message : 'No se pudo buscar el producto.';
     } finally {

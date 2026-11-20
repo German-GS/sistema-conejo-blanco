@@ -1,5 +1,5 @@
 import { Transform } from 'class-transformer';
-import { IsBoolean, IsOptional, IsString, Matches, MaxLength, MinLength } from 'class-validator';
+import { IsBoolean, IsOptional, IsString, IsUUID, Matches, MaxLength, MinLength, ValidateIf } from 'class-validator';
 import {
   CODIGO_PRODUCTO_MENSAJE,
   CODIGO_PRODUCTO_REGEX,
@@ -9,6 +9,9 @@ import {
 export class CrearProductoDto {
   @Transform(({ value }) => normalizarCodigoProducto(value))
   @IsString()
+  @MaxLength(30)
+  // Los productos exclusivos de una tienda conservan el código que ya tenían; el formato estándar es para el catálogo general.
+  @ValidateIf((o: CrearProductoDto) => !o.ubicacionExclusivaId)
   @Matches(CODIGO_PRODUCTO_REGEX, { message: CODIGO_PRODUCTO_MENSAJE })
   codigo: string;
 
@@ -31,4 +34,9 @@ export class CrearProductoDto {
   @IsOptional()
   @IsBoolean()
   esPrueba?: boolean;
+
+  // Tienda a la que pertenece el producto (vacío = catálogo general).
+  @IsOptional()
+  @IsUUID()
+  ubicacionExclusivaId?: string;
 }

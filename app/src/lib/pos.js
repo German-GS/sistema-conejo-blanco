@@ -345,9 +345,10 @@ export function sugeridaPara(stock, minimo) {
 }
 
 // Productos agotados o en su mínimo (existencia actual de la tienda, ya descontando lo vendido sin enviar).
+// Los exclusivos de la tienda no se piden a la bodega: no los lleva la fábrica.
 export const sugerenciasPedido = computed(() =>
   (pos.catalogo?.variantes ?? [])
-    .filter(esVendible)
+    .filter((v) => esVendible(v) && !v.exclusivo)
     .map((v) => {
       const stock = stockDe(v.varianteId);
       const minimo = minimoDe(v.varianteId);

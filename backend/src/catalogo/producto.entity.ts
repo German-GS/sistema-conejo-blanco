@@ -38,6 +38,11 @@ export class Producto {
   @Column({ type: 'boolean', name: 'es_prueba', default: false })
   esPrueba: boolean;
 
+  // Producto que solo existe en una tienda (los de su inventario propio, con los códigos que ya usaba): se ve en la caja y en el
+  // panel de esa tienda, pero no en los pedidos de vendedores, las facturas ni la caja de las demás tiendas. Su código puede ser libre.
+  @Column({ type: 'uuid', name: 'ubicacion_exclusiva_id', nullable: true })
+  ubicacionExclusivaId: string | null;
+
   @OneToMany(() => VarianteProducto, (variante) => variante.producto)
   variantes: Relation<VarianteProducto>[];
 

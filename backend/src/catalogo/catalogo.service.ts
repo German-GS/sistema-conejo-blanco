@@ -8,6 +8,7 @@ import { VarianteProducto } from './variante-producto.entity.js';
 import { ProductoEdicion } from './producto-edicion.entity.js';
 import { ProductoFoto } from './producto-foto.entity.js';
 import { formatearColones } from '../common/utils/dinero.util.js';
+import { CODIGO_PRODUCTO_MENSAJE, CODIGO_PRODUCTO_REGEX } from '../common/utils/codigo-producto.util.js';
 import type { CrearProductoDto } from './dto/crear-producto.dto.js';
 import type { ActualizarProductoDto } from './dto/actualizar-producto.dto.js';
 import type { CrearVarianteDto } from './dto/crear-variante.dto.js';
@@ -198,16 +199,21 @@ export class CatalogoService {
   // Para armar pedidos de vendedores y facturas: los productos de prueba no se pueden usar ahí (no son reales).
   async buscarVarianteParaVenta(id: string): Promise<VarianteProducto> {
     const variante = await this.buscarVariantePorIdOFallar(id);
-    const [{ prueba }] = await this.dataSource.query('SELECT es_prueba AS prueba FROM productos WHERE id = $1', [variante.productoId]);
+    const [{ prueba, exclusivo }] = await this.dataSource.query('SELECT es_prueba AS prueba, ubicacion_exclusiva_id IS NOT NULL AS exclusivo FROM productos WHERE id = $1', [variante.productoId]);
     if (prueba) throw new BadRequestException('Ese producto es de prueba: solo se usa en la caja de las tiendas y en sus pedidos, no en pedidos ni facturas.');
+    if (exclusivo) throw new BadRequestException('Ese producto es exclusivo de una tienda: se vende solo en su caja, no en pedidos de vendedores ni en facturas.');
     return variante;
   }
 
   async crearProducto(dto: CrearProductoDto, usuarioId: string, esSistema = false): Promise<Producto> {
     if (dto.esPrueba && !esSistema) throw new ForbiddenException('Solo el administrador del sistema puede crear productos de prueba.');
-    const producto = this.productoRepo.create({ ...dto, esPrueba: Boolean(dto.esPrueba) });
+    if (dto.ubicacionExclusivaId) {
+      const [u] = await this.dataSource.query('SELECT tipo, nombre FROM ubicaciones WHERE id = $1', [dto.ubicacionExclusivaId]);
+      if (!u || u.tipo !== 'tienda') throw new BadRequestException('El producto exclusivo debe pertenecer a una tienda.');
+    }
+    const producto = this.productoRepo.create({ ...dto, esPrueba: Boolean(dto.esPrueba), ubicacionExclusivaId: dto.ubicacionExclusivaId ?? null });
     const guardado = await this.productoRepo.save(producto);
-    await this.registrarEdicion(guardado.id, usuarioId, [`Producto ${guardado.esPrueba ? 'de PRUEBA ' : ''}creado: ${guardado.codigo} — ${guardado.nombre}`]);
+    await this.registrarEdicion(guardado.id, usuarioId, [`Producto ${guardado.esPrueba ? 'de PRUEBA ' : ''}${guardado.ubicacionExclusivaId ? 'exclusivo de tienda ' : ''}creado: ${guardado.codigo} — ${guardado.nombre}`]);
     return guardado;
   }
 
@@ -215,6 +221,8 @@ export class CatalogoService {
     const producto = await this.buscarProductoPorIdOFallar(id);
     const cambios: string[] = [];
     if (dto.codigo !== undefined && dto.codigo !== producto.codigo) {
+      // El formato estándar es del catálogo general; un producto exclusivo de una tienda conserva el código que ya usaba.
+      if (!producto.ubicacionExclusivaId && !CODIGO_PRODUCTO_REGEX.test(dto.codigo)) throw new BadRequestException(CODIGO_PRODUCTO_MENSAJE);
       cambios.push(`Código: ${producto.codigo} → ${dto.codigo}`);
     }
     if (dto.nombre !== undefined && dto.nombre !== producto.nombre) {

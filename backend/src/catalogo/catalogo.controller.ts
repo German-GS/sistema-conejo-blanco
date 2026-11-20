@@ -73,13 +73,15 @@ export class CatalogoController {
   // El costo de producción es dato interno: solo lo ve quien gestiona el
   // catálogo (el vendedor no lo necesita para armar pedidos).
   @Get()
-  async listar(@CurrentUser() usuario: UsuarioAutenticado, @Query('buscar') buscar?: string) {
+  async listar(@CurrentUser() usuario: UsuarioAutenticado, @Query('buscar') buscar?: string, @Query('paraVenta') paraVenta?: string) {
     const productos =
       buscar && buscar.trim().length > 0
         ? await this.catalogoService.buscarProductos(buscar.trim())
         : await this.catalogoService.listarProductos();
-    // Los vendedores nunca ven los productos de prueba.
-    return ocultarCosto(usuario.rol === Rol.VENDEDOR ? productos.filter((p) => !p.esPrueba) : productos, usuario);
+    // Los vendedores nunca ven los productos de prueba. Al armar un pedido o una factura (`paraVenta=1`, y siempre para el vendedor) tampoco salen
+    // los productos exclusivos de una tienda: esos se venden solo en su caja.
+    const visibles = usuario.rol === Rol.VENDEDOR ? productos.filter((p) => !p.esPrueba) : productos;
+    return ocultarCosto(usuario.rol === Rol.VENDEDOR || paraVenta === '1' ? visibles.filter((p) => !p.ubicacionExclusivaId) : visibles, usuario);
   }
 
   @Get(':id')

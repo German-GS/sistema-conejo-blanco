@@ -59,7 +59,14 @@ const mostrarFormProducto = ref(false);
 const guardandoProducto = ref(false);
 // CABYS: opcional, pero si se escribe son 13 dígitos (Hacienda lo pide en cada línea de la factura electrónica).
 const cabysValido = (v) => !v.trim() || /^\d{13}$/.test(v.trim());
-const nuevoProducto = reactive({ codigo: '', nombre: '', descripcion: '', cabys: '', esPrueba: false });
+const nuevoProducto = reactive({ codigo: '', nombre: '', descripcion: '', cabys: '', esPrueba: false, ubicacionExclusivaId: '' });
+
+// Productos exclusivos de una tienda: solo se venden en su caja y conservan el código que ya usaban (no el formato estándar del catálogo).
+const tiendas = ref([]);
+const nombreTienda = (id) => tiendas.value.find((t) => t.id === id)?.nombre ?? 'una tienda';
+const codigoLibreValido = (v) => v.trim().length > 0 && v.trim().length <= 30;
+const codigoNuevoValido = computed(() => (nuevoProducto.ubicacionExclusivaId ? codigoLibreValido(nuevoProducto.codigo) : codigoProductoValido(nuevoProducto.codigo)));
+const normalizarSiCorresponde = (codigo, exclusivo) => (exclusivo ? codigo.trim() : normalizarCodigoProducto(codigo));
 
 // Colores del producto nuevo, capturados junto con el producto en el mismo
 // formulario — el color es texto libre, así que sirve igual para un color
@@ -82,7 +89,7 @@ const variantesNuevasValidas = computed(() =>
 );
 
 const productoNuevoValido = computed(
-  () => codigoProductoValido(nuevoProducto.codigo) && nuevoProducto.nombre.trim() && cabysValido(nuevoProducto.cabys) && variantesNuevasValidas.value.length > 0,
+  () => codigoNuevoValido.value && nuevoProducto.nombre.trim() && cabysValido(nuevoProducto.cabys) && variantesNuevasValidas.value.length > 0,
 );
 
 const productoParaVariante = ref(null);
@@ -124,7 +131,10 @@ async function cargar() {
   }
 }
 
-onMounted(cargar);
+onMounted(() => {
+  cargar();
+  api.get('/ubicaciones').then((u) => (tiendas.value = u.filter((x) => x.tipo === 'tienda' && x.activa))).catch(() => {});
+});
 
 async function crearProducto() {
   if (!productoNuevoValido.value) return;
@@ -132,11 +142,12 @@ async function crearProducto() {
   guardandoProducto.value = true;
   try {
     const producto = await api.post('/catalogo/productos', {
-      codigo: normalizarCodigoProducto(nuevoProducto.codigo),
+      codigo: normalizarSiCorresponde(nuevoProducto.codigo, nuevoProducto.ubicacionExclusivaId),
       nombre: nuevoProducto.nombre.trim(),
       descripcion: nuevoProducto.descripcion.trim() || undefined,
       cabys: nuevoProducto.cabys.trim() || undefined,
       ...(auth.esSistema && nuevoProducto.esPrueba ? { esPrueba: true } : {}),
+      ...(nuevoProducto.ubicacionExclusivaId ? { ubicacionExclusivaId: nuevoProducto.ubicacionExclusivaId } : {}),
     });
 
     // Los colores se crean uno por uno porque el backend no tiene (todavía)
@@ -153,7 +164,7 @@ async function crearProducto() {
       });
     }
 
-    Object.assign(nuevoProducto, { codigo: '', nombre: '', descripcion: '', cabys: '', esPrueba: false });
+    Object.assign(nuevoProducto, { codigo: '', nombre: '', descripcion: '', cabys: '', esPrueba: false, ubicacionExclusivaId: '' });
     variantesNuevas.value = [{ color: '', precioPorPar: '', costo: '' }];
     mostrarFormProducto.value = false;
     await cargar();
@@ -303,8 +314,9 @@ function quitarFilaVarianteEdicion(index) {
   variantesEdicion.value.splice(index, 1);
 }
 
+const productoExclusivoEnEdicion = computed(() => Boolean(productos.value.find((p) => p.id === productoEnEdicion.value)?.ubicacionExclusivaId));
 const edicionValida = computed(() => {
-  if (!codigoProductoValido(formularioEdicion.codigo) || !formularioEdicion.nombre.trim() || !cabysValido(formularioEdicion.cabys)) return false;
+  if (!(productoExclusivoEnEdicion.value ? codigoLibreValido(formularioEdicion.codigo) : codigoProductoValido(formularioEdicion.codigo)) || !formularioEdicion.nombre.trim() || !cabysValido(formularioEdicion.cabys)) return false;
   return variantesEdicion.value.every((v) => {
     if (!v.id && !v.color.trim() && !v.precioPorPar) return true; // fila nueva vacía, se ignora
     return v.color.trim() && Number(v.precioPorPar) > 0;
@@ -316,7 +328,7 @@ async function guardarEdicion(producto) {
   errorEdicion.value = '';
   guardandoEdicion.value = true;
   try {
-    const codigo = normalizarCodigoProducto(formularioEdicion.codigo);
+    const codigo = normalizarSiCorresponde(formularioEdicion.codigo, producto.ubicacionExclusivaId);
     const nombre = formularioEdicion.nombre.trim();
     const descripcion = formularioEdicion.descripcion.trim();
     const cabys = formularioEdicion.cabys.trim();
@@ -402,13 +414,13 @@ async function cargarEdiciones(productoId) {
           type="text"
           placeholder="KW 223-1L"
           class="input"
-          @blur="nuevoProducto.codigo = normalizarCodigoProducto(nuevoProducto.codigo)"
+          @blur="nuevoProducto.codigo = normalizarSiCorresponde(nuevoProducto.codigo, nuevoProducto.ubicacionExclusivaId)"
         />
         <p
           class="mt-1 text-sm"
-          :class="nuevoProducto.codigo && !codigoProductoValido(nuevoProducto.codigo) ? 'font-medium text-red-600' : 'text-slate-500'"
+          :class="nuevoProducto.codigo && !codigoNuevoValido ? 'font-medium text-red-600' : 'text-slate-500'"
         >
-          {{ CODIGO_PRODUCTO_AYUDA }}
+          {{ nuevoProducto.ubicacionExclusivaId ? 'Producto exclusivo de una tienda: puede llevar el código que ya usaba (hasta 30 caracteres).' : CODIGO_PRODUCTO_AYUDA }}
         </p>
       </div>
       <div>
@@ -423,6 +435,13 @@ async function cargarEdiciones(productoId) {
         <label class="label">CABYS (13 dígitos)</label>
         <input v-model="nuevoProducto.cabys" type="text" inputmode="numeric" maxlength="13" class="input" placeholder="Opcional por ahora; Hacienda lo exige al facturar" />
         <p v-if="!cabysValido(nuevoProducto.cabys)" class="mt-1 text-xs font-medium text-red-600">El CABYS tiene 13 dígitos.</p>
+      </div>
+      <div v-if="tiendas.length">
+        <label class="label">Exclusivo de una tienda (opcional)</label>
+        <select v-model="nuevoProducto.ubicacionExclusivaId" class="input">
+          <option value="">No: es del catálogo general (pedidos, facturas y todas las tiendas)</option>
+          <option v-for="t in tiendas" :key="t.id" :value="t.id">Solo en {{ t.nombre }}</option>
+        </select>
       </div>
       <label v-if="auth.esSistema" class="flex items-start gap-3 rounded-xl border-2 border-dashed border-amber-400 bg-amber-50 p-3 text-sm text-amber-900">
         <input v-model="nuevoProducto.esPrueba" type="checkbox" class="mt-0.5 size-5" />
@@ -494,7 +513,7 @@ async function cargarEdiciones(productoId) {
     <ul v-else class="flex flex-col gap-4">
       <li v-for="producto in productosFiltrados" :key="producto.id" class="card">
         <div class="mb-3 flex items-center justify-between gap-2">
-          <p class="flex flex-wrap items-center gap-2 text-base font-bold text-slate-900">{{ producto.codigo }} — {{ producto.nombre }}<span v-if="producto.esPrueba" class="rounded-full bg-amber-500 px-2.5 py-0.5 text-xs font-extrabold tracking-wide text-white">PRUEBA</span></p>
+          <p class="flex flex-wrap items-center gap-2 text-base font-bold text-slate-900">{{ producto.codigo }} — {{ producto.nombre }}<span v-if="producto.esPrueba" class="rounded-full bg-amber-500 px-2.5 py-0.5 text-xs font-extrabold tracking-wide text-white">PRUEBA</span><span v-if="producto.ubicacionExclusivaId" class="rounded-full bg-violet-100 px-2.5 py-0.5 text-xs font-bold text-violet-800">Solo en {{ nombreTienda(producto.ubicacionExclusivaId) }}</span></p>
           <div class="flex shrink-0 items-center gap-3">
             <button type="button" class="flex items-center gap-1 text-sm font-semibold text-slate-600 underline" @click="alternarHistorial(producto)">
               <History class="size-4" />
@@ -552,13 +571,13 @@ async function cargarEdiciones(productoId) {
               v-model="formularioEdicion.codigo"
               type="text"
               class="input bg-white"
-              @blur="formularioEdicion.codigo = normalizarCodigoProducto(formularioEdicion.codigo)"
+              @blur="formularioEdicion.codigo = normalizarSiCorresponde(formularioEdicion.codigo, productoExclusivoEnEdicion)"
             />
             <p
               class="mt-1 text-sm"
-              :class="!codigoProductoValido(formularioEdicion.codigo) ? 'font-medium text-red-600' : 'text-slate-500'"
+              :class="!(productoExclusivoEnEdicion ? codigoLibreValido(formularioEdicion.codigo) : codigoProductoValido(formularioEdicion.codigo)) ? 'font-medium text-red-600' : 'text-slate-500'"
             >
-              {{ CODIGO_PRODUCTO_AYUDA }}
+              {{ productoExclusivoEnEdicion ? 'Producto exclusivo de una tienda: conserva el código que ya usaba (hasta 30 caracteres).' : CODIGO_PRODUCTO_AYUDA }}
             </p>
           </div>
           <div>
